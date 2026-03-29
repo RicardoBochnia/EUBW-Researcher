@@ -1,6 +1,6 @@
 # Requirements Patches
 
-Status: no patches raised at review freeze
+Status: no formal patches raised after external review wave
 Purpose: handle real requirements contradictions or decision-critical gaps discovered during architecture drafting
 
 ## 1. Scope
@@ -51,3 +51,5 @@ No requirements patches have been raised during the initial option-scoping and p
 Use this section only for short explanatory notes that do not fit into the table.
 
 - Initial handoff state: no blocker-level requirements contradictions were found while drafting the first 3+1 option set.
+- External review wave outcome: no formal requirements patch was opened.
+- One reviewer noted a possible clarification around internal-process inspectability. This was treated as a non-blocking architecture-comparison note rather than a formal requirements defect because the frozen basis already requires visible hierarchy, contradiction, uncertainty, and source-role preservation in the answer behavior.
