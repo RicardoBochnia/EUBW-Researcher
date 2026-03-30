@@ -1,6 +1,6 @@
 # Option A Implementation Plan
 
-Status: revised after implementation-plan review wave 1
+Status: finalized after implementation-plan review wave 2
 Selected architecture basis: [PLAN.md](./PLAN.md)
 Purpose: turn the chosen Option A architecture into an implementation-ready build plan for V1
 
@@ -97,6 +97,11 @@ Tie-break rules for conflicting admissible evidence:
 - among admissible same-rank sources, the more directly on-point provision wins for `confirmed`; otherwise downgrade to `open`
 - national implementation material may explain or illustrate but must not override binding EU-level material
 
+V1 implementation constraint:
+- `more directly on-point` must be implemented with a simple structural heuristic, not a free-form semantic arbitration step
+- acceptable first-cut signals are provision granularity, explicit scope match, and exact terminology overlap
+- if the heuristic does not resolve the conflict clearly, keep the claim `open`
+
 ### 5.2 Retrieval-gap and web-expansion contract
 
 Web expansion is allowed only when a `gap record` exists.
@@ -116,14 +121,20 @@ For V1, a high-rank local layer is considered exhausted only when:
 - the top local candidates for that required source role have been inspected, or the source catalog shows none are available
 - no admissible direct-support passage was found for the sub-question
 
+V1 retrieval defaults:
+- lexical and semantic retrieval may run in parallel, but both must complete before exhaustion is claimed
+- the default inspection depth is `top_k = 5` candidates per required source layer unless a config override is set
+
 Web expansion may then occur only if:
 - the gap record explicitly names official-web search as the next action
 - the allowed target domain is in the allowlist
 - the expected web source role is equal to or lower than the unresolved target layer and still acceptable under the requirements basis
+- if same-rank official web material is plausibly available, it must be preferred before lower-rank web material
 
 Contradiction rule:
 - contradictory local evidence does not itself justify web expansion
 - web expansion is justified only if an official higher-rank or same-rank source could plausibly resolve the contradiction and is not already present locally
+- if contradiction remains unresolved after allowed search steps, the final claim state stays `open` and must be rendered explicitly in the answer
 
 ### 5.3 Anchor-degradation contract
 
@@ -131,12 +142,19 @@ When anchor extraction is weak or missing:
 - the ingestion layer must mark the source as `document_only`
 - the ledger entry must preserve that citation-quality flag
 - the answer composer must render the claim with document-level citation only and not pretend anchor-level grounding exists
+- if even internal structure is weak, the source must additionally be marked `structure_poor` and rendered with an explicit full-document citation
 
 For core claims:
 - a high-rank or referenced-standard source with document-only support may still be used, but only as:
   - `confirmed` if the governing source is clearly identified and the missing anchor is a technical extraction failure rather than an epistemic gap
   - otherwise `interpretive`
 - medium-rank or lower-rank document-only evidence must not be used to confirm a core claim
+
+V1 audit heuristic for `technical extraction failure`:
+- the source is already admitted and correctly ranked in the source catalog
+- relevant content is retrievable at full-document or chunk level
+- the missing anchor is attributable to parser or source-structure limitations rather than uncertainty about whether the source actually supports the claim
+- if these conditions are not met, treat the case as an epistemic gap rather than a technical extraction failure
 
 ## 6. Target repository shape
 
@@ -206,13 +224,14 @@ Deliverables:
   - anchorability flags
 - document ingestion pipeline for local curated sources
 - chunking and anchor extraction at document/article/section level where possible
-- ingestion report that shows which sources have strong, weak, or missing anchors
+- ingestion report that shows which sources have strong, weak, or missing anchors and which source-role level was assigned to each source
 
 Acceptance criteria:
 - local curated sources can be ingested into a consistent internal representation
 - the system can emit document-level citations for all ingested sources
 - anchor-level references are available where source structure permits
 - anchor extraction failures are visible in logs or reports, not silent
+- the ingestion report exposes per-source source-role level so ranking mistakes are diagnosable before retrieval work begins
 
 ### Phase 2: Ranked retrieval planner and local retrieval
 
@@ -222,6 +241,7 @@ Deliverables:
 - local retrieval engine over curated corpus
 - reranking step that incorporates source role and likely topical fit
 - explicit gap record when high-rank evidence is weak or missing
+- explicit default retrieval settings for initial tuning, including candidate inspection depth
 
 Acceptance criteria:
 - a regulation-heavy query searches high-rank EU sources before lower-rank material
@@ -286,13 +306,14 @@ Deliverables:
   - direct answer or synthesis
   - visible uncertainty handling
   - citations per claim block
-  - optional distinction between confirmed, interpretive, and open points
+  - visible distinction between `confirmed`, `interpretive`, and `open` claim blocks whenever mixed support states occur
 - non-blocking clarification behavior for broad questions
 
 Acceptance criteria:
 - every answer includes document-level citations
 - claim-specific statements include anchor references where available
 - the answer does not flatten source hierarchy when multiple source roles are involved
+- if a claim is `open` or `interpretive`, that state remains visible in the rendered answer
 - broad questions can still produce a useful first-pass answer without forcing a long interview loop
 
 ### Phase 6: Evaluation and hardening gate
@@ -366,5 +387,9 @@ If this gate passes, implementation should start with:
 3. one thin vertical slice through Phases 2 to 5 for Scenario C
 4. one second thin slice that explicitly tests a regulation-heavy or missed-governing-source case before broader expansion
 5. then broaden to the primary success scenario and Scenario A
+
+Slice exit criteria:
+- the first thin slice is complete when Scenario C yields a reviewable answer with correct source-role tags, document-level citations, and no false-elevation behavior
+- the second thin slice is complete when a regulation-heavy or missed-governing-source case yields a reviewable answer with correct `blocked` or `open` behavior and a stored gap record
 
 This ordering keeps the first coded slice narrow enough to debug while ensuring that the first hardening step does not ignore the architecture's main residual risk.

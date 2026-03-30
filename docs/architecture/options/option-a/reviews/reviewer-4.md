@@ -1,6 +1,6 @@
 # Option A Implementation Plan Review
 
-Status: completed review
+Status: completed revised review
 Review target: [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)
 
 ## 1. Required inputs
@@ -20,53 +20,53 @@ Assess whether the implementation plan is concrete enough, disciplined enough, a
 List findings first, ordered by severity.
 
 ### P1 / blocker
-- The core safety mechanism is still not operationally specified enough to code or test. Phase 4 and Phase 5 say the controller will block unsupported core claims, downgrade weak ones, and preserve contradiction and uncertainty, but the plan never defines the claim-state model or the decision rules that separate `confirmed`, `interpretive`, `open`, `blocked`, and document-only cases. Because avoiding unsupported or wrongly supported core claims is the non-negotiable requirement and the main reason Option A was selected, this needs to be fixed before core-path coding starts.
-- The retrieval-gap and web-expansion contract is still too abstract for implementation readiness. Phase 2 and Phase 3 require ranked traversal, explicit gap records, and defensive web fallback, but they do not define what evidence signals count as "under-supported," when high-rank local search is considered exhausted, or what concrete test proves the system caught a missed-governing-source case. That leaves the highest-available-source rule and the main residual Option A risk untestable.
+- No blocker identified in the revised plan. The previous blocker-level gaps around claim-state rules, retrieval-gap and web-trigger rules, anchor degradation handling, and evaluation artifacts are now materially addressed.
 
 ### P2 / important risk
-- The first thin vertical slice is pointed at Scenario C, which is narrower than the architecture's main V1 risk profile. Scenario C is useful for standards retrieval, but it does not pressure-test the cross-layer EU-first flow, the governing-source-miss failure mode, or the primary success scenario's provisional grouping. The first slice should include at least one cross-layer or failure-mode fixture, not Scenario C alone.
-- Anchor fallback is named as a required control, but the degraded behavior is not defined. The plan requires ingestion reports and a visible fallback when anchors are weak or missing, yet it does not decide when document-level citation is still acceptable, when a claim must be downgraded, or when the answer should refuse a claim. This will become a live ambiguity as soon as real corpus ingestion starts.
+- The final answer contract is still slightly inconsistent with the new claim-state model. Section 5 makes `confirmed`, `interpretive`, `open`, and `blocked` central control states, but Phase 5 still describes the distinction between confirmed, interpretive, and open points as optional in rendering. If mixed-support answers can be rendered without visibly carrying those distinctions, the final step can still flatten uncertainty and source-role meaning.
+- The retrieval-gap contract is much stronger now, but two implementation-shaping details are still open: how many "top local candidates" must be inspected before a layer is treated as exhausted, and whether same-rank official web sources must be preferred before lower-rank web material when a high-rank gap remains. Those details can change whether a claim ends as confirmed, interpretive, open, or blocked.
+- The document-only `confirmed` exception is practical but risky. The plan now allows confirmation when the governing source is clear and the missing anchor is judged to be a technical extraction failure, but it still does not define the repeatable heuristic or review test that distinguishes technical extraction failure from a real epistemic gap.
 
 ### P3 / improvement
-- Evaluation artifacts should be made explicit, not implied. For each scenario run, the plan should require storage of the retrieval plan, gap record, approved ledger, and final answer so later manual review can diagnose whether a failure came from retrieval, normalization, controller logic, or synthesis.
+- Turn the remaining open control details into visible config or fixture rules before Phase 2 or 3 merges: candidate-inspection depth, same-rank-before-lower-rank web escalation, and the audit cases for document-only `confirmed` claims.
 
 ## 4. Summary verdict
 
-- Overall verdict: `not ready`
-- Short rationale: The plan is disciplined on scope and stays aligned with the chosen Option A architecture, but two implementation-critical contracts are still missing: the controller rules for blocking or downgrading claims, and the retrieval-gap/web-trigger rules that defend the highest-available-source requirement. Those need to be locked before core-path coding starts.
+- Overall verdict: `ready with revisions`
+- Short rationale: The revised plan is now concrete enough to start coding and stays disciplined within the selected Option A architecture. The remaining issues are no longer blocker-level; they are tightening steps around final-state rendering visibility, retrieval exhaustion semantics, and the auditability of document-only confirmation.
 
 ## 5. What the plan gets right
 
-- It stays inside the selected Option A architecture instead of quietly drifting toward graph-first or multi-specialist designs.
-- It keeps V1 scope narrow: EU-first, curated corpus first, defensive web second, no separate UI, no broad member-state engine, and no freshness automation.
-- The phase sequence maps cleanly onto the Option A architecture components: corpus foundation, ranked retrieval, defensive web expansion, evidence ledger, source-role control, answer composition, and evaluation.
-- It preserves the right quality stance for this project: explicit controls, visible configs, visible logs, and an evaluation gate that includes the required scenarios and the high-risk failure pattern.
+- It directly addresses the main issues from the first review by adding explicit operational contracts for claim states, gap records, web triggering, anchor degradation, and evaluation artifacts.
+- It stays inside the selected Option A architecture and does not drift toward graph-first, multi-specialist, or UI-heavy scope.
+- It strengthens inspectability in the right places: visible configs, visible decision tables, visible gap records, visible scenario artifacts, and a testable controller contract.
+- It improves build sequencing by adding a second thin slice that explicitly exercises a regulation-heavy or missed-governing-source case before broadening out.
 
 ## 6. Missing implementation decisions
 
-- The claim-state and answer contract need to be specified: what counts as a core claim, what minimum support is needed for each claim state, and when document-only support is acceptable versus downgrade or block.
-- The retrieval-gap contract needs explicit triggers and stop conditions: how the planner decides a high-rank source layer has been searched sufficiently, when web fallback is allowed, and what artifact records that decision.
-- The source hierarchy needs operational tie-break rules for partially overlapping evidence across regulation, implementing acts, standards, and official project material.
-- The anchor-degradation contract needs to be fixed: what the answer may still say when anchors are weak or absent, and how that changes ledger status.
+- Decide whether mixed-state answers must visibly label `confirmed`, `interpretive`, and `open` blocks, or define an equally explicit alternative rendering rule that still preserves uncertainty and source role in the final answer.
+- Fix the inspection-depth rule for "top local candidates" so retrieval exhaustion is reproducible and not left to implementation drift.
+- Decide whether official same-rank web sources must be preferred before lower-rank web material whenever a high-rank gap remains.
+- Define the test heuristic for when document-only support counts as a technical extraction failure rather than an epistemic insufficiency.
 
 ## 7. Scope or architecture drift risks
 
-- If ranking, gap detection, or source-role exceptions end up living mainly in prompt text instead of visible config and controller code, the implementation will drift away from Option A's inspectable-control premise.
-- Scenario C first can bias the build toward a standards-only happy path and delay the harder cross-layer and failure-mode work that actually justified choosing Option A.
-- Anchor weakness could silently widen into "document citation is always enough" unless the degraded-answer rules are explicitly bounded now.
+- If claim-state visibility remains optional in the final answer, the implementation can drift back toward smoother prose that hides support quality differences.
+- If candidate-inspection depth and web escalation order live mainly in code or prompt behavior rather than config and fixtures, the plan will lose some of Option A's inspectable-control advantage.
+- If document-only `confirmed` cases are not tightly audited, the technical-exception path can slowly widen into a loophole for overconfident answers.
 
 ## 8. Risk controls check
 
 | Check | Assessment | Concern if any |
 | --- | --- | --- |
-| Source hierarchy is explicit | Partially meets | The plan names `source_hierarchy.yaml`, but not the operational ranking semantics or tie-break behavior needed by the planner and controller. |
-| Web allowlist is explicit | Partially meets | The plan names `web_allowlist.yaml` and an allowlisted fetch path, but not the concrete trigger or review rule for adding domains or expanding source classes. |
-| Unsupported-claim blocking is explicit | Partially meets | The requirement is repeated clearly, but the actual block/downgrade decision table is still missing. |
-| Retrieval-miss failure is explicitly tested | Partially meets | The high-risk failure pattern is present in Phase 6, but the plan does not yet define concrete fixtures or pass/fail signals for a missed-governing-source test. |
-| Anchor weakness has a fallback path | Partially meets | A fallback is required and anchor reporting is planned, but the degraded answer behavior is not specified. |
-| V1 non-goals are protected | Meets | Non-goals are explicit and consistent with the selected architecture. |
+| Source hierarchy is explicit | Meets with caveat | The hierarchy is now clearly intended as visible config plus decision rules, but same-rank EU-source ordering still needs one more operational rule. |
+| Web allowlist is explicit | Meets with caveat | The allowlist and metadata contract are explicit, but the escalation order between same-rank and lower-rank web sources should be fixed. |
+| Unsupported-claim blocking is explicit | Meets with caveat | The claim-state decision model is now explicit, but final rendering still needs to preserve those states visibly enough. |
+| Retrieval-miss failure is explicitly tested | Meets with caveat | The plan now includes a negative fixture and stored artifacts, but the layer-exhaustion threshold still needs a concrete inspection-depth rule. |
+| Anchor weakness has a fallback path | Meets with caveat | The degradation path is now specified, but the document-only `confirmed` exception still needs repeatable tests. |
+| V1 non-goals are protected | Meets | No material concern. |
 
 ## 9. Gate recommendation
 
-- Can coding start after this review? `no`
-- If no, what must change first? `Lock three implementation contracts before core-path coding: (1) claim-state plus block/downgrade rules, (2) retrieval-gap plus web-trigger rules, and (3) degraded answer behavior when anchors are weak or missing. Also change the first vertical slice so it exercises at least one cross-layer or missed-governing-source case, not Scenario C alone.`
+- Can coding start after this review? `yes`
+- If no, what must change first? `n/a`

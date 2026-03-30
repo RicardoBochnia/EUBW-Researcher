@@ -20,50 +20,45 @@ Assess whether the implementation plan is concrete enough, disciplined enough, a
 List findings first, ordered by severity.
 
 ### P1 / blocker
-- **Web-expansion trigger is underspecified**: The plan mentions "gap detection" as the condition to allow list-based web fallback, but does not define what constitutes a gap (e.g., no sources retrieved vs. low confidence vs. contradicted sources). 
-- **Anchor extraction fallback is undefined**: The architecture review highlighted anchor extraction as load-bearing. The plan lists "visible fallback when anchors are weak" as a risk control, but misses specifying what the fallback actually entails (e.g., document-level citation only, or claim downgrade).
+- `None.` The revisions successfully addressed previous blockers regarding gap detection and anchor fallbacks.
 
 ### P2 / important risk
-- **Ledger block/downgrade mechanism is conceptual**: Phase 4 correctly mandates blocking unsupported claims, but lacks a technical strategy for how the logic differentiates between blocking a claim entirely versus downgrading it to an interpretive/open point.
-- **High-risk failure untested until Phase 6**: The sequence keeps hardening and testing the high-risk failure pattern ("plausible but overlooks higher-ranked source") until Phase 6. This risks finding fundamental issues with the retrieval planner (Phase 2) late in implementation.
+- **Tie-break logic complexity**: The rules for resolving conflicts between admissible evidence (Section 5.1) are conceptually sound, but programmatically determining which provision is "more directly on-point" among same-rank sources could be fragile. The system might default too often to an `open` state if this logic is strictly applied, which should be closely monitored during Phase 4.
 
 ### P3 / improvement
-- **Phase 1 metadata output**: The ingestion report should explicitly test that source-role rank is correctly loaded, as it is a firm prerequisite for Phase 2's planner.
+- **Phase 1 metadata output**: While anchor extraction logging is required by Phase 1, the ingestion report should also explicitly list the `source role level` mapped to each document to ensure Phase 2's planner receives the correct baseline metadata.
 
 ## 4. Summary verdict
 
-- Overall verdict: `ready with revisions`
-- Short rationale: The plan successfully maps the evidence-first architecture into V1 build phases, but requires operational clarity on the web-fallback trigger and anchor fallback behaviors to prevent scope drift during coding.
+- Overall verdict: `ready`
+- Short rationale: The revised plan thoroughly translates the architecture into a concrete build plan. By explicitly defining operational contracts for claim-states (block vs. downgrade), web-expansion triggers, and anchor-degradation fallbacks, the plan establishes strict guardrails for compliance without being functionally paralyzed.
 
 ## 5. What the plan gets right
 
-- The phase sequence enforces the non-negotiable requirement of source-role discipline, focusing on curated corpus ingestion and evaluation before complex orchestrations.
-- It correctly protects the V1 scope by actively minimizing manual effort loops and explicitly listing multi-agent flows or graph structures as non-goals.
-- Evaluative testing and the high-risk failure scenario are first-class deliverables.
+- **Explicit operational contracts**: Sections 5.1 to 5.3 successfully migrate the architecture from abstract rules to actionable, testable code states (`confirmed`, `interpretive`, `open`, `blocked`, and gap records).
+- **Shift-left on failure testing**: Moving the test for the highest-risk failure mode ("missed governing source") up into Phase 2 ensures the core retrieval planner handles absence properly before the rest of the ledger is built.
+- **Protects V1 scope**: Rejects unnecessary multi-agent orchestrations and explicitly defines manual-effort minimization boundaries.
 
 ## 6. Missing implementation decisions
 
-- The precise criteria that trigger Phase 3 web expansion based on a "local-corpus gap".
-- The defined system behavior when Phase 1 fails to extract article/section-level anchors for critical documents (e.g., fallback to document-level citation).
-- The operational logic that dictates whether a weakly supported claim is blocked completely or conditionally passed as an uncertain observation in Phase 4.
+- **Top Candidate Thresholds**: The gap-record contract states a high-rank layer is exhausted when "top local candidates" are inspected, but does not yet establish the specific tuning bounds (e.g., top-K documents or semantic distance thresholds). This is an acceptable minor tuning decision left to implementation.
 
 ## 7. Scope or architecture drift risks
 
-- **Gap-detection sprawl**: If left undefined, developers might implement an overly complex logic for gap-detection that silently introduces orchestration loops.
-- **Web scraping boundary**: Web expansion normalization could pull in non-compliant material if the allowlist parser isn't strictly gated.
+- **Tie-breaker drift**: Implementing the "more directly on-point provision" tie-breaker could inadvertently introduce resource-heavy semantic evaluation loops during the Source Role Controller step (Phase 4), functioning as an opaque, mini orchestrator. The initial implementation here must be kept intentionally simple.
 
 ## 8. Risk controls check
 
 | Check | Assessment | Concern if any |
 | --- | --- | --- |
-| Source hierarchy is explicit | Meets | Requires verification in the Phase 1 Ingestion Report. |
-| Web allowlist is explicit | Meets | None material. |
-| Unsupported-claim blocking is explicit | Meets | The mechanism is conceptual and needs a defined condition. |
-| Retrieval-miss failure is explicitly tested | Meets | Slated for Phase 6; consider shifting a spike earlier. |
-| Anchor weakness has a fallback path | Fails | The plan flags the control but does not declare the fallback behavior. |
-| V1 non-goals are protected | Meets | Safe; clearly categorized in Section 7. |
+| Source hierarchy is explicit | Meets | Requires verification during Phase 1 logging. |
+| Web allowlist is explicit | Meets | Addressed via configuration and phase requirements. |
+| Unsupported-claim blocking is explicit | Meets | Claim-state logic explicitly forces `blocked` outcomes. |
+| Retrieval-miss failure is explicitly tested | Meets | Promoted to a hard acceptance criterion in Phase 2. |
+| Anchor weakness has a fallback path | Meets | Explicitly resolved via the `document_only` citation quality flag. |
+| V1 non-goals are protected | Meets | Safe; explicitly documented out-of-scope boundaries. |
 
 ## 9. Gate recommendation
 
-- Can coding start after this review? `no`
-- If no, what must change first? The implementation plan must define the exact trigger conditions for web expansion and the concrete fallback behavior for missing anchor metadata before Phase 1 commences.
+- Can coding start after this review? `yes`
+- If no, what must change first? `n/a`
