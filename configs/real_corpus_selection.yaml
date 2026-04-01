@@ -1,0 +1,149 @@
+{
+  "archive_root": "../artifacts/real_corpus/archive",
+  "archive_catalog": "../artifacts/real_corpus/archive/catalog.json",
+  "sources": [
+    {
+      "archive_source_id": "SRC-L-02-FT-EN-DOC_1",
+      "source_id": "celex_32024R1183_fulltext_en",
+      "title": "Regulation (EU) 2024/1183 amending Regulation (EU) No 910/2014",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-05-FT-EN-DOC_1",
+      "source_id": "celex_32024R2981_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2024/2981",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-06-FT-EN-DOC_1",
+      "source_id": "celex_32024R2982_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2024/2982",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-33-FT-EN-DOC_1",
+      "source_id": "celex_32024R2980_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2024/2980",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-34-FT-EN-DOC_1",
+      "source_id": "celex_32025R0846_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2025/846",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-35-FT-EN-DOC_1",
+      "source_id": "celex_32025R0847_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2025/847",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-36-FT-EN-DOC_1",
+      "source_id": "celex_32025R0848_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2025/848",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-37-FT-EN-DOC_1",
+      "source_id": "celex_32025R0849_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2025/849",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-06",
+      "source_id": "openid4vci_1_0_official",
+      "title": "OpenID for Verifiable Credential Issuance 1.0",
+      "source_kind": "technical_standard",
+      "source_role_level": "high",
+      "jurisdiction": "international",
+      "publication_status": "standard",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-07",
+      "source_id": "openid4vp_1_0_official",
+      "title": "OpenID for Verifiable Presentations 1.0",
+      "source_kind": "technical_standard",
+      "source_role_level": "high",
+      "jurisdiction": "international",
+      "publication_status": "standard",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-01",
+      "source_id": "eudi_arf_latest_archive",
+      "title": "European Digital Identity Architecture and Reference Framework",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "living_document",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "section_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-30",
+      "source_id": "ec_ts05_rp_registration_api",
+      "title": "Common Formats and API for Relying Party Registration Information",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-31",
+      "source_id": "ec_ts06_rp_information_set",
+      "title": "Common Set of Relying Party Information to be Registered",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    }
+  ]
+}

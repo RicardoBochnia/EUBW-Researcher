@@ -1,0 +1,12 @@
+{
+  "default_eu_first": true,
+  "levels": [
+    {"source_kind": "regulation", "source_role_level": "high", "rank": 1},
+    {"source_kind": "implementing_act", "source_role_level": "high", "rank": 2},
+    {"source_kind": "technical_standard", "source_role_level": "high", "rank": 3},
+    {"source_kind": "project_artifact", "source_role_level": "medium", "rank": 4},
+    {"source_kind": "scientific_literature", "source_role_level": "medium", "rank": 5},
+    {"source_kind": "national_implementation", "source_role_level": "medium", "rank": 6},
+    {"source_kind": "commentary", "source_role_level": "low", "rank": 7}
+  ]
+}

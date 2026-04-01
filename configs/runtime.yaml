@@ -1,0 +1,25 @@
+{
+  "logging": {
+    "level": "INFO"
+  },
+  "retrieval": {
+    "top_k": 5,
+    "lexical_weight": 0.6,
+    "semantic_weight": 0.4,
+    "min_combined_score": 0.05,
+    "web_timeout_seconds": 10,
+    "web_discovery_max_depth": 1,
+    "web_discovery_max_pages": 12,
+    "web_discovery_max_candidates_per_kind": 5,
+    "web_max_admitted_per_domain": 10,
+    "web_max_admitted_per_run": 25,
+    "semantic_expansions": {
+      "authorization": ["authorisation", "authz"],
+      "server": ["as"],
+      "presentation": ["verifiable", "vp"],
+      "credential": ["issuance", "vci"],
+      "openid4vci": ["credential", "issuance"],
+      "openid4vp": ["presentation", "verifier"]
+    }
+  }
+}

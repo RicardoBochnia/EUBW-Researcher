@@ -1,0 +1,108 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "primary_success_scenario",
+      "question": "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+      "expectation": "Return a reviewable first-pass answer that keeps unresolved higher-rank gaps visible on the real corpus.",
+      "required_intent_type": "wallet_requirements_summary",
+      "required_states": ["interpretive"],
+      "allowed_states": ["interpretive", "blocked"],
+      "required_sources": ["celex_32025R0848_fulltext_en"],
+      "required_answer_substrings": ["Interpretive"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_gap_reason_substrings": [
+        "All ranked local layers for this target were inspected",
+        "Only under-powered local support was found"
+      ],
+      "required_gap_actions": ["stop_local_only"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "require_provisional_grouping": true,
+      "require_manual_review_accept": true,
+      "min_gap_records": 2,
+      "min_ledger_entries": 2
+    },
+    {
+      "scenario_id": "scenario_a_registration_and_access_certificate_analysis",
+      "question": "How should I analyse registration and access certificate requirements across regulation, annex, and national guidance?",
+      "expectation": "Return a reviewable cross-layer answer that keeps missing local governing support explicit on the real corpus.",
+      "required_intent_type": "certificate_layer_analysis",
+      "required_states": ["interpretive"],
+      "allowed_states": ["interpretive", "blocked"],
+      "required_sources": ["celex_32025R0848_fulltext_en"],
+      "required_answer_substrings": ["Interpretive"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_gap_reason_substrings": [
+        "All ranked local layers for this target were inspected",
+        "Only under-powered local support was found"
+      ],
+      "required_gap_actions": ["stop_local_only"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "min_gap_records": 3,
+      "min_ledger_entries": 3
+    },
+    {
+      "scenario_id": "scenario_b_registration_certificate_mandatory",
+      "question": "Is the registration certificate mandatory at EU level, or is that delegated to member states?",
+      "expectation": "Prefer EU-level material and keep unresolved certificate support visible on the real corpus.",
+      "required_intent_type": "registration_certificate_scope",
+      "required_states": ["interpretive"],
+      "allowed_states": ["interpretive", "blocked"],
+      "required_sources": ["celex_32024R1183_fulltext_en"],
+      "required_answer_substrings": ["Interpretive"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_gap_reason_substrings": [
+        "All ranked local layers for this target were inspected",
+        "Only under-powered local support was found"
+      ],
+      "required_gap_actions": ["official_web_search"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "required_web_discovery_count": 1,
+      "require_manual_review_accept": true,
+      "min_gap_records": 2,
+      "min_ledger_entries": 2
+    },
+    {
+      "scenario_id": "scenario_c_protocol_authorization_server",
+      "question": "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
+      "expectation": "Return a reviewable standards-based answer with one confirmed and one unresolved point on the real corpus.",
+      "required_intent_type": "protocol_authorization_server_comparison",
+      "required_states": ["confirmed", "open"],
+      "allowed_states": ["confirmed", "open"],
+      "required_sources": [
+        "openid4vci_1_0_official",
+        "openid4vp_1_0_official"
+      ],
+      "required_answer_substrings": ["Confirmed", "Open:"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_gap_reason_substrings": [
+        "Contradictory admissible evidence remains unresolved"
+      ],
+      "required_gap_actions": ["stop_local_only"],
+      "required_retrieval_prefix_kinds": ["technical_standard"],
+      "min_gap_records": 1,
+      "min_ledger_entries": 2
+    },
+    {
+      "scenario_id": "high_risk_failure_pattern",
+      "question": "Does the ARF require an authorization server for verifier-initiated presentation flows?",
+      "expectation": "Do not falsely elevate project material over the governing standard on the real corpus.",
+      "required_intent_type": "arf_boundary_check",
+      "required_states": ["open"],
+      "allowed_states": ["open", "blocked"],
+      "required_sources": [
+        "openid4vci_1_0_official",
+        "openid4vp_1_0_official"
+      ],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_answer_substrings": ["Open:"],
+      "required_gap_reason_substrings": [
+        "Contradictory admissible evidence remains unresolved",
+        "All ranked local layers for this target were inspected"
+      ],
+      "required_gap_actions": ["stop_local_only"],
+      "required_retrieval_prefix_kinds": ["technical_standard", "project_artifact"],
+      "min_gap_records": 2,
+      "min_ledger_entries": 2
+    }
+  ]
+}

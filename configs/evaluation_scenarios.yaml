@@ -1,0 +1,89 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "primary_success_scenario",
+      "question": "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+      "expectation": "Return a regulation-plus-annex first-pass answer with visible source states.",
+      "required_intent_type": "wallet_requirements_summary",
+      "required_states": ["confirmed"],
+      "allowed_states": ["confirmed", "interpretive"],
+      "required_sources": [
+        "eidas_regulation_business_wallet",
+        "wallet_implementing_act_annex"
+      ],
+      "required_answer_substrings": ["Confirmed"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "require_provisional_grouping": true,
+      "min_ledger_entries": 2
+    },
+    {
+      "scenario_id": "scenario_a_registration_and_access_certificate_analysis",
+      "question": "How should I analyse registration and access certificate requirements across regulation, annex, and national guidance?",
+      "expectation": "Return a cross-layer answer that keeps EU obligations separate from national guidance.",
+      "required_intent_type": "certificate_layer_analysis",
+      "required_states": ["confirmed", "interpretive"],
+      "allowed_states": ["confirmed", "interpretive"],
+      "required_sources": [
+        "eidas_regulation_business_wallet",
+        "german_wallet_guidance_note"
+      ],
+      "required_answer_substrings": ["Interpretive"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_gap_reason_substrings": [
+        "Only under-powered local support was found"
+      ],
+      "required_gap_actions": ["stop_local_only"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "min_gap_records": 1,
+      "min_ledger_entries": 3
+    },
+    {
+      "scenario_id": "scenario_b_registration_certificate_mandatory",
+      "question": "Is the registration certificate mandatory at EU level, or is that delegated to member states?",
+      "expectation": "Prefer EU-level regulation and keep national discretion visible.",
+      "required_intent_type": "registration_certificate_scope",
+      "required_states": ["confirmed"],
+      "allowed_states": ["confirmed"],
+      "required_sources": ["eidas_regulation_business_wallet"],
+      "required_answer_substrings": ["Member States may define national registration procedures"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "min_ledger_entries": 2
+    },
+    {
+      "scenario_id": "scenario_c_protocol_authorization_server",
+      "question": "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
+      "expectation": "Return a reviewable standards-based answer with visible claim states and anchor citations.",
+      "required_intent_type": "protocol_authorization_server_comparison",
+      "required_states": ["confirmed"],
+      "allowed_states": ["confirmed"],
+      "required_sources": [
+        "openid4vci_draft13",
+        "openid4vp_draft18"
+      ],
+      "forbidden_sources": ["ssi_commentary_blog"],
+      "required_answer_substrings": ["Confirmed"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_retrieval_prefix_kinds": ["technical_standard"],
+      "min_ledger_entries": 2
+    },
+    {
+      "scenario_id": "high_risk_failure_pattern",
+      "question": "Does the ARF require an authorization server for verifier-initiated presentation flows?",
+      "expectation": "Do not falsely elevate ARF material over the governing standard.",
+      "required_intent_type": "arf_boundary_check",
+      "required_states": ["confirmed", "interpretive"],
+      "allowed_states": ["confirmed", "interpretive"],
+      "required_sources": [
+        "openid4vp_draft18",
+        "arf_profile_note"
+      ],
+      "forbidden_sources": ["ssi_commentary_blog"],
+      "required_answer_substrings": ["Interpretive"],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_retrieval_prefix_kinds": ["technical_standard", "project_artifact"],
+      "min_ledger_entries": 2
+    }
+  ]
+}

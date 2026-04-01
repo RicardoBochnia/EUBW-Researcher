@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        default="configs/real_corpus_selection.yaml",
+        help="Archive-selection config for the real local corpus.",
+    )
+    parser.add_argument(
+        "--output",
+        default="artifacts/real_corpus/curated_catalog.json",
+        help="Where to write the generated internal source catalog.",
+    )
+    parser.add_argument(
+        "--report",
+        default="artifacts/real_corpus/ingestion_report.json",
+        help="Where to write the ingestion report for the generated catalog.",
+    )
+    parser.add_argument(
+        "--coverage-report",
+        default="artifacts/real_corpus/corpus_coverage_report.json",
+        help="Where to write the corpus coverage gate report.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    repo_root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(repo_root / "src"))
+
+    from eubw_researcher.config import load_archive_corpus_config
+    from eubw_researcher.corpus import (
+        build_catalog_from_archive,
+        load_or_build_ingestion_bundle,
+        write_source_catalog,
+        write_corpus_coverage_report,
+    )
+    from eubw_researcher.models import dataclass_to_dict
+
+    archive_config = load_archive_corpus_config((repo_root / args.config).resolve())
+    catalog = build_catalog_from_archive(archive_config)
+    output_path = (repo_root / args.output).resolve()
+    write_source_catalog(catalog, output_path)
+
+    _, bundle, coverage_report, _ = load_or_build_ingestion_bundle(output_path)
+    report_path = (repo_root / args.report).resolve()
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(dataclass_to_dict(bundle.report), indent=2),
+        encoding="utf-8",
+    )
+    if coverage_report is not None:
+        write_corpus_coverage_report(
+            coverage_report,
+            (repo_root / args.coverage_report).resolve(),
+        )
+
+    print(output_path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,67 @@
+{
+  "allowed_domains": [
+    "eur-lex.europa.eu",
+    "europa.eu",
+    "ec.europa.eu",
+    "openid.net",
+    "eudi-walletconsortium.org"
+  ],
+  "domain_policies": [
+    {
+      "domain": "eur-lex.europa.eu",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_urls": ["https://eur-lex.europa.eu/homepage.html"],
+      "allowed_path_prefixes": ["/legal-content/", "/eli/"],
+      "blocked_url_keywords": [
+        "/homepage.html",
+        "/print-pdf.html",
+        "/protected/",
+        "/eu-enlargement/",
+        "/eli-register/"
+      ]
+    },
+    {
+      "domain": "europa.eu",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_urls": [],
+      "allowed_path_prefixes": ["/"],
+      "blocked_url_keywords": ["/news", "/press", "/events", "/homepage", "/commission-presscorner"]
+    },
+    {
+      "domain": "ec.europa.eu",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_urls": [],
+      "allowed_path_prefixes": ["/"],
+      "blocked_url_keywords": ["/news", "/press", "/events", "/homepage", "/commission-presscorner"]
+    },
+    {
+      "domain": "openid.net",
+      "source_kind": "technical_standard",
+      "source_role_level": "high",
+      "jurisdiction": "international",
+      "seed_urls": [],
+      "discovery_urls": ["https://openid.net/specs/"],
+      "allowed_path_prefixes": ["/specs/"],
+      "blocked_url_keywords": ["/certification/", "/about/", "/members/", "/news/"]
+    },
+    {
+      "domain": "eudi-walletconsortium.org",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_urls": ["https://eudi-walletconsortium.org/"],
+      "allowed_path_prefixes": ["/"],
+      "blocked_url_keywords": ["/news", "/events", "/press", "/blog"]
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "sources": [
+    {
+      "source_id": "eidas_regulation_business_wallet",
+      "title": "EU Business Wallet Regulation Proposal",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "proposal",
+      "publication_date": "2024-06-01",
+      "local_path": "../corpus/eidas_regulation_business_wallet.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "source_id": "wallet_implementing_act_annex",
+      "title": "Wallet Implementing Act Annex",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "draft",
+      "publication_date": "2025-02-14",
+      "local_path": "../corpus/wallet_implementing_act_annex.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "source_id": "openid4vci_draft13",
+      "title": "OpenID for Verifiable Credential Issuance 1.0 Draft 13",
+      "source_kind": "technical_standard",
+      "source_role_level": "high",
+      "jurisdiction": "international",
+      "publication_status": "draft",
+      "publication_date": "2025-05-20",
+      "local_path": "../corpus/openid4vci_draft13.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "source_id": "openid4vp_draft18",
+      "title": "OpenID for Verifiable Presentations 1.0 Draft 18",
+      "source_kind": "technical_standard",
+      "source_role_level": "high",
+      "jurisdiction": "international",
+      "publication_status": "draft",
+      "publication_date": "2025-06-10",
+      "local_path": "../corpus/openid4vp_draft18.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "source_id": "arf_profile_note",
+      "title": "Architecture and Reference Framework Profile Note",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "working_note",
+      "publication_date": "2025-01-09",
+      "local_path": "../corpus/arf_profile_note.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings", "section_level"]
+    },
+    {
+      "source_id": "scientific_review_wallet_certificates",
+      "title": "Scientific Review of Wallet Certificate Layers",
+      "source_kind": "scientific_literature",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "article",
+      "publication_date": "2025-03-11",
+      "local_path": "../corpus/scientific_literature_review.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings"]
+    },
+    {
+      "source_id": "german_wallet_guidance_note",
+      "title": "German Business Wallet Guidance Note",
+      "source_kind": "national_implementation",
+      "source_role_level": "medium",
+      "jurisdiction": "DE",
+      "publication_status": "guidance",
+      "publication_date": "2025-04-18",
+      "local_path": "../corpus/german_wallet_guidance.md",
+      "canonical_url": null,
+      "anchorability_hints": ["markdown_headings"]
+    },
+    {
+      "source_id": "ssi_commentary_blog",
+      "title": "SSI Commentary Blog on Authorization Servers",
+      "source_kind": "commentary",
+      "source_role_level": "low",
+      "jurisdiction": "unknown",
+      "publication_status": "blog_post",
+      "publication_date": "2025-08-03",
+      "local_path": "../corpus/ssi_commentary_blog.md",
+      "canonical_url": null,
+      "anchorability_hints": []
+    }
+  ]
+}

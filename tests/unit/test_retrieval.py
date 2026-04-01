@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+from eubw_researcher.config import load_runtime_config, load_source_hierarchy
+from eubw_researcher.corpus import ingest_catalog, load_source_catalog
+from eubw_researcher.models import SourceKind, SourceRoleLevel
+from eubw_researcher.retrieval import analyze_query, build_retrieval_plan, retrieve_candidates
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+class RetrievalTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml")
+        self.hierarchy = load_source_hierarchy(REPO_ROOT / "configs" / "source_hierarchy.yaml")
+        catalog = load_source_catalog(
+            REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
+        )
+        self.bundle = ingest_catalog(catalog)
+
+    def test_analyze_query_classifies_registration_mandatory_question(self) -> None:
+        intent = analyze_query(
+            "Is the registration certificate mandatory at EU level, or is that delegated to member states?"
+        )
+        self.assertEqual(intent.intent_type, "registration_certificate_scope")
+        self.assertEqual(len(intent.claim_targets), 2)
+        self.assertEqual(intent.preferred_kinds[0], SourceKind.REGULATION)
+
+    def test_analyze_query_classifies_primary_business_wallet_requirements_question(self) -> None:
+        intent = analyze_query(
+            "What requirements apply to the Business Wallet, and how can they be provisionally structured?"
+        )
+        self.assertEqual(intent.intent_type, "wallet_requirements_summary")
+        self.assertTrue(any(target.grouping_label for target in intent.claim_targets))
+        self.assertGreaterEqual(len(intent.claim_targets), 4)
+
+    def test_build_retrieval_plan_uses_hierarchy_config_role_levels(self) -> None:
+        intent = analyze_query(
+            "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"
+        )
+        plan = build_retrieval_plan(intent, self.hierarchy, self.runtime)
+        first_step = plan.steps[0]
+        self.assertEqual(first_step.required_kind, SourceKind.TECHNICAL_STANDARD)
+        self.assertEqual(first_step.required_source_role_level, SourceRoleLevel.HIGH)
+
+    def test_build_retrieval_plan_preserves_global_hierarchy_for_eu_first_registration_question(self) -> None:
+        intent = analyze_query(
+            "Is the registration certificate mandatory at EU level, or is that delegated to member states?"
+        )
+        plan = build_retrieval_plan(intent, self.hierarchy, self.runtime)
+        self.assertEqual(
+            [step.required_kind for step in plan.steps],
+            [
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.TECHNICAL_STANDARD,
+                SourceKind.PROJECT_ARTIFACT,
+                SourceKind.SCIENTIFIC_LITERATURE,
+                SourceKind.NATIONAL_IMPLEMENTATION,
+                SourceKind.COMMENTARY,
+            ],
+        )
+
+    def test_retrieve_candidates_returns_inspected_top_k_with_threshold_flags(self) -> None:
+        intent = analyze_query(
+            "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"
+        )
+        plan = build_retrieval_plan(intent, self.hierarchy, self.runtime)
+        candidates = retrieve_candidates(
+            question=intent.question,
+            step=plan.steps[0],
+            bundle=self.bundle,
+            hierarchy=self.hierarchy,
+            runtime_config=self.runtime,
+        )
+        self.assertLessEqual(len(candidates), self.runtime.retrieval_top_k)
+        self.assertTrue(any(candidate.meets_threshold for candidate in candidates))
+        self.assertEqual(candidates[0].chunk.source_kind, SourceKind.TECHNICAL_STANDARD)
+
+    def test_analyze_query_classifies_relying_party_registration_information_question(self) -> None:
+        intent = analyze_query(
+            "What information must a wallet-relying party provide during relying party registration?"
+        )
+        self.assertEqual(intent.intent_type, "relying_party_registration_information")
+        self.assertEqual(len(intent.claim_targets), 2)
+        self.assertEqual(intent.preferred_kinds[0], SourceKind.IMPLEMENTING_ACT)
+
+    def test_analyze_query_classifies_relying_party_certificate_question(self) -> None:
+        intent = analyze_query(
+            "What is the difference between a wallet-relying party registration certificate and a wallet-relying party access certificate?"
+        )
+        self.assertEqual(intent.intent_type, "relying_party_certificate_requirements")
+        self.assertEqual(len(intent.claim_targets), 3)
+        self.assertEqual(intent.preferred_kinds[0], SourceKind.IMPLEMENTING_ACT)
+
+    def test_analyze_query_generalizes_out_of_distribution_business_wallet_question(self) -> None:
+        intent = analyze_query(
+            "Map the Union-level obligations for Business Wallet relying parties and cluster them provisionally for research notes."
+        )
+        self.assertEqual(intent.intent_type, "wallet_requirements_summary")
+        self.assertGreaterEqual(len(intent.claim_targets), 4)

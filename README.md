@@ -1,1 +1,35 @@
 # EUBW-Researcher
+
+Inspectable Python research prototype for the Option A evidence-first pipeline.
+
+## Local commands
+
+- Run unit and integration tests: `python3 scripts/run_tests.py`
+- Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
+- Build the internal catalog for the local real corpus archive: `python3 scripts/build_real_corpus_catalog.py`
+- Ingest the generated real corpus catalog: `python3 scripts/ingest_sample_corpus.py --catalog artifacts/real_corpus/curated_catalog.json`
+- Ask a question against the generated real corpus catalog: `python3 scripts/answer_question.py "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"`
+- Ask the primary V2 Business Wallet research question and write review artifacts: `python3 scripts/answer_question.py "What requirements apply to the Business Wallet, and how can they be provisionally structured?" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/review_demo_primary`
+- Ask an EBW registration-information question against the real corpus catalog: `python3 scripts/answer_question.py "What information must a wallet-relying party provide during relying party registration?" --catalog artifacts/real_corpus/curated_catalog.json`
+- Ask an EBW certificate-requirements question against the real corpus catalog: `python3 scripts/answer_question.py "What is the difference between a wallet-relying party registration certificate and a wallet-relying party access certificate?" --catalog artifacts/real_corpus/curated_catalog.json`
+- Run the Scenario C thin-slice evaluation: `python3 scripts/run_eval.py --scenario scenario_c_protocol_authorization_server`
+- Run the full configured evaluation set: `python3 scripts/run_eval.py --all`
+- Run eval against a non-fixture catalog: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- Run the real-corpus review gate: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+
+## Notes
+
+- The repository is V2-backend-only by design: no UI, no persistent provenance graph, and no multi-agent orchestration.
+- Config files under `configs/` use YAML-compatible JSON so no separate YAML parser dependency is required; PDF extraction uses `pypdf`.
+- Manual artifact review guidance lives in `docs/architecture/options/option-a/MANUAL_REVIEW_CHECKLIST.md`.
+- A compact reviewer entrypoint lives in `docs/architecture/options/option-a/REVIEW_GUIDE.md`.
+- Known V2 residual limits and their mitigation/acceptance are recorded in `docs/architecture/options/option-a/HARDENING_NOTES.md`.
+- Default eval outputs are split by corpus: `artifacts/eval_runs` for fixtures and `artifacts/eval_runs_real_corpus` for the real archive catalog.
+- Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, and `manual_review_report.md`; grouping-capable runs additionally emit `provisional_grouping.json`.
+- Corpus-backed bundles additionally emit `corpus_coverage_report.json`, and the real-corpus ingestion bundle is cached under `artifacts/real_corpus/cache/` so repeated review runs do not re-normalize the full archive.
+- `manual_review.json` is an automated prefill artifact; `manual_review_report.md` is the primary human-readable review surface.
+- The binding real-corpus review samples are `primary_success_scenario` and `scenario_b_registration_certificate_mandatory`; their `manual_review_report.md` must end in `accept`.
+- Approved fetched web sources are surfaced in `manual_review_report.md` with digest and provenance evidence for reviewability.
+- The local real corpus archive now lives under `artifacts/real_corpus/archive` and is intentionally excluded from git.
+- `configs/real_corpus_selection.yaml` is the inspectable bridge from the local source archive into the internal Option A source catalog.
+- Official discovery remains allowlist-only, path-gated, and bounded to configured entrypoints plus one-hop crawl defaults from `configs/web_allowlist.yaml` and `configs/runtime.yaml`.
