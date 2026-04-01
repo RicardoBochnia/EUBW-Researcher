@@ -1,0 +1,11 @@
+Source-bound answer: the reviewed sources support a differentiated answer rather than a flat yes/no.
+Confirmed:
+- A wallet-relying party registration certificate describes the relying party's intended use and the attributes it has registered to request from users.
+  Rationale: Direct high-rank support survived the hierarchy gate and is anchor-grounded or audit-confirmable.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, laying down rules for the application of Regulation (EU) No 910/2014 of the European Parliament and of the Council as regards the registration of wallet-relying parties > Article 2 [local/high]
+- A wallet-relying party access certificate is used in interactions with wallet solutions and must remain accurate and consistent with the national-register information.
+  Rationale: Direct high-rank support survived the hierarchy gate and is anchor-grounded or audit-confirmable.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, ANNEX IV [local/high]
+- When issuing a wallet-relying party registration certificate, the provider must verify that the wallet-relying party access certificate is valid.
+  Rationale: Direct high-rank support survived the hierarchy gate and is anchor-grounded or audit-confirmable.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, ANNEX V [local/high]

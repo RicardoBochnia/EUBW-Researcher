@@ -37,7 +37,17 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertIn("openid.net", allowlist.allowed_domains)
         self.assertTrue(allowlist.policy_for_domain("eur-lex.europa.eu").allowed_path_prefixes)
         self.assertEqual(archive_corpus.archive_root.name, "archive")
-        self.assertGreaterEqual(len(archive_corpus.sources), 10)
+        self.assertGreaterEqual(len(archive_corpus.sources), 11)
+        self.assertIn(
+            "eudi_discussion_topic_x_rp_registration",
+            {source.source_id for source in archive_corpus.sources},
+        )
+        discussion_source = next(
+            source
+            for source in archive_corpus.sources
+            if source.source_id == "eudi_discussion_topic_x_rp_registration"
+        )
+        self.assertIsNotNone(discussion_source.admission_reason)
         scenario_ids = {scenario.scenario_id for scenario in scenarios}
         self.assertEqual(
             scenario_ids,
@@ -49,7 +59,10 @@ class ConfigLoadingTests(unittest.TestCase):
                 "high_risk_failure_pattern",
             },
         )
-        self.assertEqual({scenario.scenario_id for scenario in real_scenarios}, scenario_ids)
+        self.assertEqual(
+            {scenario.scenario_id for scenario in real_scenarios},
+            scenario_ids | {"scenario_d_certificate_topology_anchor"},
+        )
         self.assertEqual(
             {scenario.scenario_id: scenario.required_intent_type for scenario in scenarios},
             {
@@ -70,6 +83,7 @@ class ConfigLoadingTests(unittest.TestCase):
             {
                 "primary_success_scenario",
                 "scenario_b_registration_certificate_mandatory",
+                "scenario_d_certificate_topology_anchor",
             },
         )
 

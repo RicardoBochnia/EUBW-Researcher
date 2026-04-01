@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+from eubw_researcher.answering import TOPOLOGY_FACET_IDS
 from eubw_researcher.models import (
     ApprovedFetchedSourceEvidence,
     ClaimState,
@@ -10,6 +11,16 @@ from eubw_researcher.models import (
     ManualReviewCheck,
     ManualReviewReport,
 )
+
+
+def _topology_facet_status(result, facet_id: str) -> tuple[bool, str]:
+    if result.facet_coverage_report is None:
+        return False, "facet_coverage.json was not produced for the topology intent."
+    facet = result.facet_coverage_report.by_id().get(facet_id)
+    if facet is None:
+        return False, f"Required topology facet `{facet_id}` is missing from facet_coverage.json."
+    evidence = ", ".join(facet.evidence) if facet.evidence else "No structural evidence recorded."
+    return facet.addressed, evidence
 
 
 def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> ManualReviewArtifact:
@@ -98,6 +109,29 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
         )
     )
 
+    if result.query_intent.intent_type == "certificate_topology_analysis":
+        facet_artifact_present = result.facet_coverage_report is not None
+        checks.append(
+            ManualReviewCheck(
+                check_id="topology_facet_coverage_present",
+                status="pass" if facet_artifact_present else "fail",
+                evidence=(
+                    "Topology facet coverage artifact is present."
+                    if facet_artifact_present
+                    else "Topology intent produced no facet_coverage.json artifact."
+                ),
+            )
+        )
+        for facet_id in TOPOLOGY_FACET_IDS:
+            addressed, evidence = _topology_facet_status(result, facet_id)
+            checks.append(
+                ManualReviewCheck(
+                    check_id=f"topology_{facet_id}",
+                    status="pass" if addressed else "fail",
+                    evidence=evidence,
+                )
+            )
+
     passed = sum(1 for check in checks if check.status == "pass")
     summary = f"Automated review prefill completed with {passed}/{len(checks)} checks passing."
     return ManualReviewArtifact(
@@ -181,8 +215,14 @@ def build_manual_review_report(
         if result.gap_records
         else True
     )
+    topology_facets_ok = (
+        result.facet_coverage_report is not None
+        and result.facet_coverage_report.all_addressed()
+    ) if result.query_intent.intent_type == "certificate_topology_analysis" else True
     correctness_verdict = "acceptable" if verdict.passed else "needs_follow_up"
-    usefulness_verdict = "acceptable" if has_approved_entries else "needs_follow_up"
+    usefulness_verdict = (
+        "acceptable" if has_approved_entries and topology_facets_ok else "needs_follow_up"
+    )
     hierarchy_verdict = "acceptable" if hierarchy_ok else "needs_follow_up"
     uncertainty_verdict = "acceptable" if uncertainty_ok else "needs_follow_up"
     discovery_verdict = (
@@ -215,6 +255,10 @@ def build_manual_review_report(
     if gap_exercised and not gap_ok:
         open_follow_ups.append(
             "Discovery or gap handling needs manual inspection before this run can be trusted."
+        )
+    if not topology_facets_ok:
+        open_follow_ups.append(
+            "Topology facet coverage is incomplete; inspect facet_coverage.json before treating this run as reusable."
         )
     if not open_follow_ups:
         open_follow_ups.append("No blocking follow-up from this review pass.")

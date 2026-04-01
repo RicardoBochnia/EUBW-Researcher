@@ -30,6 +30,7 @@ def load_source_catalog(path: Path) -> SourceCatalog:
                 canonical_url=item.get("canonical_url"),
                 source_origin=SourceOrigin(item.get("source_origin", "local")),
                 anchorability_hints=list(item.get("anchorability_hints", [])),
+                admission_reason=item.get("admission_reason"),
             )
         )
     return SourceCatalog(entries=entries)
@@ -50,6 +51,7 @@ def write_source_catalog(catalog: SourceCatalog, path: Path) -> None:
                 "canonical_url": entry.canonical_url,
                 "source_origin": entry.source_origin.value,
                 "anchorability_hints": list(entry.anchorability_hints),
+                "admission_reason": entry.admission_reason,
             }
             for entry in catalog.entries
         ]

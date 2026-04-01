@@ -1,0 +1,71 @@
+{
+  "question": "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?",
+  "scenario_id": null,
+  "artifact_scope": "certificate_topology_analysis",
+  "filled": false,
+  "checks": [
+    {
+      "check_id": "blocked_claims_hidden",
+      "status": "pass",
+      "evidence": "Blocked claims do not surface in the rendered answer."
+    },
+    {
+      "check_id": "approved_entries_have_citations",
+      "status": "pass",
+      "evidence": "5 approved entries each carry at least one citation."
+    },
+    {
+      "check_id": "claim_state_visibility",
+      "status": "pass",
+      "evidence": "Visible state markers are aligned with the approved ledger entries."
+    },
+    {
+      "check_id": "weak_anchors_degrade_to_document_only",
+      "status": "pass",
+      "evidence": "Weak-anchor sources in the ingestion report do not claim anchor-grounded citation quality."
+    },
+    {
+      "check_id": "allowlisted_web_only",
+      "status": "pass",
+      "evidence": "All fetched web records are allowlisted."
+    },
+    {
+      "check_id": "provisional_grouping_present_when_applicable",
+      "status": "pass",
+      "evidence": "Grouping artifact is present for grouping-capable intent."
+    },
+    {
+      "check_id": "topology_facet_coverage_present",
+      "status": "pass",
+      "evidence": "Topology facet coverage artifact is present."
+    },
+    {
+      "check_id": "topology_multiplicity_single_certificate",
+      "status": "pass",
+      "evidence": "claim_id:topology_project_artifact_multiplicity, claim_id:topology_project_intended_use_scoping, answer:organisation-level-scope"
+    },
+    {
+      "check_id": "topology_derived_certificate_term_status",
+      "status": "pass",
+      "evidence": "answer:not-explicitly-defined-section, answer:derived-certificate"
+    },
+    {
+      "check_id": "topology_registration_certificate_role",
+      "status": "pass",
+      "evidence": "claim_id:topology_registration_certificate_role"
+    },
+    {
+      "check_id": "topology_access_certificate_role",
+      "status": "pass",
+      "evidence": "claim_id:topology_access_certificate_role"
+    },
+    {
+      "check_id": "topology_unresolved_or_interpretive_status",
+      "status": "pass",
+      "evidence": "answer:interpretive-section, answer:open-section, answer:topology-unresolved"
+    }
+  ],
+  "summary": "Automated review prefill completed with 12/12 checks passing.",
+  "artifact_type": "automated_review_prefill",
+  "human_reviewed": false
+}

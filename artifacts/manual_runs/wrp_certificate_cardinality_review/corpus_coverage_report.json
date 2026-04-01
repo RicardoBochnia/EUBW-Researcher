@@ -1,0 +1,67 @@
+{
+  "catalog_path": "/Users/ricardo/Documents/GitHub/EUBW-Researcher/artifacts/real_corpus/curated_catalog.json",
+  "corpus_state_id": "6379ec0c4697f569",
+  "generation_timestamp": "2026-04-01T20:49:07.148989+00:00",
+  "admitted_source_counts_by_kind": {
+    "implementing_act": 7,
+    "project_artifact": 3,
+    "regulation": 1,
+    "technical_standard": 2
+  },
+  "families": [
+    {
+      "family_id": "governing_eu_regulation",
+      "minimum_count": 1,
+      "admitted_count": 1,
+      "admitted_source_ids": [
+        "celex_32024R1183_fulltext_en"
+      ],
+      "missing": false
+    },
+    {
+      "family_id": "implementing_act_or_annex",
+      "minimum_count": 1,
+      "admitted_count": 7,
+      "admitted_source_ids": [
+        "celex_32024R2980_fulltext_en",
+        "celex_32024R2981_fulltext_en",
+        "celex_32024R2982_fulltext_en",
+        "celex_32025R0846_fulltext_en",
+        "celex_32025R0847_fulltext_en",
+        "celex_32025R0848_fulltext_en",
+        "celex_32025R0849_fulltext_en"
+      ],
+      "missing": false
+    },
+    {
+      "family_id": "current_technical_standards",
+      "minimum_count": 2,
+      "admitted_count": 2,
+      "admitted_source_ids": [
+        "openid4vci_1_0_official",
+        "openid4vp_1_0_official"
+      ],
+      "missing": false
+    },
+    {
+      "family_id": "arf_source",
+      "minimum_count": 1,
+      "admitted_count": 1,
+      "admitted_source_ids": [
+        "eudi_arf_latest_archive"
+      ],
+      "missing": false
+    },
+    {
+      "family_id": "official_project_artifacts_registration_information",
+      "minimum_count": 2,
+      "admitted_count": 2,
+      "admitted_source_ids": [
+        "ec_ts05_rp_registration_api",
+        "ec_ts06_rp_information_set"
+      ],
+      "missing": false
+    }
+  ],
+  "passed": true
+}

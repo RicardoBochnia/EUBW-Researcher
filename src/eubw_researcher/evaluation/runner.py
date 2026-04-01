@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from eubw_researcher.answering import TOPOLOGY_FACET_IDS
 from eubw_researcher.config import (
     load_evaluation_scenarios,
     load_runtime_config,
@@ -268,6 +269,21 @@ def _evaluate_scenario(scenario, result) -> ScenarioVerdict:
         checks.append("state_visibility:fail")
         passed = False
 
+    if result.query_intent.intent_type == "certificate_topology_analysis":
+        if result.facet_coverage_report is None:
+            checks.append("facet_coverage_artifact:fail")
+            passed = False
+        else:
+            checks.append("facet_coverage_artifact:ok")
+            facets_by_id = result.facet_coverage_report.by_id()
+            for facet_id in TOPOLOGY_FACET_IDS:
+                facet = facets_by_id.get(facet_id)
+                if facet is not None and facet.addressed:
+                    checks.append(f"facet:{facet_id}:ok")
+                else:
+                    checks.append(f"facet:{facet_id}:fail")
+                    passed = False
+
     gap_by_question = {gap.sub_question: gap for gap in result.gap_records}
     def _entry_needs_gap(entry) -> bool:
         return entry.final_claim_state.value in {"open", "blocked"} or (
@@ -448,6 +464,11 @@ def write_artifact_bundle(
     if result.provisional_grouping:
         (output_dir / "provisional_grouping.json").write_text(
             json.dumps(dataclass_to_dict(result.provisional_grouping), indent=2),
+            encoding="utf-8",
+        )
+    if result.facet_coverage_report is not None:
+        (output_dir / "facet_coverage.json").write_text(
+            json.dumps(dataclass_to_dict(result.facet_coverage_report), indent=2),
             encoding="utf-8",
         )
     (output_dir / "manual_review.json").write_text(

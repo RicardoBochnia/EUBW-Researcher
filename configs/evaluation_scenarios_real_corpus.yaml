@@ -83,6 +83,29 @@
       "min_ledger_entries": 2
     },
     {
+      "scenario_id": "scenario_d_certificate_topology_anchor",
+      "question": "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?",
+      "expectation": "Return a materially useful topology answer that separates governing support, interpretive scoping, medium-rank multiplicity support, and undefined-term status on the real corpus.",
+      "required_intent_type": "certificate_topology_analysis",
+      "required_states": ["confirmed", "interpretive"],
+      "allowed_states": ["confirmed", "interpretive"],
+      "required_sources": [
+        "celex_32025R0848_fulltext_en",
+        "eudi_discussion_topic_x_rp_registration"
+      ],
+      "required_answer_substrings": [
+        "Not explicitly defined:",
+        "derived certificate",
+        "Interpretive:",
+        "Open:",
+        "organisation-level certificate"
+      ],
+      "forbidden_answer_substrings": ["Blocked:"],
+      "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
+      "require_manual_review_accept": true,
+      "min_ledger_entries": 4
+    },
+    {
       "scenario_id": "high_risk_failure_pattern",
       "question": "Does the ARF require an authorization server for verifier-initiated presentation flows?",
       "expectation": "Do not falsely elevate project material over the governing standard on the real corpus.",

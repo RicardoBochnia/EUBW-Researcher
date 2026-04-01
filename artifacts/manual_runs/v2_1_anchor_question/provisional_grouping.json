@@ -1,0 +1,18 @@
+[
+  {
+    "label": "Certificates and identity",
+    "claim_ids": [
+      "topology_access_certificate_role",
+      "topology_project_artifact_multiplicity",
+      "topology_project_intended_use_scoping",
+      "topology_registration_access_linkage",
+      "topology_registration_certificate_role"
+    ],
+    "source_ids": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "eudi_discussion_topic_x_rp_registration"
+    ],
+    "provisional": true
+  }
+]

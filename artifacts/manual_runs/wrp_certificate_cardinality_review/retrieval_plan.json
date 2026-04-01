@@ -1,0 +1,54 @@
+{
+  "question": "Are there derived wallet-relying party access or registration certificates? Can one wallet-relying party hold multiple such certificates, or is there only one organisation-level certificate?",
+  "steps": [
+    {
+      "step_id": "step_1",
+      "required_kind": "regulation",
+      "required_source_role_level": "high",
+      "inspection_depth": 5,
+      "reason": "Search regulation sources in ranked order."
+    },
+    {
+      "step_id": "step_2",
+      "required_kind": "implementing_act",
+      "required_source_role_level": "high",
+      "inspection_depth": 5,
+      "reason": "Search implementing_act sources in ranked order."
+    },
+    {
+      "step_id": "step_3",
+      "required_kind": "technical_standard",
+      "required_source_role_level": "high",
+      "inspection_depth": 5,
+      "reason": "Search technical_standard sources in ranked order."
+    },
+    {
+      "step_id": "step_4",
+      "required_kind": "project_artifact",
+      "required_source_role_level": "medium",
+      "inspection_depth": 5,
+      "reason": "Search project_artifact sources in ranked order."
+    },
+    {
+      "step_id": "step_5",
+      "required_kind": "scientific_literature",
+      "required_source_role_level": "medium",
+      "inspection_depth": 5,
+      "reason": "Search scientific_literature sources in ranked order."
+    },
+    {
+      "step_id": "step_6",
+      "required_kind": "national_implementation",
+      "required_source_role_level": "medium",
+      "inspection_depth": 5,
+      "reason": "Search national_implementation sources in ranked order."
+    },
+    {
+      "step_id": "step_7",
+      "required_kind": "commentary",
+      "required_source_role_level": "low",
+      "inspection_depth": 5,
+      "reason": "Search commentary sources in ranked order."
+    }
+  ]
+}

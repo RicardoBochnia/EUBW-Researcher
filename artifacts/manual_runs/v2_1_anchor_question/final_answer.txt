@@ -1,0 +1,28 @@
+Source-bound answer: the reviewed sources support a more explicit topology answer than a flat certificate-role summary.
+Not explicitly defined:
+- No governing EU source in the current corpus explicitly defines a wallet-relying-party "derived certificate" term for access or registration certificates.
+  Evidence: searched 8 governing EU source(s) in the local corpus for "derived certificate", "derived access certificate", "derived registration certificate" and found no exact match.
+Confirmed:
+- Governing EU sources define a wallet-relying party access certificate as authenticating and validating the wallet-relying party in wallet interactions.
+  Rationale: Direct high-rank support survived the hierarchy gate and is anchor-grounded or audit-confirmable.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, laying down rules for the application of Regulation (EU) No 910/2014 of the European Parliament and of the Council as regards the registration of wallet-relying parties > Article 2 [local/high]
+- Governing EU sources link registration-certificate issuance to a valid wallet-relying party access certificate.
+  Rationale: Direct high-rank support survived the hierarchy gate and is anchor-grounded or audit-confirmable.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, ANNEX V [local/high]
+Interpretive:
+- The governing EU texts point toward intended-use / service scoping rather than a single undifferentiated organisation-level certificate, but they do not explicitly say that a wallet-relying party is limited to exactly one certificate or entitled to multiple certificates.
+  Rationale: This is the narrower conclusion the governing texts support directly; they describe role, intended use, and certificate linkage, but they do not expressly settle multiplicity.
+  Evidence: Regulation (EU) 2024/1183 amending Regulation (EU) No 910/2014, amending Regulation (EU) No 910/2014 as regards establishing the European Digital Identity Framework [local/high]; Commission Implementing Regulation (EU) 2025/848, laying down rules for the application of Regulation (EU) No 910/2014 of the European Parliament and of the Council as regards the registration of wallet-relying parties > Article 2 [local/high]; Commission Implementing Regulation (EU) 2025/848, ANNEX V [local/high]
+- Governing EU sources define a wallet-relying party registration certificate as describing the relying party's intended use and the attributes it has registered to request from users.
+  Rationale: Support exists, but it stays medium-rank, indirect, or document-only without confirmation-grade anchors.
+  Evidence: Regulation (EU) 2024/1183 amending Regulation (EU) No 910/2014, amending Regulation (EU) No 910/2014 as regards establishing the European Digital Identity Framework [local/high]
+- Official project artifacts explicitly describe one or more access certificates for relying party instances and one or more registration certificates when such certificates are issued.
+  Rationale: Support exists, but it stays medium-rank, indirect, or document-only without confirmation-grade anchors.
+  Evidence: X Relying Party Registration, Topic X - Relying Party Registration > 3 Discussion > 3.2 Access certificates with multiple Relying Party instances [local/medium]
+- Official project artifacts explicitly describe registration certificates as issued per registered intended use or selected for the intended use relevant to the current request.
+  Rationale: Support exists, but it stays medium-rank, indirect, or document-only without confirmation-grade anchors.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, laying down rules for the application of Regulation (EU) No 910/2014 of the European Parliament and of the Council as regards the registration of wallet-relying parties > Article 2 [local/high]
+Open:
+- The broader multiplicity or "derived certificate" conclusion is not stated as governing EU law; it remains interpretive or medium-rank supported.
+  Rationale: The product can separate the governing role statements from the broader multiplicity interpretation, but the broader topology conclusion is still not explicit governing law in the local corpus.
+  Evidence: X Relying Party Registration, Topic X - Relying Party Registration > 3 Discussion > 3.2 Access certificates with multiple Relying Party instances [local/medium]; Commission Implementing Regulation (EU) 2025/848, laying down rules for the application of Regulation (EU) No 910/2014 of the European Parliament and of the Council as regards the registration of wallet-relying parties > Article 2 [local/high]; Regulation (EU) 2024/1183 amending Regulation (EU) No 910/2014, amending Regulation (EU) No 910/2014 as regards establishing the European Digital Identity Framework [local/high]

@@ -3,7 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Dict, List
 
-from eubw_researcher.answering import build_provisional_grouping, compose_answer
+from eubw_researcher.answering import (
+    build_facet_coverage_report,
+    build_provisional_grouping,
+    compose_answer,
+)
 from eubw_researcher.evidence import build_ledger, has_direct_admissible_support
 from eubw_researcher.models import (
     AnswerResult,
@@ -371,7 +375,15 @@ class ResearchPipeline:
         rendered_answer = compose_answer(
             question,
             approved_entries,
+            query_intent=query_intent,
             clarification_note=query_intent.clarification_note,
+            documents=self.ingestion_bundle.documents,
+        )
+        facet_coverage_report = build_facet_coverage_report(
+            question,
+            query_intent,
+            rendered_answer,
+            approved_entries,
         )
         provisional_grouping = build_provisional_grouping(query_intent, approved_entries)
         return AnswerResult(
@@ -385,4 +397,5 @@ class ResearchPipeline:
             approved_entries=approved_entries,
             rendered_answer=rendered_answer,
             provisional_grouping=provisional_grouping,
+            facet_coverage_report=facet_coverage_report,
         )

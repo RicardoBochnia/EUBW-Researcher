@@ -1,0 +1,142 @@
+[
+  {
+    "sub_question": "At EU level, the qualified registration certificate identifies the organisation that uses the business wallet.",
+    "required_source_role_level": "high",
+    "local_source_layers_searched": [
+      "regulation",
+      "implementing_act",
+      "technical_standard",
+      "project_artifact",
+      "scientific_literature",
+      "national_implementation",
+      "commentary"
+    ],
+    "retrieval_methods_used": [
+      "lexical",
+      "semantic"
+    ],
+    "candidate_sources_inspected": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32024R2980_fulltext_en",
+      "celex_32025R0846_fulltext_en",
+      "openid4vci_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vp_1_0_official",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts06_rp_information_set",
+      "ec_ts05_rp_registration_api"
+    ],
+    "reason_local_evidence_insufficient": "All ranked local layers for this target were inspected without direct admissible support.",
+    "next_allowed_action": "official_web_search",
+    "web_source_kinds_considered": [
+      "regulation"
+    ],
+    "web_discovery_urls_attempted": [
+      "https://eur-lex.europa.eu/homepage.html"
+    ],
+    "web_fetch_urls_attempted": []
+  },
+  {
+    "sub_question": "At EU level, the access certificate identifies the relying-party service that is entitled to request wallet-mediated access.",
+    "required_source_role_level": "high",
+    "local_source_layers_searched": [
+      "regulation",
+      "implementing_act",
+      "technical_standard",
+      "project_artifact",
+      "scientific_literature",
+      "national_implementation",
+      "commentary"
+    ],
+    "retrieval_methods_used": [
+      "lexical",
+      "semantic"
+    ],
+    "candidate_sources_inspected": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32025R0846_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32024R2982_fulltext_en",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vp_1_0_official",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts06_rp_information_set"
+    ],
+    "reason_local_evidence_insufficient": "Only under-powered local support was found; the required governing support remains unresolved.",
+    "next_allowed_action": "official_web_search",
+    "web_source_kinds_considered": [
+      "regulation"
+    ],
+    "web_discovery_urls_attempted": [
+      "https://eur-lex.europa.eu/homepage.html"
+    ],
+    "web_fetch_urls_attempted": []
+  },
+  {
+    "sub_question": "National guidance may add procedures, but it does not override Union regulation or referenced standards.",
+    "required_source_role_level": "medium",
+    "local_source_layers_searched": [
+      "regulation",
+      "implementing_act",
+      "technical_standard",
+      "project_artifact",
+      "scientific_literature",
+      "national_implementation",
+      "commentary"
+    ],
+    "retrieval_methods_used": [
+      "lexical",
+      "semantic"
+    ],
+    "candidate_sources_inspected": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32025R0846_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vp_1_0_official",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api",
+      "ec_ts05_rp_registration_api"
+    ],
+    "reason_local_evidence_insufficient": "All ranked local layers for this target were inspected without direct admissible support.",
+    "next_allowed_action": "stop_local_only",
+    "web_source_kinds_considered": [],
+    "web_discovery_urls_attempted": [],
+    "web_fetch_urls_attempted": []
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "label": "Certificates and identity",
+    "claim_ids": [
+      "rp_access_certificate_role",
+      "rp_certificate_linkage",
+      "rp_registration_certificate_definition"
+    ],
+    "source_ids": [
+      "celex_32025R0848_fulltext_en"
+    ],
+    "provisional": true
+  }
+]

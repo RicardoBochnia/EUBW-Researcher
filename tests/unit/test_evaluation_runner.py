@@ -13,6 +13,8 @@ from eubw_researcher.models import (
     CitationQuality,
     ClaimState,
     EvaluationScenario,
+    FacetCoverageFacet,
+    FacetCoverageReport,
     NormalizationStatus,
     ScenarioVerdict,
     SourceKind,
@@ -77,6 +79,7 @@ def _minimal_result(record_type: str) -> SimpleNamespace:
                 source_origin=SourceOrigin.WEB,
             )
         ],
+        facet_coverage_report=None,
     )
 
 
@@ -179,6 +182,83 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("Approved Fetched-Source Evidence", markdown)
         self.assertIn("digest=`abc123`", markdown)
         self.assertIn("provenance=`configured_seed_url`", markdown)
+
+    def test_certificate_topology_eval_requires_facet_coverage(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="certificate_topology_analysis")
+        result.facet_coverage_report = FacetCoverageReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            facets=[
+                FacetCoverageFacet(
+                    facet_id="multiplicity_single_certificate",
+                    addressed=False,
+                    evidence=[],
+                ),
+                FacetCoverageFacet(
+                    facet_id="derived_certificate_term_status",
+                    addressed=True,
+                    evidence=["answer:not-explicitly-defined-section"],
+                ),
+                FacetCoverageFacet(
+                    facet_id="registration_certificate_role",
+                    addressed=True,
+                    evidence=["claim_id:topology_registration_certificate_role"],
+                ),
+                FacetCoverageFacet(
+                    facet_id="access_certificate_role",
+                    addressed=True,
+                    evidence=["claim_id:topology_access_certificate_role"],
+                ),
+                FacetCoverageFacet(
+                    facet_id="unresolved_or_interpretive_status",
+                    addressed=True,
+                    evidence=["answer:open-section"],
+                ),
+            ],
+        )
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_topology_gate",
+            question=result.question,
+            expectation="Require topology facet coverage.",
+            required_intent_type="certificate_topology_analysis",
+        )
+
+        verdict = _evaluate_scenario(scenario, result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("facet_coverage_artifact:ok", verdict.checks)
+        self.assertIn("facet:multiplicity_single_certificate:fail", verdict.checks)
+
+    def test_manual_review_report_rejects_incomplete_topology_facet_coverage(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="certificate_topology_analysis")
+        result.facet_coverage_report = FacetCoverageReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            facets=[
+                FacetCoverageFacet("multiplicity_single_certificate", False, []),
+                FacetCoverageFacet("derived_certificate_term_status", True, []),
+                FacetCoverageFacet("registration_certificate_role", True, []),
+                FacetCoverageFacet("access_certificate_role", True, []),
+                FacetCoverageFacet("unresolved_or_interpretive_status", True, []),
+            ],
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_topology_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_topology_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.usefulness_verdict, "needs_follow_up")
+        self.assertEqual(report.final_judgment, "reject")
 
 
 if __name__ == "__main__":

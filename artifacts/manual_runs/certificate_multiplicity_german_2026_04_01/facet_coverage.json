@@ -1,0 +1,46 @@
+{
+  "question": "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?",
+  "intent_type": "certificate_topology_analysis",
+  "facets": [
+    {
+      "facet_id": "multiplicity_single_certificate",
+      "addressed": true,
+      "evidence": [
+        "claim_id:topology_project_artifact_multiplicity",
+        "claim_id:topology_project_intended_use_scoping",
+        "answer:organisation-level-scope"
+      ]
+    },
+    {
+      "facet_id": "derived_certificate_term_status",
+      "addressed": true,
+      "evidence": [
+        "answer:not-explicitly-defined-section",
+        "answer:derived-certificate"
+      ]
+    },
+    {
+      "facet_id": "registration_certificate_role",
+      "addressed": true,
+      "evidence": [
+        "claim_id:topology_registration_certificate_role"
+      ]
+    },
+    {
+      "facet_id": "access_certificate_role",
+      "addressed": true,
+      "evidence": [
+        "claim_id:topology_access_certificate_role"
+      ]
+    },
+    {
+      "facet_id": "unresolved_or_interpretive_status",
+      "addressed": true,
+      "evidence": [
+        "answer:interpretive-section",
+        "answer:open-section",
+        "answer:topology-unresolved"
+      ]
+    }
+  ]
+}

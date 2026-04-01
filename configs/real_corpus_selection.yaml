@@ -144,6 +144,18 @@
       "publication_status": "technical_spec",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-64",
+      "source_id": "eudi_discussion_topic_x_rp_registration",
+      "title": "X Relying Party Registration",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "discussion_topic",
+      "publication_date": null,
+      "anchorability_hints": ["expect_anchors", "section_level"],
+      "admission_reason": "Admit the most relevant already-archived official project artifact for certificate-topology questions about multiple access or registration certificates, relying party instances, and intended-use scoping."
     }
   ]
 }

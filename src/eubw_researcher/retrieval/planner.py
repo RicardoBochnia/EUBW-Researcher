@@ -300,6 +300,118 @@ def _certificate_layer_targets() -> List[ClaimTarget]:
     ]
 
 
+def _certificate_topology_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="topology_registration_certificate_role",
+            claim_text=(
+                "Governing EU sources define a wallet-relying party registration "
+                "certificate as describing the relying party's intended use and the "
+                "attributes it has registered to request from users."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+            scope_terms=["wallet-relying party", "registration certificate", "intended use"],
+            primary_terms=["registration certificate", "intended use", "attributes", "request from users"],
+            support_groups=[
+                ["wallet-relying party registration certificate", "describes the intended use"],
+                ["registration certificate", "attributes", "request from users"],
+            ],
+            contradiction_groups=[["no registration certificate"]],
+            grouping_label="Certificates and identity",
+        ),
+        ClaimTarget(
+            target_id="topology_access_certificate_role",
+            claim_text=(
+                "Governing EU sources define a wallet-relying party access certificate "
+                "as authenticating and validating the wallet-relying party in wallet "
+                "interactions."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+            scope_terms=["wallet-relying party", "access certificate", "wallet interactions"],
+            primary_terms=[
+                "wallet-relying party access certificate",
+                "authenticating",
+                "validating",
+                "wallet",
+            ],
+            support_groups=[
+                ["wallet-relying party access certificate", "authenticating and validating the wallet-relying party"],
+                ["authenticate and validate", "wallet-relying party access certificate"],
+            ],
+            contradiction_groups=[["no access certificate"]],
+            grouping_label="Certificates and identity",
+        ),
+        ClaimTarget(
+            target_id="topology_registration_access_linkage",
+            claim_text=(
+                "Governing EU sources link registration-certificate issuance to a "
+                "valid wallet-relying party access certificate."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["wallet-relying party", "registration certificate", "access certificate"],
+            primary_terms=["issuing", "registration certificate", "access certificate", "valid"],
+            support_groups=[
+                ["issuing a wallet-relying party registration certificate", "access certificate is valid"],
+                ["wallet-relying party access certificate is valid"],
+            ],
+            contradiction_groups=[["registration certificate without access certificate"]],
+            grouping_label="Certificates and identity",
+        ),
+        ClaimTarget(
+            target_id="topology_project_artifact_multiplicity",
+            claim_text=(
+                "Official project artifacts explicitly describe one or more access "
+                "certificates for relying party instances and one or more registration "
+                "certificates when such certificates are issued."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.MEDIUM,
+            preferred_kinds=[SourceKind.PROJECT_ARTIFACT],
+            scope_terms=["relying party", "access certificate", "registration certificate", "relying party instances"],
+            primary_terms=[
+                "one or more access certificates",
+                "one or more registration certificates",
+                "relying party instances",
+            ],
+            support_groups=[
+                ["one or more access certificates", "relying party instances"],
+                ["one or more registration certificates"],
+            ],
+            contradiction_groups=[["single registration certificate"]],
+            grouping_label="Certificates and identity",
+        ),
+        ClaimTarget(
+            target_id="topology_project_intended_use_scoping",
+            claim_text=(
+                "Official project artifacts explicitly describe registration "
+                "certificates as issued per registered intended use or selected for "
+                "the intended use relevant to the current request."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.MEDIUM,
+            preferred_kinds=[SourceKind.PROJECT_ARTIFACT],
+            scope_terms=["registration certificate", "intended use", "relying party"],
+            primary_terms=[
+                "registration certificates",
+                "registered intended use",
+                "current presentation request",
+            ],
+            support_groups=[
+                ["registration certificates are issued per each registered intended use"],
+                ["registration certificate", "intended use relevant for the current"],
+            ],
+            contradiction_groups=[["single organisation certificate"]],
+            grouping_label="Certificates and identity",
+        ),
+    ]
+
+
 def _relying_party_registration_information_targets() -> List[ClaimTarget]:
     return [
         ClaimTarget(
@@ -433,6 +545,66 @@ def _is_relying_party_certificate_question(lowered: str) -> bool:
     )
 
 
+def _is_certificate_topology_question(lowered: str) -> bool:
+    tokens = _token_set(lowered)
+    certificate_context = _has_business_wallet_subject(lowered, tokens) or _contains_any(
+        lowered,
+        [
+            "wallet-relying-party",
+            "wallet relying party",
+            "relying-party",
+            "relying party",
+        ],
+    )
+    certificate_terms = _contains_any(
+        lowered,
+        [
+            "access certificate",
+            "registration certificate",
+            "certificate",
+            "certificates",
+            "zertifikat",
+            "zertifikate",
+        ],
+    ) or _token_overlap(tokens, ["access", "registration", "certificate", "certificates"]) >= 2
+    topology_terms = _contains_any(
+        lowered,
+        [
+            "derived certificate",
+            "derived access",
+            "derived registration",
+            "multiple certificates",
+            "single certificate",
+            "organisation-level",
+            "organization-level",
+            "service-scoped",
+            "organisation-scoped",
+            "organization-scoped",
+            "intended use",
+            "service scope",
+            "abgeleitet",
+            "abgeleitete",
+            "hauptzertifikat",
+            "mehrere",
+        ],
+    ) or _token_overlap(
+        tokens,
+        [
+            "derived",
+            "multiple",
+            "single",
+            "organisation",
+            "organization",
+            "service",
+            "scope",
+            "intended",
+            "mehrere",
+            "hauptzertifikat",
+        ],
+    ) >= 2
+    return certificate_context and certificate_terms and topology_terms
+
+
 def _is_business_wallet_requirements_question(lowered: str) -> bool:
     tokens = _token_set(lowered)
     return _has_business_wallet_subject(lowered, tokens) and _is_requirements_request(lowered, tokens)
@@ -519,6 +691,25 @@ def analyze_query(question: str) -> QueryIntent:
                 SourceKind.REGULATION,
                 SourceKind.IMPLEMENTING_ACT,
                 SourceKind.NATIONAL_IMPLEMENTATION,
+            ],
+        )
+
+    if _is_certificate_topology_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="certificate_topology_analysis",
+            eu_first=eu_first,
+            claim_targets=_certificate_topology_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+            answer_pattern="certificate_topology",
+            undefined_terms=[
+                "derived certificate",
+                "derived access certificate",
+                "derived registration certificate",
             ],
         )
 

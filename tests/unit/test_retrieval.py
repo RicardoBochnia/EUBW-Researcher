@@ -96,6 +96,15 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(len(intent.claim_targets), 3)
         self.assertEqual(intent.preferred_kinds[0], SourceKind.IMPLEMENTING_ACT)
 
+    def test_analyze_query_classifies_certificate_topology_anchor_question(self) -> None:
+        intent = analyze_query(
+            "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?"
+        )
+        self.assertEqual(intent.intent_type, "certificate_topology_analysis")
+        self.assertGreaterEqual(len(intent.claim_targets), 5)
+        self.assertEqual(intent.answer_pattern, "certificate_topology")
+        self.assertIn("derived certificate", intent.undefined_terms)
+
     def test_analyze_query_generalizes_out_of_distribution_business_wallet_question(self) -> None:
         intent = analyze_query(
             "Map the Union-level obligations for Business Wallet relying parties and cluster them provisionally for research notes."

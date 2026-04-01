@@ -1,0 +1,5 @@
+Source-bound answer:
+Interpretive:
+- At EU level, the access certificate identifies the relying-party service that is entitled to request wallet-mediated access.
+  Rationale: Support exists, but it stays medium-rank, indirect, or document-only without confirmation-grade anchors.
+  Evidence: Commission Implementing Regulation (EU) 2025/848, laying down rules for the application of Regulation (EU) No 910/2014 of the European Parliament and of the Council as regards the registration of wallet-relying parties [local/high]

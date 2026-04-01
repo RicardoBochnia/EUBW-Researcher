@@ -797,6 +797,9 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     self.assertTrue((scenario_dir / "provisional_grouping.json").exists())
                 if scenario_id == "scenario_b_registration_certificate_mandatory":
                     self.assertIn("manual_review_accept:ok", verdict.checks)
+                if scenario_id == "scenario_d_certificate_topology_anchor":
+                    self.assertIn("manual_review_accept:ok", verdict.checks)
+                    self.assertTrue((scenario_dir / "facet_coverage.json").exists())
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
@@ -847,6 +850,50 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         self.assertIn("ANNEX IV", result.rendered_answer)
         self.assertIn("ANNEX V", result.rendered_answer)
         self.assertNotIn("Interpretive:", result.rendered_answer)
+
+    @unittest.skipUnless(
+        (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
+        "Real corpus archive is not available in this workspace.",
+    )
+    def test_real_corpus_topology_anchor_question_uses_dedicated_intent_and_facet_artifact(self) -> None:
+        pipeline, _ = self._build_real_corpus_pipeline()
+        question = (
+            "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine "
+            "Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur "
+            "Hauptzertifikat fuer die Ganze Organisation?"
+        )
+
+        result = pipeline.answer_question(question)
+
+        self.assertEqual(result.query_intent.intent_type, "certificate_topology_analysis")
+        self.assertIsNotNone(result.facet_coverage_report)
+        self.assertTrue(result.facet_coverage_report.all_addressed())
+        self.assertIn("Not explicitly defined:", result.rendered_answer)
+        self.assertIn("organisation-level certificate", result.rendered_answer)
+        self.assertIn("Interpretive:", result.rendered_answer)
+        self.assertIn("Open:", result.rendered_answer)
+        self.assertTrue(
+            any(
+                citation.source_id == "eudi_discussion_topic_x_rp_registration"
+                for entry in result.approved_entries
+                for citation in entry.citations
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            write_artifact_bundle(
+                Path(tmp_dir),
+                result,
+                verdict=ScenarioVerdict(
+                    scenario_id="synthetic_topology_direct_run",
+                    passed=True,
+                    checks=[],
+                ),
+                scenario_id="synthetic_topology_direct_run",
+                catalog_path=REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json",
+                corpus_state_id="synthetic-state",
+            )
+            self.assertTrue((Path(tmp_dir) / "facet_coverage.json").exists())
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),

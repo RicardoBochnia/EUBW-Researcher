@@ -87,6 +87,7 @@ def load_archive_corpus_config(path: Path) -> ArchiveCorpusConfig:
                 publication_date=item.get("publication_date"),
                 source_origin=SourceOrigin(item.get("source_origin", "local")),
                 anchorability_hints=list(item.get("anchorability_hints", [])),
+                admission_reason=item.get("admission_reason"),
             )
             for item in payload["sources"]
         ],

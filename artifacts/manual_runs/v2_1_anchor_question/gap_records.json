@@ -1,0 +1,146 @@
+[
+  {
+    "sub_question": "Governing EU sources define a wallet-relying party registration certificate as describing the relying party's intended use and the attributes it has registered to request from users.",
+    "required_source_role_level": "high",
+    "local_source_layers_searched": [
+      "regulation",
+      "implementing_act",
+      "technical_standard",
+      "project_artifact",
+      "scientific_literature",
+      "national_implementation",
+      "commentary"
+    ],
+    "retrieval_methods_used": [
+      "lexical",
+      "semantic"
+    ],
+    "candidate_sources_inspected": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32024R2982_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32024R2982_fulltext_en",
+      "openid4vp_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration"
+    ],
+    "reason_local_evidence_insufficient": "Only under-powered local support was found; the required governing support remains unresolved.",
+    "next_allowed_action": "official_web_search",
+    "web_source_kinds_considered": [
+      "regulation"
+    ],
+    "web_discovery_urls_attempted": [
+      "https://eur-lex.europa.eu/homepage.html"
+    ],
+    "web_fetch_urls_attempted": []
+  },
+  {
+    "sub_question": "Official project artifacts explicitly describe one or more access certificates for relying party instances and one or more registration certificates when such certificates are issued.",
+    "required_source_role_level": "medium",
+    "local_source_layers_searched": [
+      "regulation",
+      "implementing_act",
+      "technical_standard",
+      "project_artifact",
+      "scientific_literature",
+      "national_implementation",
+      "commentary"
+    ],
+    "retrieval_methods_used": [
+      "lexical",
+      "semantic"
+    ],
+    "candidate_sources_inspected": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R2982_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32024R2980_fulltext_en",
+      "openid4vp_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vp_1_0_official",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration"
+    ],
+    "reason_local_evidence_insufficient": "Only under-powered local support was found; the required governing support remains unresolved.",
+    "next_allowed_action": "official_web_search",
+    "web_source_kinds_considered": [
+      "project_artifact"
+    ],
+    "web_discovery_urls_attempted": [
+      "https://eudi-walletconsortium.org/"
+    ],
+    "web_fetch_urls_attempted": []
+  },
+  {
+    "sub_question": "Official project artifacts explicitly describe registration certificates as issued per registered intended use or selected for the intended use relevant to the current request.",
+    "required_source_role_level": "medium",
+    "local_source_layers_searched": [
+      "regulation",
+      "implementing_act",
+      "technical_standard",
+      "project_artifact",
+      "scientific_literature",
+      "national_implementation",
+      "commentary"
+    ],
+    "retrieval_methods_used": [
+      "lexical",
+      "semantic"
+    ],
+    "candidate_sources_inspected": [
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R1183_fulltext_en",
+      "celex_32024R2981_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32025R0848_fulltext_en",
+      "celex_32024R2982_fulltext_en",
+      "openid4vp_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vp_1_0_official",
+      "openid4vci_1_0_official",
+      "openid4vci_1_0_official",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration",
+      "eudi_discussion_topic_x_rp_registration"
+    ],
+    "reason_local_evidence_insufficient": "Only under-powered local support was found; the required governing support remains unresolved.",
+    "next_allowed_action": "official_web_search",
+    "web_source_kinds_considered": [
+      "project_artifact"
+    ],
+    "web_discovery_urls_attempted": [
+      "https://eudi-walletconsortium.org/"
+    ],
+    "web_fetch_urls_attempted": []
+  }
+]

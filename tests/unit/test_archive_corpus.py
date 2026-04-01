@@ -64,6 +64,7 @@ class ArchiveCorpusTests(unittest.TestCase):
                                     "expect_anchors",
                                     "article_level",
                                 ],
+                                "admission_reason": "Synthetic admission rationale for archive smoke coverage.",
                             }
                         ],
                     },
@@ -83,6 +84,10 @@ class ArchiveCorpusTests(unittest.TestCase):
             self.assertEqual(
                 catalog.entries[0].canonical_url,
                 "https://example.test/regulation",
+            )
+            self.assertEqual(
+                catalog.entries[0].admission_reason,
+                "Synthetic admission rationale for archive smoke coverage.",
             )
 
     def test_archive_ingestion_supports_html_xml_and_pdf_inputs(self) -> None:
@@ -201,6 +206,10 @@ class ArchiveCorpusTests(unittest.TestCase):
         self.assertTrue(openid_reports)
         self.assertTrue(all(report.chunk_count >= 5 for report in openid_reports))
         self.assertTrue(all(report.anchor_quality == AnchorQuality.STRONG for report in openid_reports))
+        self.assertIn(
+            "eudi_discussion_topic_x_rp_registration",
+            {entry.source_id for entry in catalog.entries},
+        )
 
 
 if __name__ == "__main__":

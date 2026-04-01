@@ -80,7 +80,9 @@ class _HTMLToTextParser(HTMLParser):
         if tag == "head":
             self._head_depth += 1
             return
-        if self._ignored_stack or self._should_ignore_tag(tag, attrs_dict):
+        if self._ignored_stack:
+            return
+        if self._should_ignore_tag(tag, attrs_dict):
             self._ignored_stack.append(tag)
             return
 
@@ -106,7 +108,8 @@ class _HTMLToTextParser(HTMLParser):
             self._head_depth = max(0, self._head_depth - 1)
             return
         if self._ignored_stack:
-            self._ignored_stack.pop()
+            if tag == self._ignored_stack[-1]:
+                self._ignored_stack.pop()
             return
         if tag == "title":
             self._in_title = False

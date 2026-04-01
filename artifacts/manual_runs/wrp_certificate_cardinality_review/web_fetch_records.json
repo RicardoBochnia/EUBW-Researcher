@@ -1,0 +1,40 @@
+[
+  {
+    "sub_question": "At EU level, the qualified registration certificate identifies the organisation that uses the business wallet.",
+    "canonical_url": "https://eur-lex.europa.eu/homepage.html",
+    "domain": "eur-lex.europa.eu",
+    "allowed": true,
+    "source_kind": "regulation",
+    "source_role_level": "high",
+    "jurisdiction": "EU",
+    "retrieval_timestamp": "2026-04-01T20:49:07.276040+00:00",
+    "citation_quality": "document_only",
+    "metadata_complete": true,
+    "reason": "Fetched allowlisted discovery page.",
+    "record_type": "discovery",
+    "discovered_from": null,
+    "content_type": "text/html; charset=UTF-8",
+    "normalization_status": "success",
+    "content_digest": "28bcda7eac23e18e926c6eaad7a4537c960ae9965629da9a9d67ce4be195f28c",
+    "provenance_record": "configured_discovery_url"
+  },
+  {
+    "sub_question": "At EU level, the access certificate identifies the relying-party service that is entitled to request wallet-mediated access.",
+    "canonical_url": "https://eur-lex.europa.eu/homepage.html",
+    "domain": "eur-lex.europa.eu",
+    "allowed": true,
+    "source_kind": "regulation",
+    "source_role_level": "high",
+    "jurisdiction": "EU",
+    "retrieval_timestamp": "2026-04-01T20:49:07.887086+00:00",
+    "citation_quality": "document_only",
+    "metadata_complete": true,
+    "reason": "Fetched allowlisted discovery page.",
+    "record_type": "discovery",
+    "discovered_from": null,
+    "content_type": "text/html; charset=UTF-8",
+    "normalization_status": "success",
+    "content_digest": "8fb0142697e61e767ab0eef155603c0e82f11b0c9e5c8bc2e85827c7bc77e3f6",
+    "provenance_record": "configured_discovery_url"
+  }
+]

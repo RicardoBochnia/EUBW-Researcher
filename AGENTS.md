@@ -18,6 +18,10 @@ Also consult these documents when relevant:
 
 - `docs/requirements/REQUIREMENTS_FACILITATION_GUIDE.md`
 - `docs/requirements/REQUIREMENTS_FACILITATION_REVIEW.md`
+- `docs/architecture/options/option-a/AGENT_RUNTIME_GUIDE.md`
+- `docs/architecture/options/option-a/REVIEW_GUIDE.md`
+- `docs/architecture/options/option-a/MANUAL_REVIEW_CHECKLIST.md`
+- `docs/architecture/options/option-a/HARDENING_NOTES.md`
 
 Precedence rule:
 - this `AGENTS.md` defines the active operational rules
@@ -69,6 +73,34 @@ Do not silently inherit:
 - your own prior domain knowledge
 
 Reuse may be discussed later, but only after the requirement basis is strong enough.
+
+## Current implementation reality
+
+This repository no longer contains only requirements and architecture artifacts.
+It also contains a working Option A V2 backend research implementation.
+
+When a task is about using, validating, reviewing, or exercising the implemented system:
+- do not ask the user how the project is supposed to run if the repo already defines the path
+- prefer the documented CLI entrypoints over ad-hoc module imports
+- treat `README.md` and `docs/architecture/options/option-a/AGENT_RUNTIME_GUIDE.md` as the primary operational entrypoints
+- treat artifact bundles, not answer text alone, as the authoritative review surface
+- assume the default real-corpus catalog is `artifacts/real_corpus/curated_catalog.json`
+- if that catalog is missing or stale, rebuild it with `python3 scripts/build_real_corpus_catalog.py`
+
+For current implementation tasks, the main entrypoints are:
+- `python3 scripts/run_tests.py`
+- `python3 scripts/run_eval.py --all`
+- `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- `python3 scripts/answer_question.py "<question>" --catalog artifacts/real_corpus/curated_catalog.json --output-dir <run-dir>`
+
+The default reviewable surfaces are:
+- `final_answer.txt`
+- `manual_review_report.md`
+- `approved_ledger.json`
+- `gap_records.json`
+- `web_fetch_records.json`
+- `provisional_grouping.json` when grouping is applicable
+- `corpus_coverage_report.json` for corpus-backed runs
 
 ## Shared rules across all modes
 

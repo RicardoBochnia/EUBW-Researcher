@@ -1,0 +1,12 @@
+[
+  {
+    "label": "Certificates and identity",
+    "claim_ids": [
+      "access_certificate_eu_level"
+    ],
+    "source_ids": [
+      "celex_32025R0848_fulltext_en"
+    ],
+    "provisional": true
+  }
+]

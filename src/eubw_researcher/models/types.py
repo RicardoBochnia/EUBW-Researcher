@@ -80,6 +80,7 @@ class SourceCatalogEntry:
     canonical_url: Optional[str]
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchorability_hints: List[str] = field(default_factory=list)
+    admission_reason: Optional[str] = None
 
 
 @dataclass
@@ -269,6 +270,7 @@ class ArchiveSourceSelection:
     publication_date: Optional[str]
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchorability_hints: List[str] = field(default_factory=list)
+    admission_reason: Optional[str] = None
 
 
 @dataclass
@@ -340,6 +342,8 @@ class QueryIntent:
     claim_targets: List[ClaimTarget]
     preferred_kinds: List[SourceKind]
     clarification_note: Optional[str] = None
+    answer_pattern: Optional[str] = None
+    undefined_terms: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -508,6 +512,26 @@ class ManualReviewReport:
 
 
 @dataclass
+class FacetCoverageFacet:
+    facet_id: str
+    addressed: bool
+    evidence: List[str] = field(default_factory=list)
+
+
+@dataclass
+class FacetCoverageReport:
+    question: str
+    intent_type: str
+    facets: List[FacetCoverageFacet] = field(default_factory=list)
+
+    def by_id(self) -> Dict[str, FacetCoverageFacet]:
+        return {facet.facet_id: facet for facet in self.facets}
+
+    def all_addressed(self) -> bool:
+        return all(facet.addressed for facet in self.facets)
+
+
+@dataclass
 class CorpusCoverageFamily:
     family_id: str
     minimum_count: int
@@ -539,6 +563,7 @@ class AnswerResult:
     rendered_answer: str
     provisional_grouping: List[ProvisionalGroup] = field(default_factory=list)
     manual_review: Optional[ManualReviewArtifact] = None
+    facet_coverage_report: Optional[FacetCoverageReport] = None
     corpus_coverage_report: Optional[CorpusCoverageReport] = None
 
 

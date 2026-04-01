@@ -1,0 +1,41 @@
+{
+  "question": "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?",
+  "scenario_id": null,
+  "artifact_scope": "broad_regulation_question",
+  "filled": false,
+  "checks": [
+    {
+      "check_id": "blocked_claims_hidden",
+      "status": "pass",
+      "evidence": "Blocked claims do not surface in the rendered answer."
+    },
+    {
+      "check_id": "approved_entries_have_citations",
+      "status": "pass",
+      "evidence": "1 approved entries each carry at least one citation."
+    },
+    {
+      "check_id": "claim_state_visibility",
+      "status": "pass",
+      "evidence": "Visible state markers are aligned with the approved ledger entries."
+    },
+    {
+      "check_id": "weak_anchors_degrade_to_document_only",
+      "status": "pass",
+      "evidence": "Weak-anchor sources in the ingestion report do not claim anchor-grounded citation quality."
+    },
+    {
+      "check_id": "allowlisted_web_only",
+      "status": "pass",
+      "evidence": "All fetched web records are allowlisted."
+    },
+    {
+      "check_id": "provisional_grouping_present_when_applicable",
+      "status": "pass",
+      "evidence": "Grouping artifact is present for grouping-capable intent."
+    }
+  ],
+  "summary": "Automated review prefill completed with 6/6 checks passing.",
+  "artifact_type": "automated_review_prefill",
+  "human_reviewed": false
+}
