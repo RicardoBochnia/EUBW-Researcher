@@ -4,6 +4,8 @@ from .types import (
     AnswerAlignmentRecord,
     AnswerAlignmentReport,
     ArchiveCorpusConfig,
+    ArchiveRefreshReport,
+    ArchiveRefreshResult,
     ArchiveSourceSelection,
     AnchorAudit,
     AnchorQuality,
@@ -60,6 +62,8 @@ from .types import (
 
 __all__ = [
     "ArchiveCorpusConfig",
+    "ArchiveRefreshReport",
+    "ArchiveRefreshResult",
     "ArchiveSourceSelection",
     "AnchorAudit",
     "AnchorQuality",

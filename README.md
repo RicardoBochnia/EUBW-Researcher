@@ -9,6 +9,8 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
 - Build the internal catalog for the local real corpus archive: `python3 scripts/build_real_corpus_catalog.py`
+- Check the configured real-corpus archive against the original allowlisted web sources and stage changed candidates: `python3 scripts/refresh_real_corpus.py`
+- Apply staged refresh candidates into the accepted local archive and update archive-catalog metadata: `python3 scripts/refresh_real_corpus.py --apply`
 - Ingest the generated real corpus catalog: `python3 scripts/ingest_sample_corpus.py --catalog artifacts/real_corpus/curated_catalog.json`
 - Ask a question against the generated real corpus catalog: `python3 scripts/answer_question.py "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"`
 - Ask the primary V2 Business Wallet research question and write review artifacts: `python3 scripts/answer_question.py "What requirements apply to the Business Wallet, and how can they be provisionally structured?" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/review_demo_primary`
@@ -27,6 +29,7 @@ Validator contract for the closeout harness:
 ## Notes
 
 - The repository is V2-backend-only by design: no UI, no persistent provenance graph, and no multi-agent orchestration.
+- Real-corpus refresh is user-triggered: `scripts/refresh_real_corpus.py` checks configured archive entries against their original allowlisted web sources, stages changed candidates under `artifacts/real_corpus/refresh_staging`, and only updates the accepted archive when run with `--apply`.
 - Config files under `configs/` use YAML-compatible JSON so no separate YAML parser dependency is required; PDF extraction uses `pypdf`.
 - Manual artifact review guidance lives in `docs/architecture/options/option-a/MANUAL_REVIEW_CHECKLIST.md`.
 - A compact reviewer entrypoint lives in `docs/architecture/options/option-a/REVIEW_GUIDE.md`.

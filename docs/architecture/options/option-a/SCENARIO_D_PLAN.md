@@ -117,7 +117,7 @@ If these conditions hold, Option A is considered complete for the currently acce
 
 These are intentionally not part of Scenario D closeout, but they are tracked for later work:
 
-- Freshness automation:
+- User-triggered corpus refresh automation against original web sources:
   - GitHub issue [#2](https://github.com/RicardoBochnia/EUBW-Researcher/issues/2)
 - Germany beyond best-effort support:
   - GitHub issue [#3](https://github.com/RicardoBochnia/EUBW-Researcher/issues/3)

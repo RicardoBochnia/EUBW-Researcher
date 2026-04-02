@@ -16,6 +16,10 @@ The primary usage pattern is:
 
 - Build or refresh the real-corpus catalog:
   `python3 scripts/build_real_corpus_catalog.py`
+- Run the user-triggered real-corpus refresh check against the configured original web sources:
+  `python3 scripts/refresh_real_corpus.py`
+  - this stages changed or missing candidates under `artifacts/real_corpus/refresh_staging`
+  - add `--apply` only when you intentionally want to update the accepted local archive and archive-catalog metadata
 - Run the full testsuite, including Scenario D closeout coverage:
   `python3 scripts/run_tests.py`
 - Run only the separate Scenario D closeout harness tests:

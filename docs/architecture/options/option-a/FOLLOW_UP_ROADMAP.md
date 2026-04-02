@@ -111,12 +111,12 @@ Goal:
 
 Items:
 - [#5](https://github.com/RicardoBochnia/EUBW-Researcher/issues/5) small terminology and synonym layer
-- [#2](https://github.com/RicardoBochnia/EUBW-Researcher/issues/2) freshness automation
+- [#2](https://github.com/RicardoBochnia/EUBW-Researcher/issues/2) user-triggered corpus refresh against original web sources
 - [#3](https://github.com/RicardoBochnia/EUBW-Researcher/issues/3) Germany beyond best effort
 
 Why this is Wave 2:
 - these improvements are useful, but they depend on having a more stable runtime and review surface first
-- freshness and Germany support should land on top of a clearer corpus/state/reporting layer
+- refresh automation and Germany support should land on top of a clearer corpus/state/reporting layer
 
 Recommended order inside the wave:
 1. `#5`
@@ -125,7 +125,7 @@ Recommended order inside the wave:
 
 Rationale:
 - terminology is the lightest, safest uplift
-- freshness then makes corpus maintenance less manual
+- refresh automation then reduces manual archive maintenance and makes configured sources easier to keep current
 - Germany expansion should come after corpus management is more disciplined
 
 ### Wave 3: broader discovery extensions
