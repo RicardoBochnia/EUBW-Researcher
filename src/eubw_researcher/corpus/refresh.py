@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from eubw_researcher.models import (
@@ -14,11 +13,8 @@ from eubw_researcher.models import (
     ArchiveRefreshReport,
     ArchiveRefreshResult,
     RuntimeConfig,
-    SourceKind,
-    WebAllowlistConfig,
     dataclass_to_dict,
 )
-from eubw_researcher.web.allowlist import normalize_domain, validate_domain
 
 USER_AGENT = "eubw-researcher-refresh/0.1"
 
@@ -40,36 +36,8 @@ def _file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _blocked_by_keyword(url: str, allowlist: WebAllowlistConfig) -> bool:
-    domain = normalize_domain(url)
-    policy = allowlist.policy_for_domain(domain)
-    if policy is None:
-        return False
-    lowered = url.lower()
-    return any(keyword in lowered for keyword in policy.blocked_url_keywords)
-
-
-def _matches_allowed_path(url: str, allowlist: WebAllowlistConfig, source_kind: SourceKind) -> bool:
-    domain = normalize_domain(url)
-    policy = allowlist.policy_for_domain(domain)
-    if policy is None:
-        return True
-    if policy.source_kind != source_kind:
-        return False
-    path = urlparse(url).path or "/"
-    if not policy.allowed_path_prefixes:
-        return True
-    return any(path.startswith(prefix) for prefix in policy.allowed_path_prefixes)
-
-
-def _is_refreshable_url(url: Optional[str], allowlist: WebAllowlistConfig, source_kind: SourceKind) -> bool:
-    if not url:
-        return False
-    if not validate_domain(url, allowlist):
-        return False
-    if _blocked_by_keyword(url, allowlist):
-        return False
-    return _matches_allowed_path(url, allowlist, source_kind)
+def _is_refreshable_url(url: Optional[str]) -> bool:
+    return bool(url)
 
 
 def _resolve_refresh_local_path(archive_root: Path, raw_path: str) -> Optional[Path]:
@@ -179,7 +147,6 @@ def _update_archive_row(
 
 def refresh_archive_sources(
     config: ArchiveCorpusConfig,
-    allowlist: WebAllowlistConfig,
     runtime_config: RuntimeConfig,
     *,
     stage_root: Path,
@@ -234,7 +201,7 @@ def refresh_archive_sources(
                 )
             )
             continue
-        if not _is_refreshable_url(canonical_url, allowlist, selection.source_kind):
+        if not _is_refreshable_url(canonical_url):
             results.append(
                 ArchiveRefreshResult(
                     archive_source_id=selection.archive_source_id,
@@ -243,8 +210,8 @@ def refresh_archive_sources(
                     canonical_url=canonical_url,
                     local_path=str(local_path),
                     checked_at=checked_at,
-                    status="skipped_not_allowlisted",
-                    reason="Canonical URL is not allowlisted for conservative refresh checks.",
+                    status="skipped_missing_canonical_url",
+                    reason="No canonical source URL is configured for this archive entry.",
                     local_exists=local_exists,
                     local_content_digest=local_content_digest,
                 )

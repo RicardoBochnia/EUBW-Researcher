@@ -16,7 +16,7 @@ The primary usage pattern is:
 
 - Build or refresh the real-corpus catalog:
   `python3 scripts/build_real_corpus_catalog.py`
-- Run the user-triggered real-corpus refresh check against the configured original web sources:
+- Run the user-triggered real-corpus refresh check against the stored canonical source URLs:
   `python3 scripts/refresh_real_corpus.py`
   - this stages changed or missing candidates under `artifacts/real_corpus/refresh_staging`
   - add `--apply` only when you intentionally want to update the accepted local archive and archive-catalog metadata
@@ -53,6 +53,15 @@ Unless there is a strong reason otherwise, use the default real-corpus catalog a
 - `artifacts/real_corpus/curated_catalog.json`
 
 ## Preferred operating pattern
+
+## Refresh Governance Decision
+
+Treat refresh differently from discovery:
+- discovery remains allowlist-governed and path-gated for finding new sources
+- refresh may only re-check the exact stored `canonical_url` for an already accepted archive entry
+- refresh must not perform discovery, link-following, alternate-source search, or silent source replacement
+- refresh should therefore not be blocked just because the canonical URL lacks a discovery allowlist rule
+- archive writes still remain bounded to paths inside `artifacts/real_corpus/archive`
 
 For verification or review tasks:
 - read `README.md`

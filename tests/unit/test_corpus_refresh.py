@@ -10,7 +10,7 @@ from pathlib import Path
 
 from eubw_researcher.config import load_archive_corpus_config
 from eubw_researcher.corpus.refresh import refresh_archive_sources
-from eubw_researcher.models import RuntimeConfig, WebAllowlistConfig, WebDomainPolicy
+from eubw_researcher.models import RuntimeConfig
 
 
 class CorpusRefreshTests(unittest.TestCase):
@@ -91,22 +91,8 @@ class CorpusRefreshTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 config = load_archive_corpus_config(config_path)
-                allowlist = WebAllowlistConfig(
-                    allowed_domains=["127.0.0.1"],
-                    domain_policies=[
-                        WebDomainPolicy(
-                            domain="127.0.0.1",
-                            source_kind=config.sources[0].source_kind,
-                            source_role_level=config.sources[0].source_role_level,
-                            jurisdiction="EU",
-                            allowed_path_prefixes=["/"],
-                        )
-                    ],
-                )
-
                 report = refresh_archive_sources(
                     config,
-                    allowlist,
                     self._runtime_config(),
                     stage_root=tmp_root / "stage",
                     config_path=config_path,
@@ -184,22 +170,8 @@ class CorpusRefreshTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 config = load_archive_corpus_config(config_path)
-                allowlist = WebAllowlistConfig(
-                    allowed_domains=["127.0.0.1"],
-                    domain_policies=[
-                        WebDomainPolicy(
-                            domain="127.0.0.1",
-                            source_kind=config.sources[0].source_kind,
-                            source_role_level=config.sources[0].source_role_level,
-                            jurisdiction="EU",
-                            allowed_path_prefixes=["/"],
-                        )
-                    ],
-                )
-
                 report = refresh_archive_sources(
                     config,
-                    allowlist,
                     self._runtime_config(),
                     stage_root=tmp_root / "stage",
                     config_path=config_path,
@@ -218,7 +190,7 @@ class CorpusRefreshTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
-    def test_refresh_skips_non_allowlisted_source(self) -> None:
+    def test_refresh_fetches_known_canonical_url_even_without_allowlist_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
             archive_root = tmp_root / "archive"
@@ -265,82 +237,13 @@ class CorpusRefreshTests(unittest.TestCase):
 
             report = refresh_archive_sources(
                 config,
-                WebAllowlistConfig(allowed_domains=["127.0.0.1"]),
                 self._runtime_config(),
                 stage_root=tmp_root / "stage",
                 config_path=config_path,
             )
 
-            self.assertEqual(report.skipped_sources, 1)
-            self.assertEqual(report.results[0].status, "skipped_not_allowlisted")
-
-    def test_refresh_skips_blocked_keyword_even_when_domain_is_allowlisted(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_root = Path(tmp_dir)
-            archive_root = tmp_root / "archive"
-            local_path = archive_root / "reference_web" / "sample.html"
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            local_path.write_text("<html><body>old</body></html>", encoding="utf-8")
-            catalog_path = archive_root / "catalog.json"
-            catalog_path.write_text(
-                json.dumps(
-                    [
-                        {
-                            "source_id": "ARCHIVE-1",
-                            "title": "Archive Sample",
-                            "local_path": "sources/reference_web/sample.html",
-                            "source_url": "https://example.test/print-pdf.html",
-                        }
-                    ]
-                ),
-                encoding="utf-8",
-            )
-            config_path = tmp_root / "selection.json"
-            config_path.write_text(
-                json.dumps(
-                    {
-                        "archive_root": "archive",
-                        "archive_catalog": "archive/catalog.json",
-                        "sources": [
-                            {
-                                "archive_source_id": "ARCHIVE-1",
-                                "source_id": "sample_regulation",
-                                "title": "Sample Regulation",
-                                "source_kind": "regulation",
-                                "source_role_level": "high",
-                                "jurisdiction": "EU",
-                                "publication_status": "official_journal",
-                                "publication_date": None,
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
-            config = load_archive_corpus_config(config_path)
-            allowlist = WebAllowlistConfig(
-                allowed_domains=["example.test"],
-                domain_policies=[
-                    WebDomainPolicy(
-                        domain="example.test",
-                        source_kind=config.sources[0].source_kind,
-                        source_role_level=config.sources[0].source_role_level,
-                        jurisdiction="EU",
-                        allowed_path_prefixes=["/"],
-                        blocked_url_keywords=["print-pdf"],
-                    )
-                ],
-            )
-
-            report = refresh_archive_sources(
-                config,
-                allowlist,
-                self._runtime_config(),
-                stage_root=tmp_root / "stage",
-                config_path=config_path,
-            )
-
-            self.assertEqual(report.results[0].status, "skipped_not_allowlisted")
+            self.assertEqual(report.failed_sources, 1)
+            self.assertEqual(report.results[0].status, "fetch_failed")
 
     def test_refresh_skips_invalid_local_path_outside_archive_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -387,7 +290,6 @@ class CorpusRefreshTests(unittest.TestCase):
 
             report = refresh_archive_sources(
                 config,
-                WebAllowlistConfig(allowed_domains=["example.test"]),
                 self._runtime_config(),
                 stage_root=tmp_root / "stage",
                 config_path=config_path,
@@ -464,22 +366,8 @@ class CorpusRefreshTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 config = load_archive_corpus_config(config_path)
-                allowlist = WebAllowlistConfig(
-                    allowed_domains=["127.0.0.1"],
-                    domain_policies=[
-                        WebDomainPolicy(
-                            domain="127.0.0.1",
-                            source_kind=config.sources[0].source_kind,
-                            source_role_level=config.sources[0].source_role_level,
-                            jurisdiction="EU",
-                            allowed_path_prefixes=["/"],
-                        )
-                    ],
-                )
-
                 report = refresh_archive_sources(
                     config,
-                    allowlist,
                     self._runtime_config(),
                     stage_root=tmp_root / "stage",
                     config_path=config_path,
@@ -554,22 +442,8 @@ class CorpusRefreshTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 config = load_archive_corpus_config(config_path)
-                allowlist = WebAllowlistConfig(
-                    allowed_domains=["127.0.0.1"],
-                    domain_policies=[
-                        WebDomainPolicy(
-                            domain="127.0.0.1",
-                            source_kind=config.sources[0].source_kind,
-                            source_role_level=config.sources[0].source_role_level,
-                            jurisdiction="EU",
-                            allowed_path_prefixes=["/"],
-                        )
-                    ],
-                )
-
                 report = refresh_archive_sources(
                     config,
-                    allowlist,
                     self._runtime_config(),
                     stage_root=tmp_root / "stage",
                     config_path=config_path,
@@ -628,24 +502,6 @@ class CorpusRefreshTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            allowlist_path = tmp_root / "allowlist.json"
-            allowlist_path.write_text(
-                json.dumps(
-                    {
-                        "allowed_domains": ["127.0.0.1"],
-                        "domain_policies": [
-                            {
-                                "domain": "127.0.0.1",
-                                "source_kind": "regulation",
-                                "source_role_level": "high",
-                                "jurisdiction": "EU",
-                                "allowed_path_prefixes": ["/"],
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
             runtime_path = tmp_root / "runtime.json"
             runtime_path.write_text(
                 json.dumps(
@@ -675,8 +531,6 @@ class CorpusRefreshTests(unittest.TestCase):
                     "scripts/refresh_real_corpus.py",
                     "--config",
                     str(config_path),
-                    "--allowlist",
-                    str(allowlist_path),
                     "--runtime-config",
                     str(runtime_path),
                     "--stage-dir",

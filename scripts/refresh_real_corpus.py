@@ -13,11 +13,6 @@ def parse_args() -> argparse.Namespace:
         help="Archive-selection config for the real local corpus.",
     )
     parser.add_argument(
-        "--allowlist",
-        default="configs/web_allowlist.yaml",
-        help="Allowlisted official-source policy config for refresh checks.",
-    )
-    parser.add_argument(
         "--runtime-config",
         default="configs/runtime.yaml",
         help="Runtime config used for bounded refresh fetches.",
@@ -53,7 +48,6 @@ def main() -> int:
     from eubw_researcher.config import (
         load_archive_corpus_config,
         load_runtime_config,
-        load_web_allowlist,
     )
     from eubw_researcher.corpus import (
         refresh_archive_sources,
@@ -63,11 +57,9 @@ def main() -> int:
 
     config_path = (repo_root / args.config).resolve()
     config = load_archive_corpus_config(config_path)
-    allowlist = load_web_allowlist((repo_root / args.allowlist).resolve())
     runtime_config = load_runtime_config((repo_root / args.runtime_config).resolve())
     report = refresh_archive_sources(
         config,
-        allowlist,
         runtime_config,
         stage_root=(repo_root / args.stage_dir).resolve(),
         config_path=config_path,
