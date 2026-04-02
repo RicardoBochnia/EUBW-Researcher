@@ -172,7 +172,10 @@ class RetrievalTests(unittest.TestCase):
         )
         self.assertEqual(intent.intent_type, "broad_regulation_question")
         self.assertTrue(intent.eu_first)
-        self.assertEqual(intent.preferred_kinds[:2], [SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT])
+        self.assertEqual(
+            intent.preferred_kinds[:2],
+            [SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
+        )
         self.assertEqual(
             intent.clarification_note,
             "Broad question: continue with an EU-first first-pass answer.",
