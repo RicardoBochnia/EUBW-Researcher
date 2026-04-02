@@ -166,7 +166,16 @@ class ResearchRuntimeFacade:
         if mode == AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE:
             if output_dir is None:
                 raise ValueError("output_dir is required for write_reviewable_artifact_bundle")
-            return self._resolve_path(output_dir)
+            if isinstance(output_dir, str) and not output_dir.strip():
+                raise ValueError("output_dir must not be empty")
+            resolved_output_dir = self._resolve_path(output_dir)
+            if resolved_output_dir == self.repo_root:
+                raise ValueError("output_dir must not resolve to the repository root")
+            if resolved_output_dir.exists() and not resolved_output_dir.is_dir():
+                raise ValueError(
+                    f"output_dir must be a directory path: {resolved_output_dir}"
+                )
+            return resolved_output_dir
         if output_dir is not None:
             raise ValueError(
                 "output_dir is only supported for "

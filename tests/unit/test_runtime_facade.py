@@ -160,6 +160,52 @@ class RuntimeFacadeTests(unittest.TestCase):
                     )
                 )
 
+    def test_write_route_rejects_blank_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            facade = ResearchRuntimeFacade(tmp_dir)
+
+            with self.assertRaisesRegex(ValueError, "output_dir must not be empty"):
+                facade.run(
+                    AgentRuntimeRequest(
+                        question="Synthetic question?",
+                        mode=AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE,
+                        output_dir="   ",
+                    )
+                )
+
+    def test_write_route_rejects_repo_root_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            facade = ResearchRuntimeFacade(tmp_dir)
+
+            with self.assertRaisesRegex(
+                ValueError, "output_dir must not resolve to the repository root"
+            ):
+                facade.run(
+                    AgentRuntimeRequest(
+                        question="Synthetic question?",
+                        mode=AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE,
+                        output_dir=".",
+                    )
+                )
+
+    def test_write_route_rejects_output_dir_that_is_existing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            output_file = repo_root / "existing_output.txt"
+            output_file.write_text("not a directory", encoding="utf-8")
+            facade = ResearchRuntimeFacade(repo_root)
+
+            with self.assertRaisesRegex(
+                ValueError, f"output_dir must be a directory path: {output_file.resolve()}"
+            ):
+                facade.run(
+                    AgentRuntimeRequest(
+                        question="Synthetic question?",
+                        mode=AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE,
+                        output_dir=output_file,
+                    )
+                )
+
     def test_missing_catalog_raises_regular_exception(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             facade = ResearchRuntimeFacade(tmp_dir)

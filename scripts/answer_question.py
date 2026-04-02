@@ -37,7 +37,7 @@ def main() -> int:
                 question=args.question,
                 mode=(
                     AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE
-                    if args.output_dir
+                    if args.output_dir is not None
                     else AgentRuntimeMode.ANSWER_QUESTION
                 ),
                 catalog_path=args.catalog,
