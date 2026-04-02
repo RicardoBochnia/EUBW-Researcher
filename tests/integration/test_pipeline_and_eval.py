@@ -25,6 +25,8 @@ from eubw_researcher.evaluation import run_all_scenarios
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
     ClaimState,
+    CorpusRefreshSummary,
+    CorpusSourceDelta,
     ScenarioVerdict,
     SourceKind,
     SourceRoleLevel,
@@ -449,6 +451,40 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_write_artifact_bundle_persists_corpus_refresh_summary_when_present(self) -> None:
+        result = self.pipeline.answer_question(
+            "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"
+        )
+        result.corpus_refresh_summary = CorpusRefreshSummary(
+            catalog_path=str(REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"),
+            corpus_state_id="synthetic-state",
+            previous_corpus_state_id="previous-state",
+            generated_at="2026-04-02T00:00:00+00:00",
+            refresh_status="refreshed",
+            updated_sources=[
+                CorpusSourceDelta(
+                    source_id="openid4vp_1_0_official",
+                    title="OpenID4VP Official",
+                    change_type="updated",
+                    changed_fields=["content_digest"],
+                )
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            write_artifact_bundle(
+                Path(tmp_dir),
+                result,
+                verdict=ScenarioVerdict(
+                    scenario_id="synthetic_refresh_direct_run",
+                    passed=True,
+                    checks=[],
+                ),
+                scenario_id="synthetic_refresh_direct_run",
+                catalog_path=REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml",
+                corpus_state_id="synthetic-state",
+            )
+            self.assertTrue((Path(tmp_dir) / "corpus_refresh_summary.json").exists())
 
     def test_web_expansion_prefers_same_rank_seed_over_lower_rank_seed(self) -> None:
         class Handler(BaseHTTPRequestHandler):

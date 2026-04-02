@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import tempfile
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 
 from eubw_researcher.evaluation.review import (
@@ -61,7 +59,7 @@ def _minimal_result(record_type: str) -> SimpleNamespace:
     )
     return SimpleNamespace(
         question="Synthetic question?",
-        query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        query_intent=SimpleNamespace(intent_type="synthetic_intent", claim_targets=[]),
         ledger_entries=[entry],
         approved_entries=[entry],
         rendered_answer="Confirmed:\nA reviewable answer.",
@@ -95,6 +93,7 @@ def _minimal_result(record_type: str) -> SimpleNamespace:
                 source_origin=SourceOrigin.WEB,
             )
         ],
+        provisional_grouping=[],
         facet_coverage_report=None,
         pinpoint_evidence_report=PinpointEvidenceReport(
             question="Synthetic question?",
@@ -631,22 +630,6 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("Refresh status: `refreshed`", markdown)
         self.assertIn("Updated source: `existing_source`", markdown)
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            from eubw_researcher.evaluation.runner import write_artifact_bundle
-
-            write_artifact_bundle(
-                Path(tmp_dir),
-                result,
-                verdict=ScenarioVerdict(
-                    scenario_id="synthetic_refresh_review",
-                    passed=True,
-                    checks=[],
-                ),
-                scenario_id="synthetic_refresh_review",
-                catalog_path=Path("/tmp/synthetic_catalog.json"),
-                corpus_state_id="synthetic-state",
-            )
-            self.assertTrue((Path(tmp_dir) / "corpus_refresh_summary.json").exists())
 
 
 if __name__ == "__main__":
