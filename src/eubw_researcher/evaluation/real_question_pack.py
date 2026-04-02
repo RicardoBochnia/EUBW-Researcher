@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,21 +88,11 @@ def run_real_question_pack(
 
     for question in selected_questions:
         question_output_dir = run_root / question.question_id
+        _prepare_question_output_dir(question_output_dir)
         response = facade.write_reviewable_artifact_bundle(
             question.question,
             question_output_dir,
             catalog_path=catalog_path,
-        )
-        report = build_manual_review_report(
-            response.result,
-            ScenarioVerdict(
-                scenario_id=question.question_id,
-                passed=True,
-                checks=[],
-            ),
-            scenario_id=question.question_id,
-            catalog_path=str(response.catalog_path),
-            corpus_state_id=response.corpus_state_id,
         )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
@@ -113,6 +104,18 @@ def run_real_question_pack(
         missing_artifacts = [
             artifact for artifact in expected_artifacts if artifact not in actual_artifacts
         ]
+        verdict = _build_question_verdict(
+            question,
+            response.result,
+            missing_artifacts=missing_artifacts,
+        )
+        report = build_manual_review_report(
+            response.result,
+            verdict,
+            scenario_id=question.question_id,
+            catalog_path=str(response.catalog_path),
+            corpus_state_id=response.corpus_state_id,
+        )
         question_runs.append(
             RealQuestionPackQuestionRunSummary(
                 question_id=question.question_id,
@@ -197,6 +200,50 @@ def _resolve_path(repo_root: Path, value: PathLike) -> Path:
     if not path.is_absolute():
         path = repo_root / path
     return path.resolve()
+
+
+def _prepare_question_output_dir(question_output_dir: Path) -> None:
+    if question_output_dir.exists():
+        if not question_output_dir.is_dir():
+            raise ValueError(
+                f"Real-question output path must be a directory: {question_output_dir}"
+            )
+        shutil.rmtree(question_output_dir)
+    question_output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _build_question_verdict(
+    question: RealQuestionPackQuestion,
+    result,
+    *,
+    missing_artifacts: list[str],
+) -> ScenarioVerdict:
+    checks: list[str] = []
+    passed = True
+
+    if question.expected_intent_type:
+        if result.query_intent.intent_type == question.expected_intent_type:
+            checks.append(f"intent_type:{question.expected_intent_type}:ok")
+        else:
+            checks.append(
+                "intent_type:"
+                f"{question.expected_intent_type}:fail:{result.query_intent.intent_type}"
+            )
+            passed = False
+    else:
+        checks.append("intent_type:not_specified")
+
+    if missing_artifacts:
+        checks.append("required_artifacts:fail:" + ",".join(sorted(missing_artifacts)))
+        passed = False
+    else:
+        checks.append("required_artifacts:ok")
+
+    return ScenarioVerdict(
+        scenario_id=question.question_id,
+        passed=passed,
+        checks=checks,
+    )
 
 
 def _expected_bundle_artifacts(result, catalog_path: Path) -> list[str]:
