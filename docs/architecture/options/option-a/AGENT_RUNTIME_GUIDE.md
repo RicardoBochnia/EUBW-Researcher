@@ -14,6 +14,12 @@ The primary usage pattern is:
 
 ## Default entrypoints
 
+- Stable agent-facing facade:
+  `from eubw_researcher import AgentRuntimeFacade`
+- Stable agent wrapper for direct questions:
+  `python3 scripts/agent_answer_question.py "<question>" --output-dir artifacts/manual_runs/<run-name>`
+- Stable agent wrapper for eval routing:
+  `python3 scripts/agent_run_eval.py --scenario scenario_c_protocol_authorization_server`
 - Build or refresh the real-corpus catalog:
   `python3 scripts/build_real_corpus_catalog.py`
 - Run the full testsuite, including Scenario D closeout coverage:
@@ -34,6 +40,31 @@ The closeout harness invokes the validator as:
 
 Unless there is a strong reason otherwise, use the default real-corpus catalog at:
 - `artifacts/real_corpus/curated_catalog.json`
+
+For the stable agent facade, use the built-in defaults unless the task explicitly needs another catalog:
+- direct question and artifact-bundle runs default to `artifacts/real_corpus/curated_catalog.json`
+- eval runs default to `tests/fixtures/catalog/source_catalog.yaml`
+
+## Stable agent-facing contract
+
+Use `AgentRuntimeFacade` when an agent needs one narrow, reviewable runtime surface without importing internal pipeline or evaluation modules directly.
+
+The current contract version is:
+- `option_a_agent_runtime_v1`
+
+The supported stable operations are:
+- `answer_question(...)`
+- `write_reviewable_artifact_bundle(...)`
+- `run_named_evaluation(...)`
+- `run_all_evaluations(...)`
+
+The wrapper scripts return JSON summaries keyed by the same contract version and route labels, so agents can make deterministic decisions without reconstructing repo internals.
+
+The `agent_answer_question.py` wrapper supports two modes:
+- default answer mode returns the rendered answer plus optional artifact paths
+- `--artifacts-only` writes the reviewable bundle and returns only the bundle summary
+
+Keep using the existing `scripts/answer_question.py` and `scripts/run_eval.py` for legacy CLI compatibility. The new facade is the stable agent entry; the older scripts remain direct project CLIs, not the versioned agent contract.
 
 ## Preferred operating pattern
 
