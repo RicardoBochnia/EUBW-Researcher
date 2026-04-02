@@ -421,7 +421,7 @@ class CorpusFreshnessTests(unittest.TestCase):
                         "corpus_state_id": "state-1234",
                         "generated_at": "2026-04-02T00:00:00+00:00",
                         "refresh_status": "initial_build",
-                        "added_sources": [{"source_id": "bad", "title": "Bad", "change_type": "added", "source_origin": "unknown"}],
+                        "added_sources": [{"source_id": "bad", "title": "Bad", "change_type": "added", "source_origin": "not_a_valid_source_origin"}],
                         "removed_sources": [],
                         "updated_sources": [],
                         "changed_web_sources": [],
