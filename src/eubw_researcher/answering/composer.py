@@ -89,6 +89,20 @@ class ComposedAnswerBundle:
     answer_alignment_report: AnswerAlignmentReport
 
 
+@dataclass
+class _TopologyEvidenceSelection:
+    citations: List[Citation]
+    claim_states: List[ClaimState]
+    claim_ids: List[str]
+
+
+@dataclass
+class _TopologyProjectSupport:
+    supported_entries: List[LedgerEntry]
+    citations: List[Citation]
+    claim_states: List[ClaimState]
+
+
 def _role_weight(role_level: SourceRoleLevel) -> int:
     return {
         SourceRoleLevel.HIGH: 3,
@@ -306,16 +320,11 @@ def _generic_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
     )
 
 
-def _compose_certificate_topology_bullets(
-    entries: Sequence[LedgerEntry],
+def _build_topology_term_status_bullet(
     query_intent: QueryIntent,
     documents: Sequence[SourceDocument],
-) -> List[_AnswerBullet]:
-    entry_by_id = {entry.claim_id: entry for entry in entries}
+) -> _AnswerBullet:
     governing_documents, governing_term_hits = _governing_term_hits(query_intent, documents)
-    bullets: List[_AnswerBullet] = []
-    covered_claim_ids = set()
-
     term_status_text = (
         "Governing EU sources in the current corpus use derivative wording for the "
         "requested certificate terminology, so this term-status point needs manual review."
@@ -332,74 +341,52 @@ def _compose_certificate_topology_bullets(
         + ", ".join(f'"{term}"' for term in query_intent.undefined_terms)
         + "."
     )
-    bullets.append(
-        _AnswerBullet(
-            bullet_id="topology_undefined_term_status",
-            section=TOPOLOGY_NOT_DEFINED_LABEL,
-            text=term_status_text,
-            rationale=term_status_rationale,
-            wording_category="term_status_scan",
-            evidence_lines=[
-                _EvidenceLine(
-                    label="Evidence",
-                    citations=_document_citations(governing_documents),
-                )
-            ],
-        )
+    return _AnswerBullet(
+        bullet_id="topology_undefined_term_status",
+        section=TOPOLOGY_NOT_DEFINED_LABEL,
+        text=term_status_text,
+        rationale=term_status_rationale,
+        wording_category="term_status_scan",
+        evidence_lines=[
+            _EvidenceLine(
+                label="Evidence",
+                citations=_document_citations(governing_documents),
+            )
+        ],
     )
 
-    access_entry = entry_by_id.get("topology_access_certificate_role")
-    if access_entry is not None and access_entry.final_claim_state == ClaimState.CONFIRMED:
-        bullets.append(
-            _AnswerBullet(
-                bullet_id=access_entry.claim_id,
-                section="Confirmed",
-                text=access_entry.claim_text,
-                rationale=access_entry.rationale,
-                wording_category="governing_confirmed",
-                claim_ids=[access_entry.claim_id],
-                claim_states=[access_entry.final_claim_state],
-                evidence_lines=[
-                    _EvidenceLine(
-                        label="Evidence",
-                        citations=_select_citations(
-                            access_entry,
-                            role_levels=[SourceRoleLevel.HIGH],
-                            require_direct=True,
-                            strict_filters=True,
-                        ),
-                    )
-                ],
-            )
-        )
-        covered_claim_ids.add(access_entry.claim_id)
 
-    linkage_entry = entry_by_id.get("topology_registration_access_linkage")
-    if linkage_entry is not None and linkage_entry.final_claim_state == ClaimState.CONFIRMED:
-        bullets.append(
-            _AnswerBullet(
-                bullet_id=linkage_entry.claim_id,
-                section="Confirmed",
-                text=linkage_entry.claim_text,
-                rationale=linkage_entry.rationale,
-                wording_category="governing_confirmed",
-                claim_ids=[linkage_entry.claim_id],
-                claim_states=[linkage_entry.final_claim_state],
-                evidence_lines=[
-                    _EvidenceLine(
-                        label="Evidence",
-                        citations=_select_citations(
-                            linkage_entry,
-                            role_levels=[SourceRoleLevel.HIGH],
-                            strict_filters=True,
-                        ),
-                    )
-                ],
+def _build_topology_confirmed_bullet(
+    entry: LedgerEntry,
+    *,
+    require_direct: bool,
+) -> _AnswerBullet:
+    return _AnswerBullet(
+        bullet_id=entry.claim_id,
+        section="Confirmed",
+        text=entry.claim_text,
+        rationale=entry.rationale,
+        wording_category="governing_confirmed",
+        claim_ids=[entry.claim_id],
+        claim_states=[entry.final_claim_state],
+        evidence_lines=[
+            _EvidenceLine(
+                label="Evidence",
+                citations=_select_citations(
+                    entry,
+                    role_levels=[SourceRoleLevel.HIGH],
+                    require_direct=require_direct,
+                    strict_filters=True,
+                ),
             )
-        )
-        covered_claim_ids.add(linkage_entry.claim_id)
+        ],
+    )
 
-    scope_claim_ids = [
+
+def _topology_scope_claim_ids(
+    entry_by_id: dict[str, LedgerEntry],
+) -> List[str]:
+    return [
         claim_id
         for claim_id in [
             "topology_registration_certificate_role",
@@ -409,59 +396,76 @@ def _compose_certificate_topology_bullets(
         if claim_id in entry_by_id
         and entry_by_id[claim_id].final_claim_state != ClaimState.OPEN
     ]
+
+
+def _collect_topology_scope_support(
+    entry_by_id: dict[str, LedgerEntry],
+    claim_ids: Sequence[str],
+) -> _TopologyEvidenceSelection:
+    citations: List[Citation] = []
+    claim_states: List[ClaimState] = []
+    for claim_id in claim_ids:
+        scope_entry = entry_by_id[claim_id]
+        claim_states.append(scope_entry.final_claim_state)
+        citations.extend(
+            _select_citations(
+                scope_entry,
+                role_levels=[SourceRoleLevel.HIGH],
+                require_direct=True,
+                strict_filters=True,
+            )
+        )
+    return _TopologyEvidenceSelection(
+        citations=_dedupe_citations(citations),
+        claim_states=claim_states,
+        claim_ids=list(claim_ids),
+    )
+
+
+def _build_topology_scope_interpretation_bullet(
+    entry_by_id: dict[str, LedgerEntry],
+) -> tuple[Optional[_AnswerBullet], set[str]]:
+    scope_claim_ids = _topology_scope_claim_ids(entry_by_id)
     full_scope_claim_ids = [
         "topology_registration_certificate_role",
         "topology_access_certificate_role",
         "topology_registration_access_linkage",
     ]
-    if scope_claim_ids == full_scope_claim_ids:
-        scope_citations: List[Citation] = []
-        scope_states: List[ClaimState] = []
-        for claim_id in scope_claim_ids:
-            scope_entry = entry_by_id[claim_id]
-            scope_states.append(scope_entry.final_claim_state)
-            scope_citations.extend(
-                    _select_citations(
-                        scope_entry,
-                        role_levels=[SourceRoleLevel.HIGH],
-                        require_direct=True,
-                        strict_filters=True,
-                    )
-                )
-        bullets.append(
-            _AnswerBullet(
-                bullet_id="topology_governing_scope_interpretation",
-                section="Interpretive",
-                text=TOPOLOGY_SCOPING_SENTENCE,
-                rationale=(
-                    "This is the narrower conclusion the governing texts support directly; "
-                    "they describe role, intended use, and certificate linkage, but they "
-                    "do not expressly settle multiplicity."
-                ),
-                wording_category="interpretive_governing_boundary",
-                claim_ids=scope_claim_ids,
-                claim_states=scope_states,
-                evidence_lines=[
-                    _EvidenceLine(
-                        label="Evidence",
-                        citations=_dedupe_citations(scope_citations),
-                    )
-                ],
-            )
-        )
-        for claim_id in scope_claim_ids:
-            scope_entry = entry_by_id[claim_id]
-            if scope_entry.final_claim_state == ClaimState.INTERPRETIVE:
-                covered_claim_ids.add(claim_id)
+    if scope_claim_ids != full_scope_claim_ids:
+        return None, set()
 
-    project_multiplicity_entry = entry_by_id.get("topology_project_artifact_multiplicity")
-    project_scoping_entry = entry_by_id.get("topology_project_intended_use_scoping")
-    approved_project_entries = [
-        project_entry
-        for project_entry in [project_multiplicity_entry, project_scoping_entry]
-        if project_entry is not None and project_entry.final_claim_state != ClaimState.OPEN
-    ]
-    boundary_entries = [
+    scope_support = _collect_topology_scope_support(entry_by_id, scope_claim_ids)
+    bullet = _AnswerBullet(
+        bullet_id="topology_governing_scope_interpretation",
+        section="Interpretive",
+        text=TOPOLOGY_SCOPING_SENTENCE,
+        rationale=(
+            "This is the narrower conclusion the governing texts support directly; "
+            "they describe role, intended use, and certificate linkage, but they "
+            "do not expressly settle multiplicity."
+        ),
+        wording_category="interpretive_governing_boundary",
+        claim_ids=scope_support.claim_ids,
+        claim_states=scope_support.claim_states,
+        evidence_lines=[
+            _EvidenceLine(
+                label="Evidence",
+                citations=scope_support.citations,
+            )
+        ],
+    )
+    covered_claim_ids = {
+        claim_id
+        for claim_id in scope_claim_ids
+        if entry_by_id[claim_id].final_claim_state == ClaimState.INTERPRETIVE
+    }
+    return bullet, covered_claim_ids
+
+
+def _topology_boundary_entries(
+    entry_by_id: dict[str, LedgerEntry],
+) -> List[LedgerEntry]:
+    return [
         entry_by_id[claim_id]
         for claim_id in [
             "topology_registration_certificate_role",
@@ -471,118 +475,183 @@ def _compose_certificate_topology_bullets(
         if claim_id in entry_by_id
         and entry_by_id[claim_id].final_claim_state != ClaimState.OPEN
     ]
-    if boundary_entries or project_multiplicity_entry or project_scoping_entry:
-        boundary_citations: List[Citation] = []
-        boundary_states: List[ClaimState] = []
-        for boundary_entry in boundary_entries:
-            boundary_states.append(boundary_entry.final_claim_state)
-            boundary_citations.extend(
-                    _select_citations(
-                        boundary_entry,
-                        role_levels=[SourceRoleLevel.HIGH],
-                        require_direct=True,
-                        strict_filters=True,
-                    )
-                )
-        project_citations: List[Citation] = []
-        supported_project_entries: List[LedgerEntry] = []
-        supported_project_states: List[ClaimState] = []
-        for project_entry in approved_project_entries:
-            selected_citations = _select_citations(
-                project_entry,
-                role_levels=[SourceRoleLevel.MEDIUM],
-                source_kinds=[SourceKind.PROJECT_ARTIFACT],
-                require_direct=False,
+
+
+def _collect_topology_boundary_support(
+    boundary_entries: Sequence[LedgerEntry],
+) -> _TopologyEvidenceSelection:
+    citations: List[Citation] = []
+    claim_states: List[ClaimState] = []
+    claim_ids: List[str] = []
+    for boundary_entry in boundary_entries:
+        claim_ids.append(boundary_entry.claim_id)
+        claim_states.append(boundary_entry.final_claim_state)
+        citations.extend(
+            _select_citations(
+                boundary_entry,
+                role_levels=[SourceRoleLevel.HIGH],
+                require_direct=True,
                 strict_filters=True,
             )
-            if not selected_citations:
-                continue
-            supported_project_entries.append(project_entry)
-            supported_project_states.append(project_entry.final_claim_state)
-            project_citations.extend(selected_citations)
-            covered_claim_ids.add(project_entry.claim_id)
-        has_boundary_support = bool(boundary_entries and _dedupe_citations(boundary_citations))
-        has_project_support = bool(
-            supported_project_entries
-            and _dedupe_citations(project_citations)
         )
-        unresolved_text = TOPOLOGY_UNRESOLVED_NO_APPROVED_SUPPORT_SENTENCE
+    return _TopologyEvidenceSelection(
+        citations=_dedupe_citations(citations),
+        claim_states=claim_states,
+        claim_ids=claim_ids,
+    )
+
+
+def _collect_topology_project_support(
+    project_entries: Sequence[LedgerEntry],
+) -> _TopologyProjectSupport:
+    citations: List[Citation] = []
+    supported_entries: List[LedgerEntry] = []
+    claim_states: List[ClaimState] = []
+    for project_entry in project_entries:
+        selected_citations = _select_citations(
+            project_entry,
+            role_levels=[SourceRoleLevel.MEDIUM],
+            source_kinds=[SourceKind.PROJECT_ARTIFACT],
+            require_direct=False,
+            strict_filters=True,
+        )
+        if not selected_citations:
+            continue
+        supported_entries.append(project_entry)
+        claim_states.append(project_entry.final_claim_state)
+        citations.extend(selected_citations)
+    return _TopologyProjectSupport(
+        supported_entries=supported_entries,
+        citations=_dedupe_citations(citations),
+        claim_states=claim_states,
+    )
+
+
+def _build_topology_unresolved_multiplicity_bullet(
+    entry_by_id: dict[str, LedgerEntry],
+) -> tuple[Optional[_AnswerBullet], set[str]]:
+    project_multiplicity_entry = entry_by_id.get("topology_project_artifact_multiplicity")
+    project_scoping_entry = entry_by_id.get("topology_project_intended_use_scoping")
+    approved_project_entries = [
+        project_entry
+        for project_entry in [project_multiplicity_entry, project_scoping_entry]
+        if project_entry is not None and project_entry.final_claim_state != ClaimState.OPEN
+    ]
+    boundary_entries = _topology_boundary_entries(entry_by_id)
+    if not (boundary_entries or project_multiplicity_entry or project_scoping_entry):
+        return None, set()
+
+    boundary_support = _collect_topology_boundary_support(boundary_entries)
+    project_support = _collect_topology_project_support(approved_project_entries)
+
+    has_boundary_support = bool(boundary_support.citations)
+    has_project_support = bool(project_support.supported_entries and project_support.citations)
+    unresolved_text = TOPOLOGY_UNRESOLVED_NO_APPROVED_SUPPORT_SENTENCE
+    unresolved_rationale = (
+        "The broader topology conclusion is still not explicit governing law in the local corpus, and this run does not surface approved supporting evidence for multiplicity."
+    )
+    wording_category = "unresolved_no_approved_support"
+    evidence_lines: List[_EvidenceLine] = []
+    explicit_role_partitioning = False
+
+    if has_boundary_support and has_project_support:
+        unresolved_text = TOPOLOGY_UNRESOLVED_WITH_PROJECT_SUPPORT_SENTENCE
         unresolved_rationale = (
-            "The broader topology conclusion is still not explicit governing law in the local corpus, and this run does not surface approved supporting evidence for multiplicity."
+            "The product can separate the governing role statements from the broader "
+            "multiplicity interpretation, but the broader topology conclusion is still "
+            "not explicit governing law in the local corpus."
         )
-        wording_category = "unresolved_no_approved_support"
-        evidence_lines: List[_EvidenceLine] = []
-        explicit_role_partitioning = False
-
-        if has_boundary_support and has_project_support:
-            unresolved_text = TOPOLOGY_UNRESOLVED_WITH_PROJECT_SUPPORT_SENTENCE
-            unresolved_rationale = (
-                "The product can separate the governing role statements from the broader "
-                "multiplicity interpretation, but the broader topology conclusion is still "
-                "not explicit governing law in the local corpus."
-            )
-            wording_category = "unresolved_partitioned_support"
-            evidence_lines = [
-                _EvidenceLine(
-                    label="Evidence (governing boundary)",
-                    citations=_dedupe_citations(boundary_citations),
-                ),
-                _EvidenceLine(
-                    label="Evidence (medium-rank project support)",
-                    citations=_dedupe_citations(project_citations),
-                ),
-            ]
-            explicit_role_partitioning = True
-        elif has_boundary_support:
-            unresolved_text = TOPOLOGY_UNRESOLVED_GOVERNING_ONLY_SENTENCE
-            unresolved_rationale = (
-                "The product can preserve the governing boundary statements, but the broader "
-                "multiplicity interpretation remains unresolved because no approved medium-rank "
-                "project support survives this run."
-            )
-            wording_category = "unresolved_governing_boundary_only"
-            evidence_lines = [
-                _EvidenceLine(
-                    label="Evidence (governing boundary)",
-                    citations=_dedupe_citations(boundary_citations),
-                )
-            ]
-        elif has_project_support:
-            unresolved_text = TOPOLOGY_UNRESOLVED_PROJECT_ONLY_SENTENCE
-            unresolved_rationale = (
-                "The run surfaces only non-governing project-artifact support for multiplicity, "
-                "so the broader topology conclusion remains unresolved and cannot be framed as "
-                "governing EU law."
-            )
-            wording_category = "unresolved_medium_rank_only"
-            evidence_lines = [
-                _EvidenceLine(
-                    label="Evidence (medium-rank project support)",
-                    citations=_dedupe_citations(project_citations),
-                )
-            ]
-        else:
-            evidence_lines = []
-
-        bullets.append(
-            _AnswerBullet(
-                bullet_id="topology_unresolved_multiplicity",
-                section="Open",
-                text=unresolved_text,
-                rationale=unresolved_rationale,
-                wording_category=wording_category,
-                claim_ids=[
-                    *(entry.claim_id for entry in boundary_entries),
-                    *(
-                        project_entry.claim_id
-                        for project_entry in supported_project_entries
-                    ),
-                ],
-                claim_states=[*boundary_states, *supported_project_states],
-                evidence_lines=evidence_lines,
-                explicit_role_partitioning=explicit_role_partitioning,
-            )
+        wording_category = "unresolved_partitioned_support"
+        evidence_lines = [
+            _EvidenceLine(
+                label="Evidence (governing boundary)",
+                citations=boundary_support.citations,
+            ),
+            _EvidenceLine(
+                label="Evidence (medium-rank project support)",
+                citations=project_support.citations,
+            ),
+        ]
+        explicit_role_partitioning = True
+    elif has_boundary_support:
+        unresolved_text = TOPOLOGY_UNRESOLVED_GOVERNING_ONLY_SENTENCE
+        unresolved_rationale = (
+            "The product can preserve the governing boundary statements, but the broader "
+            "multiplicity interpretation remains unresolved because no approved medium-rank "
+            "project support survives this run."
         )
+        wording_category = "unresolved_governing_boundary_only"
+        evidence_lines = [
+            _EvidenceLine(
+                label="Evidence (governing boundary)",
+                citations=boundary_support.citations,
+            )
+        ]
+    elif has_project_support:
+        unresolved_text = TOPOLOGY_UNRESOLVED_PROJECT_ONLY_SENTENCE
+        unresolved_rationale = (
+            "The run surfaces only non-governing project-artifact support for multiplicity, "
+            "so the broader topology conclusion remains unresolved and cannot be framed as "
+            "governing EU law."
+        )
+        wording_category = "unresolved_medium_rank_only"
+        evidence_lines = [
+            _EvidenceLine(
+                label="Evidence (medium-rank project support)",
+                citations=project_support.citations,
+            )
+        ]
+
+    bullet = _AnswerBullet(
+        bullet_id="topology_unresolved_multiplicity",
+        section="Open",
+        text=unresolved_text,
+        rationale=unresolved_rationale,
+        wording_category=wording_category,
+        claim_ids=[
+            *boundary_support.claim_ids,
+            *(entry.claim_id for entry in project_support.supported_entries),
+        ],
+        claim_states=[*boundary_support.claim_states, *project_support.claim_states],
+        evidence_lines=evidence_lines,
+        explicit_role_partitioning=explicit_role_partitioning,
+    )
+    return bullet, {entry.claim_id for entry in project_support.supported_entries}
+
+
+def _compose_certificate_topology_bullets(
+    entries: Sequence[LedgerEntry],
+    query_intent: QueryIntent,
+    documents: Sequence[SourceDocument],
+) -> List[_AnswerBullet]:
+    entry_by_id = {entry.claim_id: entry for entry in entries}
+    bullets: List[_AnswerBullet] = []
+    covered_claim_ids = set()
+    bullets.append(_build_topology_term_status_bullet(query_intent, documents))
+
+    access_entry = entry_by_id.get("topology_access_certificate_role")
+    if access_entry is not None and access_entry.final_claim_state == ClaimState.CONFIRMED:
+        bullets.append(_build_topology_confirmed_bullet(access_entry, require_direct=True))
+        covered_claim_ids.add(access_entry.claim_id)
+
+    linkage_entry = entry_by_id.get("topology_registration_access_linkage")
+    if linkage_entry is not None and linkage_entry.final_claim_state == ClaimState.CONFIRMED:
+        bullets.append(_build_topology_confirmed_bullet(linkage_entry, require_direct=False))
+        covered_claim_ids.add(linkage_entry.claim_id)
+
+    scope_bullet, scope_covered_claim_ids = _build_topology_scope_interpretation_bullet(
+        entry_by_id
+    )
+    if scope_bullet is not None:
+        bullets.append(scope_bullet)
+        covered_claim_ids.update(scope_covered_claim_ids)
+
+    unresolved_bullet, unresolved_covered_claim_ids = _build_topology_unresolved_multiplicity_bullet(
+        entry_by_id
+    )
+    if unresolved_bullet is not None:
+        bullets.append(unresolved_bullet)
+        covered_claim_ids.update(unresolved_covered_claim_ids)
 
     for entry in entries:
         if entry.claim_id in covered_claim_ids:
