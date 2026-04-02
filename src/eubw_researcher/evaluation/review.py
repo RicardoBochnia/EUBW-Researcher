@@ -404,7 +404,7 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
             for item in refresh_summary.removed_sources:
                 lines.append(f"- Removed source: `{item.source_id}` ({item.title})")
             for item in refresh_summary.updated_sources:
-                changed_fields = ", ".join(item.changed_fields) if item.changed_fields else "content_digest"
+                changed_fields = ", ".join(item.changed_fields) if item.changed_fields else "n/a"
                 lines.append(
                     f"- Updated source: `{item.source_id}` ({item.title}); changed fields: `{changed_fields}`"
                 )

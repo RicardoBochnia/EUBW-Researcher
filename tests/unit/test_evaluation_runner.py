@@ -600,6 +600,12 @@ class EvaluationRunnerTests(unittest.TestCase):
                     title="Existing Source",
                     change_type="updated",
                     changed_fields=["content_digest"],
+                ),
+                CorpusSourceDelta(
+                    source_id="legacy_source",
+                    title="Legacy Source",
+                    change_type="updated",
+                    changed_fields=[],
                 )
             ],
             changed_web_sources=[
@@ -629,6 +635,7 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("## Corpus Freshness", markdown)
         self.assertIn("Refresh status: `refreshed`", markdown)
         self.assertIn("Updated source: `existing_source`", markdown)
+        self.assertIn("Updated source: `legacy_source` (Legacy Source); changed fields: `n/a`", markdown)
 
 
 
