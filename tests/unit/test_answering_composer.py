@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from typing import Optional
 
 from eubw_researcher.answering import build_facet_coverage_report, compose_answer_bundle
 from eubw_researcher.models import (
     AnswerAlignmentRecord,
     Citation,
     CitationQuality,
+    ClaimTarget,
     ClaimState,
     ClaimType,
     ContradictionStatus,
@@ -44,6 +46,38 @@ def _topology_intent_with_answer_pattern(answer_pattern: str) -> QueryIntent:
     intent = _topology_intent()
     intent.answer_pattern = answer_pattern
     return intent
+
+
+def _generic_intent(
+    intent_type: str = "wallet_requirements_summary",
+    *,
+    grouping_label: Optional[str] = None,
+) -> QueryIntent:
+    claim_targets = (
+        [
+            ClaimTarget(
+                target_id="synthetic_grouping_target",
+                claim_text="Synthetic grouped claim.",
+                claim_type=ClaimType.SYNTHESIS,
+                required_source_role_level=SourceRoleLevel.HIGH,
+                preferred_kinds=[SourceKind.REGULATION],
+                scope_terms=["synthetic"],
+                primary_terms=["grouped"],
+                support_groups=[["synthetic", "grouped"]],
+                contradiction_groups=[],
+                grouping_label=grouping_label,
+            )
+        ]
+        if grouping_label is not None
+        else []
+    )
+    return QueryIntent(
+        question="Synthetic generic question?",
+        intent_type=intent_type,
+        eu_first=True,
+        claim_targets=claim_targets,
+        preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
+    )
 
 
 def _high_role_citation(source_id: str) -> Citation:
@@ -480,6 +514,93 @@ class ComposerTests(unittest.TestCase):
 
         self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
         self.assertIn("Confirmed:", bundle.rendered_answer)
+
+    def test_generic_bundle_orders_sections_and_emits_cross_artifact_reports(self) -> None:
+        entries = [
+            _entry(
+                "generic_confirmed_claim",
+                "Governing EU sources confirm a synthetic registration requirement.",
+                ClaimState.CONFIRMED,
+            ),
+            _project_entry(
+                "generic_interpretive_claim",
+                "Project artifacts add interpretive implementation detail for the synthetic requirement.",
+                ClaimState.INTERPRETIVE,
+            ),
+            _entry(
+                "generic_open_claim",
+                "Governing EU sources leave a synthetic implementation boundary unresolved.",
+                ClaimState.OPEN,
+            ),
+        ]
+
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            entries,
+            query_intent=_generic_intent("relying_party_registration_information"),
+        )
+
+        self.assertIsNone(bundle.facet_coverage_report)
+        self.assertIn("Source-bound answer:", bundle.rendered_answer)
+        self.assertLess(bundle.rendered_answer.index("Confirmed:"), bundle.rendered_answer.index("Interpretive:"))
+        self.assertLess(bundle.rendered_answer.index("Interpretive:"), bundle.rendered_answer.index("Open:"))
+        self.assertTrue(bundle.pinpoint_evidence_report.all_cited_evidence_mapped)
+        self.assertEqual(
+            {record.answer_claim_id for record in bundle.pinpoint_evidence_report.records},
+            {"generic_confirmed_claim", "generic_interpretive_claim", "generic_open_claim"},
+        )
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
+    def test_generic_alignment_distinguishes_governing_and_non_governing_confirmed_claims(self) -> None:
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            [
+                _entry(
+                    "generic_governing_claim",
+                    "Governing EU sources confirm a synthetic high-rank claim.",
+                    ClaimState.CONFIRMED,
+                ),
+                _project_entry(
+                    "generic_project_claim",
+                    "Project artifacts confirm a synthetic medium-rank claim.",
+                    ClaimState.CONFIRMED,
+                ),
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+        )
+
+        categories_by_claim = {
+            record.answer_claim_id: record.wording_category
+            for record in bundle.answer_alignment_report.records
+        }
+        self.assertEqual(
+            categories_by_claim["generic_governing_claim"],
+            "governing_confirmed",
+        )
+        self.assertEqual(
+            categories_by_claim["generic_project_claim"],
+            "confirmed_non_governing",
+        )
+
+    def test_generic_bundle_keeps_non_topology_contract_for_grouping_capable_intent(self) -> None:
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            [
+                _entry(
+                    "grouped_generic_claim",
+                    "Governing EU sources confirm a grouped synthetic requirement.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent(
+                "wallet_requirements_summary",
+                grouping_label="Certificates and identity",
+            ),
+        )
+
+        self.assertIsNone(bundle.facet_coverage_report)
+        self.assertIn("Confirmed:", bundle.rendered_answer)
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
 
     def test_alignment_fails_when_governing_boundary_wording_uses_open_claims(self) -> None:
         bundle = compose_answer_bundle(

@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 
 from eubw_researcher.evaluation.review import (
+    build_manual_review_artifact,
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
@@ -401,6 +402,48 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn(
             "intent_type:wallet_requirements_summary:fail:synthetic_intent",
             verdict.checks,
+        )
+
+    def test_blind_validation_fails_when_generic_alignment_contract_breaks(self) -> None:
+        result = _minimal_result("fetch")
+        result.answer_alignment_report.blocking_violations = [
+            "synthetic-claim: Confirmed wording is attached to a non-confirmed claim-state."
+        ]
+
+        report = build_blind_validation_report(result)
+
+        self.assertFalse(report.passed)
+        self.assertIn("answer_evidence_alignment", report.missing_facets)
+
+    def test_manual_review_artifact_flags_missing_open_state_marker(self) -> None:
+        result = _minimal_result("fetch")
+        result.approved_entries[0].final_claim_state = ClaimState.OPEN
+        result.rendered_answer = "Source-bound answer:\n- Synthetic claim without state marker."
+        result.provisional_grouping = []
+        result.query_intent = SimpleNamespace(
+            intent_type="synthetic_intent",
+            claim_targets=[],
+        )
+
+        artifact = build_manual_review_artifact(result)
+        checks_by_id = {check.check_id: check for check in artifact.checks}
+
+        self.assertEqual(checks_by_id["claim_state_visibility"].status, "fail")
+
+    def test_manual_review_artifact_flags_missing_grouping_for_grouping_capable_intent(self) -> None:
+        result = _minimal_result("fetch")
+        result.provisional_grouping = []
+        result.query_intent = SimpleNamespace(
+            intent_type="wallet_requirements_summary",
+            claim_targets=[SimpleNamespace(grouping_label="Certificates and identity")],
+        )
+
+        artifact = build_manual_review_artifact(result)
+        checks_by_id = {check.check_id: check for check in artifact.checks}
+
+        self.assertEqual(
+            checks_by_id["provisional_grouping_present_when_applicable"].status,
+            "fail",
         )
 
     def test_manual_review_accept_gate_requires_accept_judgment(self) -> None:
