@@ -74,9 +74,12 @@ class AgentRuntimeFacade:
             candidate = self.repo_root / candidate
         return candidate.resolve()
 
+    def _resolve_required_path(self, path: PathLike) -> Path:
+        return self._resolve_path(path, default=Path("."))
+
     def _load_pipeline(self, catalog_path: Optional[PathLike], *, default_catalog: Path):
         resolved_catalog_path = self._resolve_path(catalog_path, default=default_catalog)
-        _, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(
+        _catalog, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(
             resolved_catalog_path
         )
         pipeline = ResearchPipeline(
@@ -103,7 +106,7 @@ class AgentRuntimeFacade:
 
         resolved_output_dir: Optional[Path] = None
         if output_dir is not None:
-            resolved_output_dir = self._resolve_path(output_dir, default=Path(output_dir))
+            resolved_output_dir = self._resolve_required_path(output_dir)
             write_artifact_bundle(
                 resolved_output_dir,
                 result,
@@ -140,7 +143,7 @@ class AgentRuntimeFacade:
         result = pipeline.answer_question(question)
         result.corpus_coverage_report = coverage_report
 
-        resolved_output_dir = self._resolve_path(output_dir, default=Path(output_dir))
+        resolved_output_dir = self._resolve_required_path(output_dir)
         write_artifact_bundle(
             resolved_output_dir,
             result,
@@ -172,7 +175,7 @@ class AgentRuntimeFacade:
             default=DEFAULT_AGENT_EVAL_CATALOG,
         )
         resolved_output_dir = (
-            self._resolve_path(output_dir, default=Path(output_dir))
+            self._resolve_required_path(output_dir)
             if output_dir is not None
             else default_output_dir(self.repo_root, resolved_catalog_path).resolve()
         )
@@ -214,7 +217,7 @@ class AgentRuntimeFacade:
             default=DEFAULT_AGENT_EVAL_CATALOG,
         )
         resolved_output_dir = (
-            self._resolve_path(output_dir, default=Path(output_dir))
+            self._resolve_required_path(output_dir)
             if output_dir is not None
             else default_output_dir(self.repo_root, resolved_catalog_path).resolve()
         )
