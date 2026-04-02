@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -211,7 +212,8 @@ class RuntimeFacadeTests(unittest.TestCase):
             facade = ResearchRuntimeFacade(repo_root)
 
             with self.assertRaisesRegex(
-                ValueError, f"output_dir must be a directory path: {output_file.resolve()}"
+                ValueError,
+                re.escape(f"output_dir must be a directory path: {output_file.resolve()}"),
             ):
                 facade.run(
                     AgentRuntimeRequest(
