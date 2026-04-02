@@ -1119,10 +1119,34 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
 
             self.assertNotEqual(completed.returncode, 0)
             scenario_dir = output_dir / "synthetic_real_corpus_backstop"
-            verdict = json.loads((scenario_dir / "verdict.json").read_text(encoding="utf-8"))
-            coverage = json.loads(
-                (scenario_dir / "corpus_coverage_report.json").read_text(encoding="utf-8")
+            self.assertTrue(
+                scenario_dir.is_dir(),
+                msg=(
+                    f"Expected scenario directory not found: {scenario_dir}\n"
+                    f"stdout:\n{completed.stdout}\n"
+                    f"stderr:\n{completed.stderr}"
+                ),
             )
+            verdict_path = scenario_dir / "verdict.json"
+            coverage_path = scenario_dir / "corpus_coverage_report.json"
+            self.assertTrue(
+                verdict_path.is_file(),
+                msg=(
+                    f"Expected verdict artifact not found: {verdict_path}\n"
+                    f"stdout:\n{completed.stdout}\n"
+                    f"stderr:\n{completed.stderr}"
+                ),
+            )
+            self.assertTrue(
+                coverage_path.is_file(),
+                msg=(
+                    f"Expected coverage artifact not found: {coverage_path}\n"
+                    f"stdout:\n{completed.stdout}\n"
+                    f"stderr:\n{completed.stderr}"
+                ),
+            )
+            verdict = json.loads(verdict_path.read_text(encoding="utf-8"))
+            coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
             self.assertFalse(verdict["passed"])
             self.assertIn("corpus_coverage_gate:fail", verdict["checks"])
             self.assertFalse(coverage["passed"])
