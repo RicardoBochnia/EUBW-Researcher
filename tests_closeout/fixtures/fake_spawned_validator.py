@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -87,6 +88,9 @@ def main() -> int:
     elif args.mode == "non_utf8":
         Path(args.output).write_bytes(b"\xff\xfe\xfd")
         return 0
+    elif args.mode == "non_utf8_stdout":
+        sys.stdout.buffer.write(b"\xffstdout\n")
+        sys.stdout.buffer.flush()
     elif args.mode == "partial_json":
         Path(args.output).write_text('{"passed": true', encoding="utf-8")
         return 0

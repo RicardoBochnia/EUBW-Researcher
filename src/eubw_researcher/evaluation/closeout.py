@@ -93,6 +93,16 @@ def _require_bool_field(payload: dict[str, Any], field_name: str) -> bool:
     return value
 
 
+def _decode_process_output(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="backslashreplace")
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 def _parse_raw_document_reads(payload: Any) -> list[BlindValidationRawRead]:
     if payload is None:
         return []
@@ -197,8 +207,8 @@ def _parse_spawned_validator_payload(
         notes=notes,
         validator_command=validator_command,
         exit_code=exit_code,
-        stdout=stdout or None,
-        stderr=stderr or None,
+        stdout=_decode_process_output(stdout),
+        stderr=_decode_process_output(stderr),
         error=None,
     )
 
@@ -236,7 +246,7 @@ def _invoke_spawned_validator(
             command + ["--input", str(request_path), "--output", str(result_path)],
             cwd=repo_root,
             capture_output=True,
-            text=True,
+            text=False,
             timeout=timeout_seconds,
             check=False,
         )
@@ -244,8 +254,8 @@ def _invoke_spawned_validator(
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=None,
-            stdout=exc.stdout,
-            stderr=exc.stderr,
+            stdout=_decode_process_output(exc.stdout),
+            stderr=_decode_process_output(exc.stderr),
             error=f"Validator timed out after {timeout_seconds:.1f} seconds.",
         )
     except OSError as exc:
@@ -265,8 +275,8 @@ def _invoke_spawned_validator(
             return _spawned_validator_error(
                 validator_command=validator_command,
                 exit_code=completed.returncode,
-                stdout=completed.stdout,
-                stderr=completed.stderr,
+                stdout=_decode_process_output(completed.stdout),
+                stderr=_decode_process_output(completed.stderr),
                 error="Validator output file was not valid UTF-8.",
             )
 
@@ -274,8 +284,8 @@ def _invoke_spawned_validator(
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=completed.returncode,
-            stdout=completed.stdout or raw_output_text,
-            stderr=completed.stderr,
+            stdout=_decode_process_output(completed.stdout) or raw_output_text,
+            stderr=_decode_process_output(completed.stderr),
             error=(
                 f"Validator exited with code {completed.returncode}. "
                 "A non-zero exit is a closeout failure even if it emitted JSON."
@@ -285,8 +295,8 @@ def _invoke_spawned_validator(
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=completed.returncode,
-            stdout=completed.stdout,
-            stderr=completed.stderr,
+            stdout=_decode_process_output(completed.stdout),
+            stderr=_decode_process_output(completed.stderr),
             error="Validator did not write the required output JSON file.",
         )
     try:
@@ -295,16 +305,16 @@ def _invoke_spawned_validator(
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=completed.returncode,
-            stdout=completed.stdout or raw_output_text,
-            stderr=completed.stderr,
+            stdout=_decode_process_output(completed.stdout) or raw_output_text,
+            stderr=_decode_process_output(completed.stderr),
             error="Validator output file did not contain valid JSON.",
         )
     if not isinstance(payload, dict):
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=completed.returncode,
-            stdout=completed.stdout or raw_output_text,
-            stderr=completed.stderr,
+            stdout=_decode_process_output(completed.stdout) or raw_output_text,
+            stderr=_decode_process_output(completed.stderr),
             error="Validator output file must contain a JSON object.",
         )
     try:
@@ -312,15 +322,15 @@ def _invoke_spawned_validator(
             payload,
             validator_command=validator_command,
             exit_code=completed.returncode,
-            stdout=completed.stdout,
-            stderr=completed.stderr,
+            stdout=_decode_process_output(completed.stdout),
+            stderr=_decode_process_output(completed.stderr),
         )
     except ValueError as exc:
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=completed.returncode,
-            stdout=completed.stdout or raw_output_text,
-            stderr=completed.stderr,
+            stdout=_decode_process_output(completed.stdout) or raw_output_text,
+            stderr=_decode_process_output(completed.stderr),
             error=str(exc),
         )
 

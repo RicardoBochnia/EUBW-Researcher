@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -317,6 +318,38 @@ class ScenarioDCloseoutTests(unittest.TestCase):
             self.assertFalse(result.passed)
             self.assertIn("timed out", result.error)
 
+    def test_invoke_spawned_validator_decodes_timeout_output_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            request_path = tmp_path / "request.json"
+            output_path = tmp_path / "result.json"
+            request_path.write_text(
+                json.dumps(_build_spawned_validator_request(tmp_path, "Synthetic question?"), indent=2),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "eubw_researcher.evaluation.closeout.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd=["validator"],
+                    timeout=0.01,
+                    output=b"\xffstdout",
+                    stderr=b"\xfestderr",
+                ),
+            ):
+                result = _invoke_spawned_validator(
+                    repo_root=REPO_ROOT,
+                    validator_command=f"{FAKE_VALIDATOR} --sleep-seconds 1.0",
+                    request_path=request_path,
+                    result_path=output_path,
+                    timeout_seconds=0.01,
+                )
+
+            self.assertFalse(result.passed)
+            self.assertIsInstance(result.stdout, str)
+            self.assertIsInstance(result.stderr, str)
+            json.dumps(dataclass_to_dict(result))
+
     def test_invoke_spawned_validator_rejects_invalid_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -358,6 +391,28 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
             self.assertFalse(result.passed)
             self.assertIn("UTF-8", result.error)
+
+    def test_invoke_spawned_validator_accepts_non_utf8_stdout_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            request_path = tmp_path / "request.json"
+            output_path = tmp_path / "result.json"
+            request_path.write_text(
+                json.dumps(_build_spawned_validator_request(tmp_path, "Synthetic question?"), indent=2),
+                encoding="utf-8",
+            )
+
+            result = _invoke_spawned_validator(
+                repo_root=REPO_ROOT,
+                validator_command=f"{FAKE_VALIDATOR} --mode non_utf8_stdout",
+                request_path=request_path,
+                result_path=output_path,
+                timeout_seconds=10.0,
+            )
+
+            self.assertTrue(result.passed)
+            self.assertIsInstance(result.stdout, str)
+            json.dumps(dataclass_to_dict(result))
 
     def test_invoke_spawned_validator_rejects_partial_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
