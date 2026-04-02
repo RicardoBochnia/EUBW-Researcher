@@ -17,7 +17,6 @@ from eubw_researcher.models import (
     IngestionBundle,
     NormalizationStatus,
     SourceCatalog,
-    SourceCatalogEntry,
     SourceKind,
     SourceOrigin,
     SourceRoleLevel,

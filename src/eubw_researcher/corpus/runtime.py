@@ -11,6 +11,8 @@ from eubw_researcher.corpus.catalog import load_source_catalog
 from eubw_researcher.corpus.freshness import (
     build_manifest_sources,
     compute_corpus_state_id,
+    default_corpus_manifest_path,
+    load_corpus_manifest,
 )
 from eubw_researcher.corpus.ingest import ingest_catalog
 from eubw_researcher.models import (
@@ -42,6 +44,51 @@ def _catalog_state_id(catalog_path: Path, catalog: SourceCatalog) -> str:
 def _cache_paths(catalog_path: Path) -> tuple[Path, Path]:
     cache_dir = catalog_path.parent / "cache"
     return cache_dir / "normalized_bundle.pkl", cache_dir / "normalized_bundle_meta.json"
+
+
+def _cache_artifact_is_current(
+    catalog_path: Path,
+    catalog: SourceCatalog,
+    artifact_path: Path,
+) -> bool:
+    try:
+        artifact_mtime = artifact_path.stat().st_mtime_ns
+        if catalog_path.stat().st_mtime_ns > artifact_mtime:
+            return False
+    except OSError:
+        return False
+
+    for entry in catalog.entries:
+        if entry.local_path is None:
+            continue
+        try:
+            if entry.local_path.stat().st_mtime_ns > artifact_mtime:
+                return False
+        except OSError:
+            return False
+    return True
+
+
+def _load_cached_corpus_state_id(
+    catalog_path: Path,
+    catalog: SourceCatalog,
+) -> Optional[str]:
+    manifest_path = default_corpus_manifest_path(catalog_path)
+    if manifest_path.exists() and _cache_artifact_is_current(catalog_path, catalog, manifest_path):
+        manifest = load_corpus_manifest(manifest_path)
+        if manifest is not None and manifest.corpus_state_id:
+            return manifest.corpus_state_id
+
+    _, metadata_path = _cache_paths(catalog_path)
+    if metadata_path.exists() and _cache_artifact_is_current(catalog_path, catalog, metadata_path):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError):
+            return None
+        corpus_state_id = metadata.get("corpus_state_id")
+        if isinstance(corpus_state_id, str) and corpus_state_id:
+            return corpus_state_id
+    return None
 
 
 def _entry_is_admitted(entry) -> bool:
@@ -153,6 +200,10 @@ def load_or_build_ingestion_bundle(
     if resolved_corpus_state_id is None:
         if manifest_sources is not None:
             resolved_corpus_state_id = compute_corpus_state_id(manifest_sources)
+        elif is_real_corpus_catalog(catalog_path):
+            resolved_corpus_state_id = _load_cached_corpus_state_id(catalog_path, catalog)
+            if resolved_corpus_state_id is None:
+                resolved_corpus_state_id = _catalog_state_id(catalog_path, catalog)
         else:
             resolved_corpus_state_id = _catalog_state_id(catalog_path, catalog)
 

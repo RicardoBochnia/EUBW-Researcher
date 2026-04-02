@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -150,6 +151,32 @@ class CorpusRuntimeTests(unittest.TestCase):
 
             self.assertEqual(len(cached_bundle.documents), 7)
             self.assertTrue(cached_report.passed)
+            self.assertEqual(cached_state_id, corpus_state_id)
+
+    def test_real_corpus_state_id_reuses_current_manifest_without_rehashing_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            catalog_path = self._build_real_catalog(Path(tmp_dir))
+
+            _, _, _, corpus_state_id = load_or_build_ingestion_bundle(catalog_path)
+            manifest_path = catalog_path.parent / "corpus_manifest.json"
+            manifest_path.write_text(
+                (
+                    "{\n"
+                    f'  "catalog_path": "{catalog_path.resolve().as_posix()}",\n'
+                    f'  "corpus_state_id": "{corpus_state_id}",\n'
+                    f'  "generated_at": "{datetime.now(timezone.utc).isoformat()}",\n'
+                    '  "selection_config_path": null,\n'
+                    '  "sources": [],\n'
+                    '  "coverage_passed": true,\n'
+                    '  "coverage_families": []\n'
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+
+            with patch("eubw_researcher.corpus.runtime._catalog_state_id", side_effect=AssertionError("manifest state id should be reused")):
+                _, _, _, cached_state_id = load_or_build_ingestion_bundle(catalog_path)
+
             self.assertEqual(cached_state_id, corpus_state_id)
 
     def test_corpus_coverage_gate_reports_missing_required_family(self) -> None:
