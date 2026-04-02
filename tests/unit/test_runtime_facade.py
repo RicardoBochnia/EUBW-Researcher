@@ -39,8 +39,8 @@ class RuntimeFacadeTests(unittest.TestCase):
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", coverage_report, "state-123"),
-            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch(
-                "eubw_researcher.runtime_facade.write_artifact_bundle"
+            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch.object(
+                ResearchRuntimeFacade, "_write_artifact_bundle"
             ) as write_bundle:
                 pipeline_cls.return_value.answer_question.return_value = result
 
@@ -74,8 +74,8 @@ class RuntimeFacadeTests(unittest.TestCase):
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", None, "state-456"),
-            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch(
-                "eubw_researcher.runtime_facade.write_artifact_bundle"
+            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch.object(
+                ResearchRuntimeFacade, "_write_artifact_bundle"
             ) as write_bundle:
                 pipeline_cls.return_value.answer_question.return_value = result
 
@@ -109,8 +109,8 @@ class RuntimeFacadeTests(unittest.TestCase):
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", coverage_report, "state-789"),
-            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch(
-                "eubw_researcher.runtime_facade.write_artifact_bundle"
+            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch.object(
+                ResearchRuntimeFacade, "_write_artifact_bundle"
             ) as write_bundle:
                 pipeline_cls.return_value.answer_question.return_value = result
 
@@ -166,3 +166,28 @@ class RuntimeFacadeTests(unittest.TestCase):
 
             with self.assertRaisesRegex(FileNotFoundError, "Catalog file not found:"):
                 facade.answer_question("Synthetic question?")
+
+    def test_run_accepts_string_mode_from_request_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            catalog_path = self._write_default_catalog(repo_root)
+            result = self._patched_result()
+
+            with patch("eubw_researcher.runtime_facade.load_runtime_config", return_value="runtime"), patch(
+                "eubw_researcher.runtime_facade.load_source_hierarchy",
+                return_value="hierarchy",
+            ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
+                "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
+                return_value=(None, "bundle", None, "state-321"),
+            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls:
+                pipeline_cls.return_value.answer_question.return_value = result
+
+                response = ResearchRuntimeFacade(repo_root).run(
+                    AgentRuntimeRequest(
+                        question="Synthetic question?",
+                        mode="answer_question",
+                        catalog_path=catalog_path,
+                    )
+                )
+
+            self.assertEqual(response.mode, AgentRuntimeMode.ANSWER_QUESTION)

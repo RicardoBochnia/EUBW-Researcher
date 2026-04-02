@@ -11,7 +11,6 @@ from eubw_researcher.config import (
     load_web_allowlist,
 )
 from eubw_researcher.corpus import load_or_build_ingestion_bundle
-from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import AnswerResult
 from eubw_researcher.pipeline import ResearchPipeline
 
@@ -27,7 +26,7 @@ class AgentRuntimeMode(str, Enum):
 @dataclass(frozen=True)
 class AgentRuntimeRequest:
     question: str
-    mode: AgentRuntimeMode = AgentRuntimeMode.ANSWER_QUESTION
+    mode: Union[AgentRuntimeMode, str] = AgentRuntimeMode.ANSWER_QUESTION
     catalog_path: Optional[RuntimePath] = None
     output_dir: Optional[RuntimePath] = None
 
@@ -105,7 +104,7 @@ class ResearchRuntimeFacade:
         )
         if mode == AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE:
             assert output_dir is not None
-            write_artifact_bundle(
+            self._write_artifact_bundle(
                 output_dir,
                 result,
                 catalog_path=resolved_catalog_path,
@@ -174,6 +173,23 @@ class ResearchRuntimeFacade:
         if not path.is_absolute():
             path = self.repo_root / path
         return path.resolve()
+
+    @staticmethod
+    def _write_artifact_bundle(
+        output_dir: Path,
+        result: AnswerResult,
+        *,
+        catalog_path: Path,
+        corpus_state_id: str,
+    ) -> None:
+        from eubw_researcher.evaluation.runner import write_artifact_bundle
+
+        write_artifact_bundle(
+            output_dir,
+            result,
+            catalog_path=catalog_path,
+            corpus_state_id=corpus_state_id,
+        )
 
     @staticmethod
     def _coerce_mode(mode: Union[AgentRuntimeMode, str]) -> AgentRuntimeMode:
