@@ -111,3 +111,69 @@ class RetrievalTests(unittest.TestCase):
         )
         self.assertEqual(intent.intent_type, "wallet_requirements_summary")
         self.assertGreaterEqual(len(intent.claim_targets), 4)
+
+    def test_protocol_paraphrase_stays_on_protocol_comparison_route(self) -> None:
+        intent = analyze_query(
+            "Compare OpenID4VCI and OpenID4VP on token endpoint use and wallet metadata handling."
+        )
+        self.assertEqual(intent.intent_type, "protocol_authorization_server_comparison")
+        self.assertFalse(intent.eu_first)
+        self.assertEqual(intent.preferred_kinds, [SourceKind.TECHNICAL_STANDARD])
+        self.assertIsNone(intent.answer_pattern)
+
+    def test_build_retrieval_plan_keeps_protocol_questions_non_eu_first(self) -> None:
+        intent = analyze_query(
+            "Compare OpenID4VCI and OpenID4VP on token endpoint use and wallet metadata handling."
+        )
+        plan = build_retrieval_plan(intent, self.hierarchy, self.runtime)
+        self.assertEqual(
+            [step.required_kind for step in plan.steps[:4]],
+            [
+                SourceKind.TECHNICAL_STANDARD,
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+        )
+
+    def test_topology_language_wins_over_generic_certificate_layer_route(self) -> None:
+        intent = analyze_query(
+            "Can a wallet-relying party hold multiple access and registration certificates per intended use, "
+            "or is there only a single organisation-level certificate?"
+        )
+        self.assertEqual(intent.intent_type, "certificate_topology_analysis")
+        self.assertEqual(intent.answer_pattern, "certificate_topology")
+        self.assertGreaterEqual(len(intent.claim_targets), 5)
+
+    def test_analyze_query_classifies_certificate_layer_guidance_question(self) -> None:
+        intent = analyze_query(
+            "What national guidance exists for Business Wallet access certificate handling?"
+        )
+        self.assertEqual(intent.intent_type, "certificate_layer_analysis")
+        self.assertEqual(intent.preferred_kinds[0], SourceKind.REGULATION)
+        self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
+        self.assertTrue(any(target.grouping_label == "Governance and discretion" for target in intent.claim_targets))
+
+    def test_analyze_query_classifies_arf_boundary_question(self) -> None:
+        intent = analyze_query(
+            "Does the ARF require a verifier authorization server in the presentation flow?"
+        )
+        self.assertEqual(intent.intent_type, "arf_boundary_check")
+        self.assertFalse(intent.eu_first)
+        self.assertEqual(
+            intent.preferred_kinds,
+            [SourceKind.TECHNICAL_STANDARD, SourceKind.PROJECT_ARTIFACT],
+        )
+        self.assertEqual(len(intent.claim_targets), 2)
+
+    def test_analyze_query_falls_back_to_broad_regulation_question(self) -> None:
+        intent = analyze_query(
+            "Give me an overview of Union rules for business wallet supervision."
+        )
+        self.assertEqual(intent.intent_type, "broad_regulation_question")
+        self.assertTrue(intent.eu_first)
+        self.assertEqual(intent.preferred_kinds[:2], [SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT])
+        self.assertEqual(
+            intent.clarification_note,
+            "Broad question: continue with an EU-first first-pass answer.",
+        )
