@@ -12,7 +12,9 @@ from eubw_researcher.config import (
     load_web_allowlist,
 )
 from eubw_researcher.corpus import (
+    default_corpus_refresh_summary_path,
     is_real_corpus_catalog,
+    load_corpus_refresh_summary,
     load_or_build_ingestion_bundle,
     write_corpus_coverage_report,
 )
@@ -455,6 +457,7 @@ def write_artifact_bundle(
         scenario_id=scenario_id,
         catalog_path=str(catalog_path.resolve()) if catalog_path else None,
         corpus_state_id=corpus_state_id,
+        corpus_refresh_summary=getattr(result, "corpus_refresh_summary", None),
         reviewer_name=reviewer_name,
     )
     manual_review_report_markdown = build_manual_review_report_markdown(
@@ -527,6 +530,11 @@ def write_artifact_bundle(
             result.corpus_coverage_report,
             output_dir / "corpus_coverage_report.json",
         )
+    if getattr(result, "corpus_refresh_summary", None) is not None:
+        (output_dir / "corpus_refresh_summary.json").write_text(
+            json.dumps(dataclass_to_dict(result.corpus_refresh_summary), indent=2),
+            encoding="utf-8",
+        )
     if verdict is not None:
         (output_dir / "verdict.json").write_text(
             json.dumps(dataclass_to_dict(verdict), indent=2),
@@ -551,6 +559,9 @@ def run_named_scenario(
     scenario = next(item for item in scenarios if item.scenario_id == scenario_id)
     result = pipeline.answer_question(scenario.question)
     result.corpus_coverage_report = coverage_report
+    result.corpus_refresh_summary = load_corpus_refresh_summary(
+        default_corpus_refresh_summary_path(resolved_catalog_path)
+    )
     verdict = _evaluate_scenario(scenario, result)
     if coverage_report is not None:
         if coverage_report.passed:
@@ -584,9 +595,13 @@ def run_all_scenarios(
         catalog_path=catalog_path,
     )
     results: List[Tuple[str, ScenarioVerdict]] = []
+    refresh_summary = load_corpus_refresh_summary(
+        default_corpus_refresh_summary_path(resolved_catalog_path)
+    )
     for scenario in scenarios:
         result = pipeline.answer_question(scenario.question)
         result.corpus_coverage_report = coverage_report
+        result.corpus_refresh_summary = refresh_summary
         verdict = _evaluate_scenario(scenario, result)
         if coverage_report is not None:
             if coverage_report.passed:

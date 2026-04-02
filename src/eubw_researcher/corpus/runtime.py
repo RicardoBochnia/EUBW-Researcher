@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import pickle
 from collections import Counter
@@ -9,6 +8,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from eubw_researcher.corpus.catalog import load_source_catalog
+from eubw_researcher.corpus.freshness import build_manifest_sources, compute_corpus_state_id
 from eubw_researcher.corpus.ingest import ingest_catalog
 from eubw_researcher.models import (
     CorpusCoverageFamily,
@@ -31,19 +31,8 @@ def is_real_corpus_catalog(catalog_path: Optional[Path]) -> bool:
 
 
 def _catalog_state_id(catalog_path: Path, catalog: SourceCatalog) -> str:
-    digest = hashlib.sha256()
-    digest.update(catalog_path.resolve().as_posix().encode("utf-8"))
-    digest.update(catalog_path.read_bytes())
-    for entry in sorted(catalog.entries, key=lambda item: item.source_id):
-        digest.update(entry.source_id.encode("utf-8"))
-        digest.update(entry.title.encode("utf-8"))
-        digest.update(entry.source_kind.value.encode("utf-8"))
-        if entry.local_path:
-            digest.update(entry.local_path.resolve().as_posix().encode("utf-8"))
-            stat = entry.local_path.stat()
-            digest.update(str(stat.st_size).encode("utf-8"))
-            digest.update(str(stat.st_mtime_ns).encode("utf-8"))
-    return digest.hexdigest()[:16]
+    del catalog_path
+    return compute_corpus_state_id(build_manifest_sources(catalog))
 
 
 def _cache_paths(catalog_path: Path) -> tuple[Path, Path]:

@@ -8,6 +8,7 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
 - Build the internal catalog for the local real corpus archive: `python3 scripts/build_real_corpus_catalog.py`
+- The real-corpus build also writes `corpus_manifest.json` and `corpus_refresh_summary.json` so refreshes remain reviewer-visible.
 - Ingest the generated real corpus catalog: `python3 scripts/ingest_sample_corpus.py --catalog artifacts/real_corpus/curated_catalog.json`
 - Ask a question against the generated real corpus catalog: `python3 scripts/answer_question.py "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"`
 - Ask the primary V2 Business Wallet research question and write review artifacts: `python3 scripts/answer_question.py "What requirements apply to the Business Wallet, and how can they be provisionally structured?" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/review_demo_primary`
@@ -32,6 +33,7 @@ Validator contract for the closeout harness:
 - Known V2 residual limits and their mitigation/acceptance are recorded in `docs/architecture/options/option-a/HARDENING_NOTES.md`.
 - Default eval outputs are split by corpus: `artifacts/eval_runs` for fixtures and `artifacts/eval_runs_real_corpus` for the real archive catalog.
 - Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, `manual_review_report.md`, `pinpoint_evidence.json`, `answer_alignment.json`, and `blind_validation_report.json`; grouping-capable runs additionally emit `provisional_grouping.json`.
+- Real-corpus refresh builds additionally emit `corpus_manifest.json` and `corpus_refresh_summary.json`; real-corpus answer/eval bundles copy `corpus_refresh_summary.json` for reviewer-visible before/after state tracking.
 - Corpus-backed bundles additionally emit `corpus_coverage_report.json`, and the real-corpus ingestion bundle is cached under `artifacts/real_corpus/cache/` so repeated review runs do not re-normalize the full archive.
 - `manual_review.json` is an automated prefill artifact; `manual_review_report.md` is the primary human-readable review surface.
 - `pinpoint_evidence.json` maps answer claims to reviewer-usable local source locators and records any precision limits explicitly.

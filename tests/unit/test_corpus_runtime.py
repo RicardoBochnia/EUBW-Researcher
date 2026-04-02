@@ -189,6 +189,20 @@ class CorpusRuntimeTests(unittest.TestCase):
             }
             self.assertIn("current_technical_standards", missing_families)
 
+    def test_real_corpus_state_id_is_stable_when_only_file_mtime_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            catalog_path = self._build_real_catalog(Path(tmp_dir))
+            regulation_path = catalog_path.parent / "sources" / "regulation.md"
+
+            _, _, _, corpus_state_id = load_or_build_ingestion_bundle(catalog_path)
+            regulation_content = regulation_path.read_text(encoding="utf-8")
+            regulation_path.write_text(regulation_content, encoding="utf-8")
+
+            with patch("eubw_researcher.corpus.runtime.ingest_catalog", side_effect=AssertionError("cache should be reused")):
+                _, _, _, cached_state_id = load_or_build_ingestion_bundle(catalog_path)
+
+            self.assertEqual(cached_state_id, corpus_state_id)
+
 
 if __name__ == "__main__":
     unittest.main()

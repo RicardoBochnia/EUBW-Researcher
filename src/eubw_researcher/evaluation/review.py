@@ -223,6 +223,7 @@ def build_manual_review_report(
     scenario_id: Optional[str],
     catalog_path: Optional[str],
     corpus_state_id: Optional[str],
+    corpus_refresh_summary=None,
     reviewer_name: str = "Codex",
 ) -> ManualReviewReport:
     has_approved_entries = bool(result.approved_entries)
@@ -330,6 +331,7 @@ def build_manual_review_report(
         scenario_id=scenario_id,
         corpus_selection=catalog_path or "fixture_catalog",
         corpus_state_id=corpus_state_id,
+        corpus_refresh_summary=corpus_refresh_summary,
         reviewer_name=reviewer_name,
         review_date=datetime.utcnow().date().isoformat(),
         correctness_verdict=correctness_verdict,
@@ -348,6 +350,7 @@ def build_manual_review_report(
 
 
 def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
+    refresh_summary = report.corpus_refresh_summary
     lines = [
         "# Manual Review Report",
         "",
@@ -358,6 +361,13 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
         f"- Date: `{report.review_date}`",
         f"- Report type: `{report.report_type}`",
         f"- Human reviewed: `{str(report.human_reviewed).lower()}`",
+        "",
+        "## Corpus Freshness",
+        "",
+        f"- Refresh status: `{refresh_summary.refresh_status if refresh_summary is not None else 'not_recorded'}`",
+        f"- Previous corpus state id: `{refresh_summary.previous_corpus_state_id if refresh_summary is not None and refresh_summary.previous_corpus_state_id else 'n/a'}`",
+        f"- Added / removed / updated sources: `{len(refresh_summary.added_sources) if refresh_summary is not None else 0}` / `{len(refresh_summary.removed_sources) if refresh_summary is not None else 0}` / `{len(refresh_summary.updated_sources) if refresh_summary is not None else 0}`",
+        f"- Changed web-derived sources: `{len(refresh_summary.changed_web_sources) if refresh_summary is not None else 0}`",
         "",
         "## Judgments",
         "",
@@ -379,6 +389,38 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
     ]
     for follow_up in report.open_follow_ups:
         lines.append(f"- {follow_up}")
+    lines.extend(
+        [
+            "",
+            "## Corpus Refresh Details",
+            "",
+        ]
+    )
+    if refresh_summary is not None:
+        if refresh_summary.added_sources or refresh_summary.removed_sources or refresh_summary.updated_sources:
+            for item in refresh_summary.added_sources:
+                lines.append(f"- Added source: `{item.source_id}` ({item.title})")
+            for item in refresh_summary.removed_sources:
+                lines.append(f"- Removed source: `{item.source_id}` ({item.title})")
+            for item in refresh_summary.updated_sources:
+                changed_fields = ", ".join(item.changed_fields) if item.changed_fields else "content_digest"
+                lines.append(
+                    f"- Updated source: `{item.source_id}` ({item.title}); changed fields: `{changed_fields}`"
+                )
+        else:
+            lines.append("- No source-level refresh deltas were recorded.")
+        if refresh_summary.coverage_deltas:
+            for delta in refresh_summary.coverage_deltas:
+                lines.append(
+                    "- "
+                    f"Coverage family `{delta.family_id}` changed from "
+                    f"`{delta.previous_admitted_count}` admitted / missing=`{str(delta.previous_missing).lower()}` "
+                    f"to `{delta.current_admitted_count}` admitted / missing=`{str(delta.current_missing).lower()}`."
+                )
+        else:
+            lines.append("- Corpus coverage families are unchanged across the last refresh.")
+    else:
+        lines.append("- No corpus refresh summary is available for this run.")
     lines.extend(
         [
             "",

@@ -30,7 +30,11 @@ def main() -> int:
         load_source_hierarchy,
         load_web_allowlist,
     )
-    from eubw_researcher.corpus import load_or_build_ingestion_bundle
+    from eubw_researcher.corpus import (
+        default_corpus_refresh_summary_path,
+        load_corpus_refresh_summary,
+        load_or_build_ingestion_bundle,
+    )
     from eubw_researcher.evaluation.runner import write_artifact_bundle
     from eubw_researcher.pipeline import ResearchPipeline
 
@@ -46,6 +50,9 @@ def main() -> int:
     )
     result = pipeline.answer_question(args.question)
     result.corpus_coverage_report = coverage_report
+    result.corpus_refresh_summary = load_corpus_refresh_summary(
+        default_corpus_refresh_summary_path(resolved_catalog_path)
+    )
 
     if args.output_dir:
         output_dir = (repo_root / args.output_dir).resolve()

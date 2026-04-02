@@ -6,6 +6,10 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
+from eubw_researcher.corpus import (
+    default_corpus_refresh_summary_path,
+    load_corpus_refresh_summary,
+)
 from eubw_researcher.config import load_evaluation_scenarios
 from eubw_researcher.models import (
     BlindValidationRawRead,
@@ -421,6 +425,9 @@ def run_scenario_d_closeout(
     )
     result = pipeline.answer_question(scenario.question)
     result.corpus_coverage_report = coverage_report
+    result.corpus_refresh_summary = load_corpus_refresh_summary(
+        default_corpus_refresh_summary_path(resolved_catalog_path)
+    )
     structural_verdict = _append_corpus_coverage_gate(
         _evaluate_scenario(scenario, result),
         coverage_report,

@@ -497,6 +497,7 @@ class ManualReviewReport:
     scenario_id: Optional[str]
     corpus_selection: str
     corpus_state_id: Optional[str]
+    corpus_refresh_summary: Optional[CorpusRefreshSummary]
     reviewer_name: str
     review_date: str
     correctness_verdict: str
@@ -647,6 +648,73 @@ class CorpusCoverageReport:
 
 
 @dataclass
+class CorpusManifestSource:
+    source_id: str
+    title: str
+    source_kind: SourceKind
+    source_role_level: SourceRoleLevel
+    jurisdiction: str
+    publication_status: Optional[str]
+    publication_date: Optional[str]
+    source_origin: SourceOrigin
+    canonical_url: Optional[str]
+    local_path: Optional[str]
+    anchorability_hints: List[str] = field(default_factory=list)
+    admission_reason: Optional[str] = None
+    content_digest: Optional[str] = None
+    byte_size: Optional[int] = None
+    normalization_status: Optional[NormalizationStatus] = None
+    chunk_count: Optional[int] = None
+
+
+@dataclass
+class CorpusManifest:
+    catalog_path: str
+    corpus_state_id: str
+    generated_at: str
+    selection_config_path: Optional[str]
+    sources: List[CorpusManifestSource]
+    coverage_passed: Optional[bool] = None
+    coverage_families: List[CorpusCoverageFamily] = field(default_factory=list)
+
+
+@dataclass
+class CorpusCoverageDelta:
+    family_id: str
+    previous_admitted_count: int
+    current_admitted_count: int
+    previous_missing: bool
+    current_missing: bool
+
+
+@dataclass
+class CorpusSourceDelta:
+    source_id: str
+    title: str
+    change_type: str
+    changed_fields: List[str] = field(default_factory=list)
+    source_origin: Optional[SourceOrigin] = None
+    canonical_url: Optional[str] = None
+    previous_content_digest: Optional[str] = None
+    current_content_digest: Optional[str] = None
+
+
+@dataclass
+class CorpusRefreshSummary:
+    catalog_path: str
+    corpus_state_id: str
+    generated_at: str
+    refresh_status: str
+    previous_corpus_state_id: Optional[str] = None
+    selection_config_path: Optional[str] = None
+    added_sources: List[CorpusSourceDelta] = field(default_factory=list)
+    removed_sources: List[CorpusSourceDelta] = field(default_factory=list)
+    updated_sources: List[CorpusSourceDelta] = field(default_factory=list)
+    changed_web_sources: List[CorpusSourceDelta] = field(default_factory=list)
+    coverage_deltas: List[CorpusCoverageDelta] = field(default_factory=list)
+
+
+@dataclass
 class AnswerResult:
     question: str
     query_intent: QueryIntent
@@ -664,6 +732,7 @@ class AnswerResult:
     answer_alignment_report: Optional[AnswerAlignmentReport] = None
     blind_validation_report: Optional[BlindValidationReport] = None
     corpus_coverage_report: Optional[CorpusCoverageReport] = None
+    corpus_refresh_summary: Optional[CorpusRefreshSummary] = None
 
 
 @dataclass

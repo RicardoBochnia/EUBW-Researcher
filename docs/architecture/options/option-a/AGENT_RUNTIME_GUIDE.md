@@ -16,6 +16,7 @@ The primary usage pattern is:
 
 - Build or refresh the real-corpus catalog:
   `python3 scripts/build_real_corpus_catalog.py`
+  - this also refreshes `corpus_manifest.json` and `corpus_refresh_summary.json` beside the catalog
 - Run the full testsuite, including Scenario D closeout coverage:
   `python3 scripts/run_tests.py`
 - Run only the separate Scenario D closeout harness tests:
@@ -65,6 +66,7 @@ The highest-value artifacts are:
 - `retrieval_plan.json`
 - `provisional_grouping.json` when present
 - `corpus_coverage_report.json` for corpus-backed runs
+- `corpus_refresh_summary.json` for real-corpus runs after an explicit catalog refresh
 
 For Scenario D closeout runs, also inspect:
 - `spawned_validator_request.json`

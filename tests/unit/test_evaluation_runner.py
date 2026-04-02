@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 from eubw_researcher.evaluation.review import (
@@ -15,6 +17,8 @@ from eubw_researcher.models import (
     BlindValidationReport,
     CitationQuality,
     ClaimState,
+    CorpusRefreshSummary,
+    CorpusSourceDelta,
     EvaluationScenario,
     FacetCoverageFacet,
     FacetCoverageReport,
@@ -454,6 +458,7 @@ class EvaluationRunnerTests(unittest.TestCase):
             scenario_id="synthetic_fetch_visibility_gate",
             catalog_path="/tmp/synthetic_catalog.json",
             corpus_state_id="synthetic-state",
+            corpus_refresh_summary=None,
         )
         markdown = build_manual_review_report_markdown(report)
         self.assertIn("Approved Fetched-Source Evidence", markdown)
@@ -537,6 +542,7 @@ class EvaluationRunnerTests(unittest.TestCase):
             scenario_id="synthetic_topology_review",
             catalog_path="/tmp/synthetic_catalog.json",
             corpus_state_id="synthetic-state",
+            corpus_refresh_summary=None,
         )
 
         self.assertEqual(report.usefulness_verdict, "needs_follow_up")
@@ -568,10 +574,79 @@ class EvaluationRunnerTests(unittest.TestCase):
             scenario_id="synthetic_topology_review",
             catalog_path="/tmp/synthetic_catalog.json",
             corpus_state_id="synthetic-state",
+            corpus_refresh_summary=None,
         )
 
         self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
+
+    def test_manual_review_report_and_artifacts_include_corpus_refresh_summary(self) -> None:
+        result = _minimal_result("fetch")
+        result.corpus_refresh_summary = CorpusRefreshSummary(
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+            previous_corpus_state_id="previous-state",
+            generated_at="2026-04-02T00:00:00+00:00",
+            refresh_status="refreshed",
+            added_sources=[
+                CorpusSourceDelta(
+                    source_id="new_source",
+                    title="New Source",
+                    change_type="added",
+                )
+            ],
+            updated_sources=[
+                CorpusSourceDelta(
+                    source_id="existing_source",
+                    title="Existing Source",
+                    change_type="updated",
+                    changed_fields=["content_digest"],
+                )
+            ],
+            changed_web_sources=[
+                CorpusSourceDelta(
+                    source_id="web_source",
+                    title="Web Source",
+                    change_type="updated",
+                    changed_fields=["content_digest"],
+                )
+            ],
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_refresh_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_refresh_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+            corpus_refresh_summary=result.corpus_refresh_summary,
+        )
+        markdown = build_manual_review_report_markdown(report)
+
+        self.assertIn("## Corpus Freshness", markdown)
+        self.assertIn("Refresh status: `refreshed`", markdown)
+        self.assertIn("Updated source: `existing_source`", markdown)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            from eubw_researcher.evaluation.runner import write_artifact_bundle
+
+            write_artifact_bundle(
+                Path(tmp_dir),
+                result,
+                verdict=ScenarioVerdict(
+                    scenario_id="synthetic_refresh_review",
+                    passed=True,
+                    checks=[],
+                ),
+                scenario_id="synthetic_refresh_review",
+                catalog_path=Path("/tmp/synthetic_catalog.json"),
+                corpus_state_id="synthetic-state",
+            )
+            self.assertTrue((Path(tmp_dir) / "corpus_refresh_summary.json").exists())
 
 
 if __name__ == "__main__":

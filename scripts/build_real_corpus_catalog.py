@@ -28,6 +28,16 @@ def parse_args() -> argparse.Namespace:
         default="artifacts/real_corpus/corpus_coverage_report.json",
         help="Where to write the corpus coverage gate report.",
     )
+    parser.add_argument(
+        "--manifest",
+        default="artifacts/real_corpus/corpus_manifest.json",
+        help="Where to write the reviewer-visible corpus manifest for refresh tracking.",
+    )
+    parser.add_argument(
+        "--refresh-summary",
+        default="artifacts/real_corpus/corpus_refresh_summary.json",
+        help="Where to write the reviewer-visible corpus refresh summary.",
+    )
     return parser.parse_args()
 
 
@@ -39,7 +49,12 @@ def main() -> int:
     from eubw_researcher.config import load_archive_corpus_config
     from eubw_researcher.corpus import (
         build_catalog_from_archive,
+        build_corpus_manifest,
+        build_corpus_refresh_summary,
+        load_corpus_manifest,
         load_or_build_ingestion_bundle,
+        write_corpus_manifest,
+        write_corpus_refresh_summary,
         write_source_catalog,
         write_corpus_coverage_report,
     )
@@ -51,6 +66,21 @@ def main() -> int:
     write_source_catalog(catalog, output_path)
 
     _, bundle, coverage_report, _ = load_or_build_ingestion_bundle(output_path)
+    manifest_path = (repo_root / args.manifest).resolve()
+    previous_manifest = load_corpus_manifest(manifest_path)
+    manifest = build_corpus_manifest(
+        output_path,
+        catalog,
+        bundle=bundle,
+        coverage_report=coverage_report,
+        selection_config_path=(repo_root / args.config).resolve(),
+    )
+    refresh_summary = build_corpus_refresh_summary(manifest, previous_manifest)
+    write_corpus_manifest(manifest, manifest_path)
+    write_corpus_refresh_summary(
+        refresh_summary,
+        (repo_root / args.refresh_summary).resolve(),
+    )
     report_path = (repo_root / args.report).resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(
