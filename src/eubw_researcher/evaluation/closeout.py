@@ -355,30 +355,33 @@ def _build_closeout_verdict(
         passed = False
     if spawned_validator.error is None:
         checks.append("spawned_validator_output_contract:ok")
+        if not spawned_validator.context_inherited:
+            checks.append("spawned_validator_context_inherited:false:ok")
+        else:
+            checks.append("spawned_validator_context_inherited:false:fail")
+            passed = False
+        if spawned_validator.raw_document_dependency in {"none", "minor_confirmation"}:
+            checks.append(
+                "spawned_validator_raw_document_dependency:"
+                f"{spawned_validator.raw_document_dependency}:ok"
+            )
+        else:
+            checks.append(
+                "spawned_validator_raw_document_dependency:"
+                f"{spawned_validator.raw_document_dependency}:fail"
+            )
+            passed = False
+        if spawned_validator.passed:
+            checks.append("spawned_validator_passed:ok")
+        else:
+            checks.append("spawned_validator_passed:fail")
+            passed = False
     else:
         checks.append("spawned_validator_output_contract:fail")
         passed = False
-    if not spawned_validator.context_inherited:
-        checks.append("spawned_validator_context_inherited:false:ok")
-    else:
-        checks.append("spawned_validator_context_inherited:false:fail")
-        passed = False
-    if spawned_validator.raw_document_dependency in {"none", "minor_confirmation"}:
-        checks.append(
-            "spawned_validator_raw_document_dependency:"
-            f"{spawned_validator.raw_document_dependency}:ok"
-        )
-    else:
-        checks.append(
-            "spawned_validator_raw_document_dependency:"
-            f"{spawned_validator.raw_document_dependency}:fail"
-        )
-        passed = False
-    if spawned_validator.passed:
-        checks.append("spawned_validator_passed:ok")
-    else:
-        checks.append("spawned_validator_passed:fail")
-        passed = False
+        checks.append("spawned_validator_context_inherited:unknown")
+        checks.append("spawned_validator_raw_document_dependency:unknown")
+        checks.append("spawned_validator_passed:unknown")
     if merged_report.passed:
         checks.append("blind_validation_closeout:ok")
     else:

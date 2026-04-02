@@ -771,6 +771,46 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                 "central_reconstruction",
             )
 
+    def test_run_scenario_d_closeout_marks_semantic_validator_checks_unknown_on_contract_error(self) -> None:
+        passing_result = _minimal_result("fetch", intent_type="certificate_topology_analysis")
+        scenario = EvaluationScenario(
+            scenario_id=SCENARIO_D_ID,
+            question="Synthetic topology question?",
+            expectation="Synthetic Scenario D closeout.",
+            required_intent_type="certificate_topology_analysis",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_root = Path(tmp_dir)
+            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+                return_value=[scenario],
+            ), patch(
+                "eubw_researcher.evaluation.closeout._run_pipeline",
+                return_value=(
+                    _DummyPipeline(passing_result),
+                    None,
+                    "synthetic-state",
+                    Path("/tmp/synthetic_catalog.json"),
+                ),
+            ), patch(
+                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                side_effect=_fake_write_artifact_bundle,
+            ):
+                _, verdict = run_scenario_d_closeout(
+                    repo_root=REPO_ROOT,
+                    output_dir=output_root,
+                    validator_command=f"{FAKE_VALIDATOR} --mode invalid_json",
+                    timeout_seconds=10.0,
+                    catalog_path=Path("/tmp/synthetic_catalog.json"),
+                )
+
+            self.assertFalse(verdict.passed)
+            self.assertIn("spawned_validator_output_contract:fail", verdict.checks)
+            self.assertIn("spawned_validator_context_inherited:unknown", verdict.checks)
+            self.assertIn("spawned_validator_raw_document_dependency:unknown", verdict.checks)
+            self.assertIn("spawned_validator_passed:unknown", verdict.checks)
+
     def test_run_scenario_d_closeout_writes_bundle_before_invoking_validator(self) -> None:
         passing_result = _minimal_result("fetch", intent_type="certificate_topology_analysis")
         scenario = EvaluationScenario(
