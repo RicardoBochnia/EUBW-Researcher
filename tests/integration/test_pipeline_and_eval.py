@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 import threading
@@ -105,6 +106,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         return catalog_path
 
     def _build_bounded_test_catalog(self, root: Path) -> Path:
+        """Create a minimal real-corpus-shaped catalog for coverage-gate tests."""
         corpus_root = root / "artifacts" / "real_corpus"
         source_root = corpus_root / "sources"
         source_root.mkdir(parents=True, exist_ok=True)
@@ -1057,7 +1059,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     "--catalog",
                     str(missing_catalog),
                     "--validator-command",
-                    "python3 -c \"print('noop')\"",
+                    f"{shlex.quote(sys.executable)} -c \"print('noop')\"",
                 ],
             }
 
@@ -1072,7 +1074,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     )
                     self.assertNotEqual(completed.returncode, 0)
                     self.assertIn("Catalog file not found:", completed.stderr)
-                    self.assertIn(str(missing_catalog), completed.stderr)
+                    self.assertIn(str(missing_catalog.resolve()), completed.stderr)
 
     def test_run_eval_cli_fails_real_corpus_coverage_gate_with_bounded_synthetic_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
