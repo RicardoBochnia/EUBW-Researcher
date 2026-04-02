@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 import tempfile
 import unittest
@@ -34,8 +35,8 @@ from eubw_researcher.models import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FAKE_VALIDATOR = (
-    f"{sys.executable} "
-    f"{REPO_ROOT / 'tests_closeout' / 'fixtures' / 'fake_spawned_validator.py'}"
+    f"{shlex.quote(sys.executable)} "
+    f"{shlex.quote(str(REPO_ROOT / 'tests_closeout' / 'fixtures' / 'fake_spawned_validator.py'))}"
 )
 
 
@@ -337,6 +338,27 @@ class ScenarioDCloseoutTests(unittest.TestCase):
             self.assertFalse(result.passed)
             self.assertIn("valid JSON", result.error)
 
+    def test_invoke_spawned_validator_rejects_non_utf8_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            request_path = tmp_path / "request.json"
+            output_path = tmp_path / "result.json"
+            request_path.write_text(
+                json.dumps(_build_spawned_validator_request(tmp_path, "Synthetic question?"), indent=2),
+                encoding="utf-8",
+            )
+
+            result = _invoke_spawned_validator(
+                repo_root=REPO_ROOT,
+                validator_command=f"{FAKE_VALIDATOR} --mode non_utf8",
+                request_path=request_path,
+                result_path=output_path,
+                timeout_seconds=10.0,
+            )
+
+            self.assertFalse(result.passed)
+            self.assertIn("UTF-8", result.error)
+
     def test_invoke_spawned_validator_rejects_partial_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -358,6 +380,27 @@ class ScenarioDCloseoutTests(unittest.TestCase):
             self.assertFalse(result.passed)
             self.assertIn("valid JSON", result.error)
 
+    def test_invoke_spawned_validator_rejects_unparseable_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            request_path = tmp_path / "request.json"
+            output_path = tmp_path / "result.json"
+            request_path.write_text(
+                json.dumps(_build_spawned_validator_request(tmp_path, "Synthetic question?"), indent=2),
+                encoding="utf-8",
+            )
+
+            result = _invoke_spawned_validator(
+                repo_root=REPO_ROOT,
+                validator_command='python3 "unterminated',
+                request_path=request_path,
+                result_path=output_path,
+                timeout_seconds=10.0,
+            )
+
+            self.assertFalse(result.passed)
+            self.assertIn("could not be parsed", result.error)
+
     def test_invoke_spawned_validator_rejects_string_booleans(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -378,6 +421,27 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
             self.assertFalse(result.passed)
             self.assertIn("must be a boolean", result.error)
+
+    def test_invoke_spawned_validator_rejects_bad_document_path_type(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            request_path = tmp_path / "request.json"
+            output_path = tmp_path / "result.json"
+            request_path.write_text(
+                json.dumps(_build_spawned_validator_request(tmp_path, "Synthetic question?"), indent=2),
+                encoding="utf-8",
+            )
+
+            result = _invoke_spawned_validator(
+                repo_root=REPO_ROOT,
+                validator_command=f"{FAKE_VALIDATOR} --mode bad_document_path",
+                request_path=request_path,
+                result_path=output_path,
+                timeout_seconds=10.0,
+            )
+
+            self.assertFalse(result.passed)
+            self.assertIn("document_path must be a string", result.error)
 
     def test_invoke_spawned_validator_rejects_missing_binary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

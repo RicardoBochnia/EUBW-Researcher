@@ -84,9 +84,22 @@ def main() -> int:
     elif args.mode == "invalid_json":
         Path(args.output).write_text("{invalid", encoding="utf-8")
         return 0
+    elif args.mode == "non_utf8":
+        Path(args.output).write_bytes(b"\xff\xfe\xfd")
+        return 0
     elif args.mode == "partial_json":
         Path(args.output).write_text('{"passed": true', encoding="utf-8")
         return 0
+    elif args.mode == "bad_document_path":
+        payload["raw_document_dependency"] = "minor_confirmation"
+        payload["raw_document_reads"] = [
+            {
+                "source_id": "synthetic-source",
+                "document_path": 123,
+                "purpose": "bad payload",
+                "classification": "minor_confirmation",
+            }
+        ]
     elif args.mode == "no_output":
         return 0
     elif args.mode == "nonzero":

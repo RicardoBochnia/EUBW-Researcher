@@ -102,14 +102,13 @@ def _parse_raw_document_reads(payload: Any) -> list[BlindValidationRawRead]:
     for item in payload:
         if not isinstance(item, dict):
             raise ValueError("Each raw_document_reads item must be an object.")
+        document_path_value = item.get("document_path")
+        if document_path_value is not None and not isinstance(document_path_value, str):
+            raise ValueError("raw_document_reads.document_path must be a string when present.")
         reads.append(
             BlindValidationRawRead(
                 source_id=str(item.get("source_id", "")),
-                document_path=(
-                    Path(item["document_path"])
-                    if item.get("document_path")
-                    else None
-                ),
+                document_path=Path(document_path_value) if document_path_value else None,
                 purpose=str(item.get("purpose", "")),
                 classification=str(item.get("classification", "")),
             )
@@ -212,7 +211,16 @@ def _invoke_spawned_validator(
     result_path: Path,
     timeout_seconds: float,
 ) -> SpawnedValidatorResult:
-    command = shlex.split(validator_command)
+    try:
+        command = shlex.split(validator_command)
+    except ValueError as exc:
+        return _spawned_validator_error(
+            validator_command=validator_command,
+            exit_code=None,
+            stdout=None,
+            stderr=None,
+            error=f"Validator command could not be parsed: {exc}",
+        )
     if not command:
         return _spawned_validator_error(
             validator_command=validator_command,
@@ -251,7 +259,16 @@ def _invoke_spawned_validator(
 
     raw_output_text = None
     if result_path.exists():
-        raw_output_text = result_path.read_text(encoding="utf-8")
+        try:
+            raw_output_text = result_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return _spawned_validator_error(
+                validator_command=validator_command,
+                exit_code=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                error="Validator output file was not valid UTF-8.",
+            )
 
     if completed.returncode != 0:
         return _spawned_validator_error(
