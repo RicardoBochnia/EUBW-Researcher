@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from _catalog_path import resolve_catalog_path
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -35,7 +37,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo_root / "src"))
 
-    catalog_path = (repo_root / args.catalog).resolve() if args.catalog else None
+    catalog_path = resolve_catalog_path(repo_root, args.catalog)
     from eubw_researcher.evaluation import run_all_scenarios, run_named_scenario
     from eubw_researcher.evaluation.runner import default_output_dir
 

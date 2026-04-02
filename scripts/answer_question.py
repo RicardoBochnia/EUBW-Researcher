@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from _catalog_path import resolve_catalog_path
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -34,7 +36,7 @@ def main() -> int:
     from eubw_researcher.evaluation.runner import write_artifact_bundle
     from eubw_researcher.pipeline import ResearchPipeline
 
-    resolved_catalog_path = (repo_root / args.catalog).resolve()
+    resolved_catalog_path = resolve_catalog_path(repo_root, args.catalog)
     _, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(
         resolved_catalog_path
     )

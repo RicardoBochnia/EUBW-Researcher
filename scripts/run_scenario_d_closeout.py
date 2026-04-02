@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from _catalog_path import resolve_catalog_path
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -50,7 +52,7 @@ def main() -> int:
         run_scenario_d_closeout,
     )
 
-    catalog_path = (repo_root / args.catalog).resolve()
+    catalog_path = resolve_catalog_path(repo_root, args.catalog)
     output_dir = (
         (repo_root / args.output_dir).resolve()
         if args.output_dir
