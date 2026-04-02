@@ -439,21 +439,26 @@ class CorpusFreshnessTests(unittest.TestCase):
             compute_corpus_state_id([source_b]),
         )
 
-        previous_manifest = CorpusManifest(
-            catalog_path="/tmp/catalog.json",
-            corpus_state_id=compute_corpus_state_id([source_a]),
-            generated_at="2026-04-02T00:00:00+00:00",
-            selection_config_path=None,
+        empty_catalog = SourceCatalog(entries=[])
+        previous_manifest = build_corpus_manifest(
+            Path("/tmp/catalog.json"),
+            empty_catalog,
             sources=[source_a],
         )
-        current_manifest = CorpusManifest(
-            catalog_path="/tmp/catalog.json",
-            corpus_state_id=compute_corpus_state_id([source_b]),
-            generated_at="2026-04-02T00:00:00+00:00",
-            selection_config_path=None,
+        current_manifest = build_corpus_manifest(
+            Path("/tmp/catalog.json"),
+            empty_catalog,
             sources=[source_b],
         )
 
+        self.assertEqual(
+            previous_manifest.sources[0].anchorability_hints,
+            ["markdown_headings", "section_level"],
+        )
+        self.assertEqual(
+            current_manifest.sources[0].anchorability_hints,
+            ["markdown_headings", "section_level"],
+        )
         summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
         self.assertEqual(summary.refresh_status, "unchanged")
         self.assertFalse(summary.updated_sources)
