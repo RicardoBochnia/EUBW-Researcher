@@ -180,7 +180,7 @@ class AgentRuntimeFacade:
             else default_output_dir(self.repo_root, resolved_catalog_path).resolve()
         )
         resolved_scenarios_path = (
-            self._resolve_path(scenarios_path, default=Path(scenarios_path))
+            self._resolve_required_path(scenarios_path)
             if scenarios_path is not None
             else None
         )
@@ -222,7 +222,7 @@ class AgentRuntimeFacade:
             else default_output_dir(self.repo_root, resolved_catalog_path).resolve()
         )
         resolved_scenarios_path = (
-            self._resolve_path(scenarios_path, default=Path(scenarios_path))
+            self._resolve_required_path(scenarios_path)
             if scenarios_path is not None
             else None
         )
