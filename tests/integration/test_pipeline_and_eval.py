@@ -136,6 +136,41 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         write_source_catalog(catalog, catalog_path)
         return catalog_path
 
+    def _write_real_question_pack_config(self, root: Path) -> Path:
+        pack_path = root / "synthetic_real_question_pack.json"
+        pack_path.write_text(
+            json.dumps(
+                {
+                    "questions": [
+                        {
+                            "question_id": "synthetic_question_a",
+                            "title": "Synthetic Question A",
+                            "question": "What does the regulation say about the Business Wallet compliance record?",
+                            "review_focus": "Catch usefulness regressions on the synthetic bounded corpus.",
+                            "expected_intent_type": "wallet_requirements_summary",
+                            "review_prompts": [
+                                "Is the answer bundle usable?",
+                                "Does the bundle keep uncertainty visible?"
+                            ]
+                        },
+                        {
+                            "question_id": "synthetic_question_b",
+                            "title": "Synthetic Question B",
+                            "question": "Summarize the Business Wallet compliance record requirement.",
+                            "review_focus": "Catch reuse regressions on a second phrasing of the same bounded question.",
+                            "expected_intent_type": "wallet_requirements_summary",
+                            "review_prompts": [
+                                "Is the answer still reviewable under a wording variant?"
+                            ]
+                        }
+                    ]
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return pack_path
+
     def test_scenario_c_returns_confirmed_standard_based_answer(self) -> None:
         result = self.pipeline.answer_question(
             "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"
@@ -1197,3 +1232,86 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             self.assertFalse(verdict["passed"])
             self.assertIn("corpus_coverage_gate:fail", verdict["checks"])
             self.assertFalse(coverage["passed"])
+
+    def test_run_real_question_pack_cli_writes_manifest_and_question_bundles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            catalog_path = self._build_bounded_test_catalog(tmp_root)
+            pack_path = self._write_real_question_pack_config(tmp_root)
+            output_dir = tmp_root / "real_question_pack_runs" / "synthetic-run"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_real_question_pack.py"),
+                    "--all",
+                    "--pack",
+                    str(pack_path),
+                    "--catalog",
+                    str(catalog_path),
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+            )
+            manifest_path = output_dir / "pack_run_manifest.json"
+            self.assertTrue(manifest_path.is_file())
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["selected_question_ids"],
+                ["synthetic_question_a", "synthetic_question_b"],
+            )
+            self.assertNotIn("score", manifest)
+            self.assertNotIn("pass_rate", manifest)
+            for question_id in manifest["selected_question_ids"]:
+                question_dir = output_dir / question_id
+                self.assertTrue((question_dir / "final_answer.txt").is_file())
+                self.assertTrue((question_dir / "manual_review_report.md").is_file())
+                self.assertTrue((question_dir / "approved_ledger.json").is_file())
+
+    def test_run_real_question_pack_cli_can_select_single_question(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            catalog_path = self._build_bounded_test_catalog(tmp_root)
+            pack_path = self._write_real_question_pack_config(tmp_root)
+            output_dir = tmp_root / "real_question_pack_runs" / "synthetic-single"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_real_question_pack.py"),
+                    "--question-id",
+                    "synthetic_question_b",
+                    "--pack",
+                    str(pack_path),
+                    "--catalog",
+                    str(catalog_path),
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+            )
+            manifest_path = output_dir / "pack_run_manifest.json"
+            self.assertTrue(manifest_path.is_file())
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["selected_question_ids"], ["synthetic_question_b"])
+            self.assertTrue((output_dir / "synthetic_question_b" / "final_answer.txt").is_file())
+            self.assertFalse((output_dir / "synthetic_question_a").exists())

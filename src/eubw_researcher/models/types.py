@@ -321,6 +321,23 @@ class EvaluationScenario:
 
 
 @dataclass
+class RealQuestionPackQuestion:
+    question_id: str
+    title: str
+    question: str
+    review_focus: str
+    expected_intent_type: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+    review_prompts: List[str] = field(default_factory=list)
+    seed_from_scenario_id: Optional[str] = None
+
+
+@dataclass
+class RealQuestionPack:
+    questions: List[RealQuestionPackQuestion]
+
+
+@dataclass
 class ClaimTarget:
     target_id: str
     claim_text: str
@@ -671,6 +688,42 @@ class ScenarioVerdict:
     scenario_id: str
     passed: bool
     checks: List[str]
+
+
+@dataclass
+class RealQuestionPackQuestionRunSummary:
+    question_id: str
+    title: str
+    expected_intent_type: Optional[str]
+    output_dir: str
+    artifacts_present: List[str]
+    missing_artifacts: List[str]
+    intent_type: str
+    approved_entry_count: int
+    gap_record_count: int
+    web_fetch_count: int
+    final_judgment: str
+    usefulness_verdict: str
+    source_bound_verdict: str
+    pinpoint_traceability_verdict: str
+    product_output_self_sufficiency_verdict: str
+
+
+@dataclass
+class RealQuestionPackRunManifest:
+    run_id: str
+    run_timestamp: str
+    pack_path: str
+    pack_digest: str
+    selected_question_ids: List[str]
+    catalog_path: str
+    corpus_state_id: str
+    runtime_contract_version: str
+    entrypoint: str
+    git_commit: Optional[str]
+    git_branch: Optional[str]
+    git_dirty: bool
+    question_runs: List[RealQuestionPackQuestionRunSummary] = field(default_factory=list)
 
 
 def dataclass_to_dict(value: Any) -> Any:

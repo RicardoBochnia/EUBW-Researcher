@@ -1,0 +1,74 @@
+{
+  "questions": [
+    {
+      "question_id": "primary_success_scenario",
+      "title": "Business Wallet Requirements Structure",
+      "question": "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+      "review_focus": "Catch regressions in usefulness, provisional grouping quality, and whether unresolved higher-rank gaps stay visible.",
+      "expected_intent_type": "wallet_requirements_summary",
+      "tags": ["requirements", "grouping", "real-corpus"],
+      "review_prompts": [
+        "Is the answer materially useful as a first-pass requirements basis?",
+        "Do unresolved governing gaps remain visible instead of being flattened?",
+        "Does the review bundle make the provisional grouping inspectable?"
+      ],
+      "seed_from_scenario_id": "primary_success_scenario"
+    },
+    {
+      "question_id": "scenario_a_registration_and_access_certificate_analysis",
+      "title": "Certificate Layer Analysis",
+      "question": "How should I analyse registration and access certificate requirements across regulation, annex, and national guidance?",
+      "review_focus": "Catch regressions in cross-layer usefulness and whether the answer keeps local governing support limits explicit.",
+      "expected_intent_type": "certificate_layer_analysis",
+      "tags": ["certificates", "cross-layer", "review"],
+      "review_prompts": [
+        "Does the answer separate regulation, annex, and lower-rank guidance clearly enough for human review?",
+        "Does the bundle show where the local corpus is still under-powered?",
+        "Would a reviewer know what follow-up evidence is still needed?"
+      ],
+      "seed_from_scenario_id": "scenario_a_registration_and_access_certificate_analysis"
+    },
+    {
+      "question_id": "scenario_b_registration_certificate_mandatory",
+      "title": "Registration Certificate Scope",
+      "question": "Is the registration certificate mandatory at EU level, or is that delegated to member states?",
+      "review_focus": "Catch regressions in governing-vs-delegated scoping and in official-web-trigger visibility when the local corpus is thin.",
+      "expected_intent_type": "registration_certificate_scope",
+      "tags": ["registration-certificate", "scope", "official-web"],
+      "review_prompts": [
+        "Does the answer stay explicit about what is and is not settled at EU level?",
+        "If web expansion is triggered, is that path reviewable from the artifacts?",
+        "Would a reviewer be able to judge whether delegation remains open or interpretive?"
+      ],
+      "seed_from_scenario_id": "scenario_b_registration_certificate_mandatory"
+    },
+    {
+      "question_id": "scenario_c_protocol_authorization_server",
+      "title": "Authorization Server Comparison",
+      "question": "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
+      "review_focus": "Catch regressions in standards-backed usefulness and whether confirmed versus open points remain separated cleanly.",
+      "expected_intent_type": "protocol_authorization_server_comparison",
+      "tags": ["protocols", "standards", "comparison"],
+      "review_prompts": [
+        "Does the answer make the standards difference easy to reuse without manual reconstruction?",
+        "Are confirmed and open points still visibly separated?",
+        "Would a reviewer trust the answer bundle as a first-pass protocol comparison?"
+      ],
+      "seed_from_scenario_id": "scenario_c_protocol_authorization_server"
+    },
+    {
+      "question_id": "scenario_d_certificate_topology_anchor",
+      "title": "Certificate Topology Anchor",
+      "question": "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?",
+      "review_focus": "Catch regressions in topology usefulness, facet coverage, trust artifacts, and how much verification effort the bundle still leaves to a human.",
+      "expected_intent_type": "certificate_topology_analysis",
+      "tags": ["topology", "trust-surface", "real-corpus"],
+      "review_prompts": [
+        "Does the answer separate governing support, interpretive scoping, and unresolved topology claims clearly enough to reuse?",
+        "Do the artifacts make the topology answer inspectable without broad source hunting?",
+        "Would a reviewer spot a regression in verification effort from this bundle alone?"
+      ],
+      "seed_from_scenario_id": "scenario_d_certificate_topology_anchor"
+    }
+  ]
+}

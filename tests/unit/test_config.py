@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import unittest
+import json
+import tempfile
 from pathlib import Path
 
 from eubw_researcher.config import (
     load_archive_corpus_config,
     load_evaluation_scenarios,
+    load_real_question_pack,
     load_runtime_config,
     load_source_hierarchy,
     load_web_allowlist,
@@ -28,6 +31,9 @@ class ConfigLoadingTests(unittest.TestCase):
         )
         real_scenarios = load_evaluation_scenarios(
             REPO_ROOT / "configs" / "evaluation_scenarios_real_corpus.yaml"
+        )
+        real_question_pack = load_real_question_pack(
+            REPO_ROOT / "configs" / "real_question_pack.yaml"
         )
 
         self.assertEqual(runtime.retrieval_top_k, 5)
@@ -86,6 +92,47 @@ class ConfigLoadingTests(unittest.TestCase):
                 "scenario_d_certificate_topology_anchor",
             },
         )
+        self.assertEqual(
+            [question.question_id for question in real_question_pack.questions],
+            [
+                "primary_success_scenario",
+                "scenario_a_registration_and_access_certificate_analysis",
+                "scenario_b_registration_certificate_mandatory",
+                "scenario_c_protocol_authorization_server",
+                "scenario_d_certificate_topology_anchor",
+            ],
+        )
+        self.assertTrue(all(question.review_prompts for question in real_question_pack.questions))
+
+    def test_real_question_pack_rejects_duplicate_question_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "real_question_pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "duplicate",
+                                "title": "First",
+                                "question": "Question A?",
+                                "review_focus": "Focus",
+                                "review_prompts": ["Prompt"],
+                            },
+                            {
+                                "question_id": "duplicate",
+                                "title": "Second",
+                                "question": "Question B?",
+                                "review_focus": "Focus",
+                                "review_prompts": ["Prompt"],
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "duplicate question_id 'duplicate'"):
+                load_real_question_pack(pack_path)
 
 
 if __name__ == "__main__":
