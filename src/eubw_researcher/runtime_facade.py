@@ -25,6 +25,12 @@ class AgentRuntimeMode(str, Enum):
 
 @dataclass(frozen=True)
 class AgentRuntimeRequest:
+    """Stable runtime request payload.
+
+    `mode` accepts either an `AgentRuntimeMode` member or one of its string values:
+    `answer_question`, `evidence_only`, or `write_reviewable_artifact_bundle`.
+    """
+
     question: str
     mode: Union[AgentRuntimeMode, str] = AgentRuntimeMode.ANSWER_QUESTION
     catalog_path: Optional[RuntimePath] = None

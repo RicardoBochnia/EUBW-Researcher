@@ -191,3 +191,15 @@ class RuntimeFacadeTests(unittest.TestCase):
                 )
 
             self.assertEqual(response.mode, AgentRuntimeMode.ANSWER_QUESTION)
+
+    def test_run_rejects_unknown_string_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            facade = ResearchRuntimeFacade(tmp_dir)
+
+            with self.assertRaisesRegex(ValueError, "unsupported_mode"):
+                facade.run(
+                    AgentRuntimeRequest(
+                        question="Synthetic question?",
+                        mode="unsupported_mode",
+                    )
+                )
