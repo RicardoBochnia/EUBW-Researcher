@@ -351,17 +351,17 @@ def load_corpus_manifest(path: Path) -> Optional[CorpusManifest]:
         return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, TypeError):
+        return CorpusManifest(
+            catalog_path=payload["catalog_path"],
+            corpus_state_id=payload["corpus_state_id"],
+            generated_at=payload["generated_at"],
+            selection_config_path=payload.get("selection_config_path"),
+            sources=[_load_manifest_source(item) for item in payload.get("sources", [])],
+            coverage_passed=payload.get("coverage_passed"),
+            coverage_families=[_load_family(item) for item in payload.get("coverage_families", [])],
+        )
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
-    return CorpusManifest(
-        catalog_path=payload["catalog_path"],
-        corpus_state_id=payload["corpus_state_id"],
-        generated_at=payload["generated_at"],
-        selection_config_path=payload.get("selection_config_path"),
-        sources=[_load_manifest_source(item) for item in payload.get("sources", [])],
-        coverage_passed=payload.get("coverage_passed"),
-        coverage_families=[_load_family(item) for item in payload.get("coverage_families", [])],
-    )
 
 
 def _load_source_delta(payload: dict) -> CorpusSourceDelta:
@@ -383,27 +383,27 @@ def load_corpus_refresh_summary(path: Path) -> Optional[CorpusRefreshSummary]:
         return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, TypeError):
+        return CorpusRefreshSummary(
+            catalog_path=payload["catalog_path"],
+            corpus_state_id=payload["corpus_state_id"],
+            previous_corpus_state_id=payload.get("previous_corpus_state_id"),
+            generated_at=payload["generated_at"],
+            refresh_status=payload["refresh_status"],
+            selection_config_path=payload.get("selection_config_path"),
+            added_sources=[_load_source_delta(item) for item in payload.get("added_sources", [])],
+            removed_sources=[_load_source_delta(item) for item in payload.get("removed_sources", [])],
+            updated_sources=[_load_source_delta(item) for item in payload.get("updated_sources", [])],
+            changed_web_sources=[_load_source_delta(item) for item in payload.get("changed_web_sources", [])],
+            coverage_deltas=[
+                CorpusCoverageDelta(
+                    family_id=item["family_id"],
+                    previous_admitted_count=int(item["previous_admitted_count"]),
+                    current_admitted_count=int(item["current_admitted_count"]),
+                    previous_missing=bool(item["previous_missing"]),
+                    current_missing=bool(item["current_missing"]),
+                )
+                for item in payload.get("coverage_deltas", [])
+            ],
+        )
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
-    return CorpusRefreshSummary(
-        catalog_path=payload["catalog_path"],
-        corpus_state_id=payload["corpus_state_id"],
-        previous_corpus_state_id=payload.get("previous_corpus_state_id"),
-        generated_at=payload["generated_at"],
-        refresh_status=payload["refresh_status"],
-        selection_config_path=payload.get("selection_config_path"),
-        added_sources=[_load_source_delta(item) for item in payload.get("added_sources", [])],
-        removed_sources=[_load_source_delta(item) for item in payload.get("removed_sources", [])],
-        updated_sources=[_load_source_delta(item) for item in payload.get("updated_sources", [])],
-        changed_web_sources=[_load_source_delta(item) for item in payload.get("changed_web_sources", [])],
-        coverage_deltas=[
-            CorpusCoverageDelta(
-                family_id=item["family_id"],
-                previous_admitted_count=int(item["previous_admitted_count"]),
-                current_admitted_count=int(item["current_admitted_count"]),
-                previous_missing=bool(item["previous_missing"]),
-                current_missing=bool(item["current_missing"]),
-            )
-            for item in payload.get("coverage_deltas", [])
-        ],
-    )

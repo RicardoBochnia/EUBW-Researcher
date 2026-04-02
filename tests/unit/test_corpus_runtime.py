@@ -163,7 +163,7 @@ class CorpusRuntimeTests(unittest.TestCase):
             manifest_path.write_text(
                 (
                     "{\n"
-                    f'  "catalog_path": "{catalog_path.resolve().as_posix()}",\n'
+                    f'  "catalog_path": "{str(catalog_path.resolve())}",\n'
                     f'  "corpus_state_id": "{corpus_state_id}",\n'
                     f'  "generated_at": "{datetime.now(timezone.utc).isoformat()}",\n'
                     '  "selection_config_path": null,\n'
@@ -189,7 +189,7 @@ class CorpusRuntimeTests(unittest.TestCase):
             manifest_path.write_text(
                 (
                     "{\n"
-                    f'  "catalog_path": "{other_catalog_path.as_posix()}",\n'
+                    f'  "catalog_path": "{str(other_catalog_path)}",\n'
                     '  "corpus_state_id": "wrong-state-id",\n'
                     f'  "generated_at": "{datetime.now(timezone.utc).isoformat()}",\n'
                     '  "selection_config_path": null,\n'

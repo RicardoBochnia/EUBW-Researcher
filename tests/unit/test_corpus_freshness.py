@@ -413,6 +413,27 @@ class CorpusFreshnessTests(unittest.TestCase):
             self.assertIsNone(load_corpus_manifest(manifest_path))
             self.assertIsNone(load_corpus_refresh_summary(refresh_summary_path))
 
+            manifest_path.write_text(json.dumps({"corpus_state_id": "state-1234"}), encoding="utf-8")
+            refresh_summary_path.write_text(
+                json.dumps(
+                    {
+                        "catalog_path": str((temp_root / "catalog.json").resolve()),
+                        "corpus_state_id": "state-1234",
+                        "generated_at": "2026-04-02T00:00:00+00:00",
+                        "refresh_status": "initial_build",
+                        "added_sources": [{"source_id": "bad", "title": "Bad", "change_type": "added", "source_origin": "unknown"}],
+                        "removed_sources": [],
+                        "updated_sources": [],
+                        "changed_web_sources": [],
+                        "coverage_deltas": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertIsNone(load_corpus_manifest(manifest_path))
+            self.assertIsNone(load_corpus_refresh_summary(refresh_summary_path))
+
             manifest_path.write_text(
                 json.dumps(
                     {
