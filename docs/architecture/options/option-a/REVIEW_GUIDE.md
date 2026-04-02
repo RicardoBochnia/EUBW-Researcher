@@ -24,7 +24,7 @@ This is a V2 research-version review target, not a production-readiness claim.
 
 ## Commands
 
-- Run the full test suite:
+- Run the full test suite, including Scenario D closeout coverage:
   `python3 scripts/run_tests.py`
 - Run the fixture-backed evaluation gate:
   `python3 scripts/run_eval.py --all`
