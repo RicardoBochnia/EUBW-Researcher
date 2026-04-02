@@ -3,12 +3,14 @@ from __future__ import annotations
 import tempfile
 import unittest
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 import eubw_researcher.corpus.runtime as corpus_runtime
 from eubw_researcher.corpus import load_or_build_ingestion_bundle, write_source_catalog
-from eubw_researcher.models import SourceCatalog, SourceCatalogEntry, SourceKind, SourceRoleLevel
+from eubw_researcher.corpus.freshness import build_manifest_sources
+from eubw_researcher.models import SourceCatalog, SourceCatalogEntry, SourceKind, SourceRoleLevel, dataclass_to_dict
 
 
 class CorpusRuntimeTests(unittest.TestCase):
@@ -159,18 +161,19 @@ class CorpusRuntimeTests(unittest.TestCase):
             catalog_path = self._build_real_catalog(Path(tmp_dir))
 
             _, _, _, corpus_state_id = load_or_build_ingestion_bundle(catalog_path)
+            catalog = corpus_runtime.load_source_catalog(catalog_path)
             manifest_path = catalog_path.parent / "corpus_manifest.json"
             manifest_path.write_text(
-                (
-                    "{\n"
-                    f'  "catalog_path": "{str(catalog_path.resolve())}",\n'
-                    f'  "corpus_state_id": "{corpus_state_id}",\n'
-                    f'  "generated_at": "{datetime.now(timezone.utc).isoformat()}",\n'
-                    '  "selection_config_path": null,\n'
-                    '  "sources": [],\n'
-                    '  "coverage_passed": true,\n'
-                    '  "coverage_families": []\n'
-                    "}\n"
+                json.dumps(
+                    {
+                        "catalog_path": str(catalog_path.resolve()),
+                        "corpus_state_id": corpus_state_id,
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "selection_config_path": None,
+                        "sources": dataclass_to_dict(build_manifest_sources(catalog)),
+                        "coverage_passed": True,
+                        "coverage_families": [],
+                    }
                 ),
                 encoding="utf-8",
             )
@@ -202,6 +205,39 @@ class CorpusRuntimeTests(unittest.TestCase):
             )
 
             catalog = corpus_runtime.load_source_catalog(catalog_path)
+
+            self.assertIsNone(corpus_runtime._load_cached_corpus_state_id(catalog_path, catalog))
+
+    def test_real_corpus_state_id_ignores_manifest_with_mismatched_source_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            catalog_path = self._build_real_catalog(Path(tmp_dir))
+            manifest_path = catalog_path.parent / "corpus_manifest.json"
+            catalog = corpus_runtime.load_source_catalog(catalog_path)
+
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "catalog_path": str(catalog_path.resolve()),
+                        "corpus_state_id": "wrong-state-id",
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "selection_config_path": None,
+                        "sources": [
+                            {
+                                "source_id": "different_source",
+                                "title": "Different Source",
+                                "source_kind": SourceKind.REGULATION.value,
+                                "source_role_level": SourceRoleLevel.HIGH.value,
+                                "jurisdiction": "EU",
+                                "source_origin": "local",
+                                "anchorability_hints": [],
+                            }
+                        ],
+                        "coverage_passed": True,
+                        "coverage_families": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             self.assertIsNone(corpus_runtime._load_cached_corpus_state_id(catalog_path, catalog))
 
