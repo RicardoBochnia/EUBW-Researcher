@@ -4,7 +4,7 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 
 ## Local commands
 
-- Programmatic agent use should prefer `ResearchRuntimeFacade` from `eubw_researcher`; see `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
+- Programmatic agent use should use the facade contract exported from `eubw_researcher` (`ResearchRuntimeFacade`, `AgentRuntimeRequest`, `AgentRuntimeResponse`, `AgentRuntimeMode`); see `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
 - Run the full local test suite, including Scenario D closeout coverage: `python3 scripts/run_tests.py`
 - Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`

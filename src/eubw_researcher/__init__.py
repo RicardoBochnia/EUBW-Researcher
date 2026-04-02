@@ -1,6 +1,5 @@
 """EUBW Researcher prototype."""
 
-from .pipeline import ResearchPipeline
 from .runtime_facade import (
     AgentRuntimeMode,
     AgentRuntimeRequest,
@@ -12,6 +11,5 @@ __all__ = [
     "AgentRuntimeMode",
     "AgentRuntimeRequest",
     "AgentRuntimeResponse",
-    "ResearchPipeline",
     "ResearchRuntimeFacade",
 ]

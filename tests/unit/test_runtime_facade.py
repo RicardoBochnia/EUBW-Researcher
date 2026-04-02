@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,20 @@ from eubw_researcher import (
 
 
 class RuntimeFacadeTests(unittest.TestCase):
+    def test_package_root_exports_only_runtime_facade_contract(self) -> None:
+        package = importlib.import_module("eubw_researcher")
+
+        self.assertEqual(
+            package.__all__,
+            [
+                "AgentRuntimeMode",
+                "AgentRuntimeRequest",
+                "AgentRuntimeResponse",
+                "ResearchRuntimeFacade",
+            ],
+        )
+        self.assertFalse(hasattr(package, "ResearchPipeline"))
+
     def _write_default_catalog(self, repo_root: Path) -> Path:
         catalog_path = repo_root / "artifacts" / "real_corpus" / "curated_catalog.json"
         catalog_path.parent.mkdir(parents=True, exist_ok=True)

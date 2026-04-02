@@ -1,6 +1,11 @@
 # Option A runtime facade contract
 
-The stable agent-facing entrypoint for the current Option A runtime is `ResearchRuntimeFacade` from `eubw_researcher`.
+The stable agent-facing package-root surface for the current Option A runtime is the facade contract exported from `eubw_researcher`:
+
+- `ResearchRuntimeFacade`
+- `AgentRuntimeRequest`
+- `AgentRuntimeResponse`
+- `AgentRuntimeMode`
 
 ## Contract version
 
@@ -62,6 +67,6 @@ Each facade call returns `AgentRuntimeResponse` with:
 
 ## Stability boundary
 
-Agents should treat this facade as the stable programmatic surface.
+Agents should treat this package-root facade contract as the stable programmatic surface.
 
-Internal modules such as direct pipeline wiring, config loading helpers, retrieval internals, and artifact-writing internals are implementation details and may change without notice.
+Internal modules and types such as direct pipeline wiring, `ResearchPipeline`, config loading helpers, retrieval internals, and artifact-writing internals are implementation details and may change without notice.
