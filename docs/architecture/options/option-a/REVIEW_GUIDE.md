@@ -30,6 +30,8 @@ This is a V2 research-version review target, not a production-readiness claim.
   `python3 scripts/run_eval.py --all`
 - Run the real-corpus evaluation gate:
   `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- Run the Scenario D closeout harness with a spawned validator:
+  `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 - Run a direct question with reviewable artifacts:
   `python3 scripts/answer_question.py "What is the difference between a wallet-relying party registration certificate and a wallet-relying party access certificate?" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/review_demo`
 
@@ -63,6 +65,11 @@ Every reviewable run should include:
 - `provisional_grouping.json` for grouping-capable runs
 - `corpus_coverage_report.json` for corpus-backed runs
 
+Scenario D closeout runs additionally include:
+
+- `spawned_validator_request.json`
+- `spawned_validator_result.json`
+
 ## Highest-value things to verify manually
 
 - No blocked claim appears in `final_answer.txt`.
@@ -76,6 +83,7 @@ Every reviewable run should include:
 - `pinpoint_evidence.json` maps each cited answer claim to a concrete local locator and is explicit when only approximate traceability is available.
 - `answer_alignment.json` shows no blocking wording-to-evidence alignment violations.
 - `blind_validation_report.json` passes and records that the run should be reusable without raw-document reconstruction.
+- For Scenario D closeout, `blind_validation_report.json` should show `validation_mode="structural_plus_spawned_validator_closeout"` and a nested `spawned_validator` result with `context_inherited=false`.
 - Any approved fetched web source is surfaced in `manual_review_report.md` with digest and provenance evidence.
 - `ledger_entries.json` shows weak anchors as `document_only`.
 - Any `document_only` `confirmed` claim carries a credible technical anchor audit note.
@@ -93,7 +101,12 @@ Suggested real-corpus sample:
 
 - `artifacts/eval_runs_real_corpus/scenario_b_registration_certificate_mandatory`
 
+Suggested closeout sample:
+
+- `artifacts/scenario_d_closeout/scenario_d_certificate_topology_anchor`
+
 The V2 release gate treats the real-corpus `primary_success_scenario` and `scenario_b_registration_certificate_mandatory` bundles as binding review samples; their `manual_review_report.md` should end in `accept`.
+Scenario D is the maintained closeout proof case; run its separate harness when a fresh no-context validator proof is needed without destabilizing the deterministic eval gate.
 
 If the real-corpus eval directory is regenerated under a different output path, inspect the latest scenario directory with the same scenario id.
 

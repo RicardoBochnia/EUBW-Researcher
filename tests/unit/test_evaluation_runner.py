@@ -25,10 +25,12 @@ from eubw_researcher.models import (
     SourceKind,
     SourceOrigin,
     SourceRoleLevel,
+    SpawnedValidatorResult,
     WebFetchRecord,
 )
 from eubw_researcher.trust import (
     build_blind_validation_report,
+    merge_spawned_validator_result,
     pinpoint_traceability_status,
 )
 
@@ -299,6 +301,43 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertTrue(report.passed)
         self.assertEqual(report.missing_facets, [])
+
+    def test_merge_spawned_validator_result_accepts_minor_confirmation_without_context_inheritance(self) -> None:
+        structural_report = build_blind_validation_report(_minimal_result("fetch"))
+        spawned_validator = SpawnedValidatorResult(
+            passed=True,
+            context_inherited=False,
+            artifacts_used=["manual_review_report.md"],
+            raw_document_dependency="minor_confirmation",
+            product_output_self_sufficient=True,
+            summary="Validator reused the bundle and only spot-checked cited sources.",
+            validator_answer="Synthetic validator answer.",
+        )
+
+        merged = merge_spawned_validator_result(structural_report, spawned_validator)
+
+        self.assertTrue(merged.structural_passed)
+        self.assertTrue(merged.passed)
+        self.assertEqual(merged.validation_mode, "structural_plus_spawned_validator_closeout")
+        self.assertEqual(merged.raw_document_dependency, "minor_confirmation")
+        self.assertIsNotNone(merged.spawned_validator)
+
+    def test_merge_spawned_validator_result_rejects_inherited_context(self) -> None:
+        structural_report = build_blind_validation_report(_minimal_result("fetch"))
+        spawned_validator = SpawnedValidatorResult(
+            passed=True,
+            context_inherited=True,
+            artifacts_used=["manual_review_report.md"],
+            raw_document_dependency="none",
+            product_output_self_sufficient=True,
+            summary="Validator reported a pass.",
+            validator_answer="Synthetic validator answer.",
+        )
+
+        merged = merge_spawned_validator_result(structural_report, spawned_validator)
+
+        self.assertFalse(merged.passed)
+        self.assertIn("inherited context", merged.summary)
 
     def test_required_web_fetch_count_counts_fetch_records_only(self) -> None:
         scenario = EvaluationScenario(
