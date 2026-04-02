@@ -36,7 +36,9 @@ def main() -> int:
     runtime = AgentRuntimeFacade(repo_root)
     if args.artifacts_only:
         if not args.output_dir:
-            raise SystemExit("Pass --output-dir when using --artifacts-only.")
+            raise SystemExit(
+                "The --artifacts-only flag requires --output-dir so the artifact bundle has a destination."
+            )
         response = runtime.write_reviewable_artifact_bundle(
             args.question,
             catalog_path=args.catalog,

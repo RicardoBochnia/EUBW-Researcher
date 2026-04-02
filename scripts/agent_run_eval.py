@@ -27,8 +27,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if not args.all and not args.scenario:
-        raise SystemExit("Pass --scenario <id> or --all.")
+    if args.all == bool(args.scenario):
+        raise SystemExit("Exactly one of --scenario <id> or --all must be specified.")
     repo_root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo_root / "src"))
 
