@@ -104,7 +104,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         write_source_catalog(real_catalog, catalog_path)
         return catalog_path
 
-    def _build_synthetic_real_corpus_catalog(self, root: Path) -> Path:
+    def _build_bounded_test_catalog(self, root: Path) -> Path:
         corpus_root = root / "artifacts" / "real_corpus"
         source_root = corpus_root / "sources"
         source_root.mkdir(parents=True, exist_ok=True)
@@ -1057,7 +1057,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     "--catalog",
                     str(missing_catalog),
                     "--validator-command",
-                    "python3 -c pass",
+                    "python3 -c \"print('noop')\"",
                 ],
             }
 
@@ -1077,7 +1077,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
     def test_run_eval_cli_fails_real_corpus_coverage_gate_with_bounded_synthetic_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
-            catalog_path = self._build_synthetic_real_corpus_catalog(tmp_root)
+            catalog_path = self._build_bounded_test_catalog(tmp_root)
             scenarios_path = tmp_root / "synthetic_scenarios.json"
             scenarios_path.write_text(
                 json.dumps(
