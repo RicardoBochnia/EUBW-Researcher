@@ -617,6 +617,35 @@ class ScenarioDCloseoutTests(unittest.TestCase):
             self.assertIn("spawned_validator:skipped_deterministic_gate_failed", verdict.checks)
             self.assertFalse((scenario_dir / "spawned_validator_request.json").exists())
 
+    def test_run_scenario_d_closeout_raises_clear_error_when_scenario_d_missing(self) -> None:
+        other_scenario = EvaluationScenario(
+            scenario_id="synthetic_other",
+            question="Some other question?",
+            expectation="Synthetic non-Scenario-D case.",
+            required_intent_type="certificate_topology_analysis",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_root = Path(tmp_dir)
+            with patch(
+                "eubw_researcher.evaluation.closeout._scenario_config_path",
+                return_value=Path("/tmp/custom_scenarios.json"),
+            ), patch(
+                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+                return_value=[other_scenario],
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "Scenario with id 'scenario_d_certificate_topology_anchor' not found",
+                ):
+                    run_scenario_d_closeout(
+                        repo_root=REPO_ROOT,
+                        output_dir=output_root,
+                        validator_command=f"{FAKE_VALIDATOR} --mode pass",
+                        timeout_seconds=10.0,
+                        catalog_path=Path("/tmp/synthetic_catalog.json"),
+                    )
+
     def test_run_scenario_d_closeout_writes_merged_blind_validation_report(self) -> None:
         passing_result = _minimal_result("fetch", intent_type="certificate_topology_analysis")
         scenario = EvaluationScenario(

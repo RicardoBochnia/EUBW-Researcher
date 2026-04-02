@@ -251,11 +251,13 @@ def _invoke_spawned_validator(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
+        stdout_data = getattr(exc, "stdout", getattr(exc, "output", None))
+        stderr_data = getattr(exc, "stderr", None)
         return _spawned_validator_error(
             validator_command=validator_command,
             exit_code=None,
-            stdout=_decode_process_output(exc.stdout),
-            stderr=_decode_process_output(exc.stderr),
+            stdout=_decode_process_output(stdout_data),
+            stderr=_decode_process_output(stderr_data),
             error=f"Validator timed out after {timeout_seconds:.1f} seconds.",
         )
     except OSError as exc:
@@ -406,7 +408,13 @@ def run_scenario_d_closeout(
 ) -> Tuple[Path, ScenarioVerdict]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
-    scenario = next(item for item in scenarios if item.scenario_id == SCENARIO_D_ID)
+    try:
+        scenario = next(item for item in scenarios if item.scenario_id == SCENARIO_D_ID)
+    except StopIteration as exc:
+        raise ValueError(
+            f"Scenario with id {SCENARIO_D_ID!r} not found in scenarios config at "
+            f"{resolved_scenarios_path}"
+        ) from exc
     pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,

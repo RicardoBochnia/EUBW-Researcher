@@ -209,7 +209,11 @@ def merge_spawned_validator_result(
         and spawned_validator.product_output_self_sufficient
     )
     combined_passed = structural_passed and spawned_validator_passed
-    raw_document_dependency = spawned_validator.raw_document_dependency
+    raw_document_dependency = (
+        "central_reconstruction"
+        if not structural_passed
+        else spawned_validator.raw_document_dependency
+    )
     artifacts_used = list(
         dict.fromkeys(structural_report.artifacts_used + spawned_validator.artifacts_used)
     )
