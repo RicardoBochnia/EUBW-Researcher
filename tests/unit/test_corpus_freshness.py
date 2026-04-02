@@ -8,10 +8,13 @@ from eubw_researcher.corpus import (
     build_corpus_manifest,
     build_corpus_coverage_report,
     build_corpus_refresh_summary,
+    compute_corpus_state_id,
     ingest_catalog,
     write_source_catalog,
 )
 from eubw_researcher.models import (
+    CorpusManifest,
+    CorpusManifestSource,
     SourceCatalog,
     SourceCatalogEntry,
     SourceKind,
@@ -304,6 +307,60 @@ class CorpusFreshnessTests(unittest.TestCase):
             self.assertEqual(coverage_delta.current_admitted_count, 1)
             self.assertFalse(coverage_delta.previous_missing)
             self.assertTrue(coverage_delta.current_missing)
+
+    def test_state_id_and_refresh_summary_ignore_absolute_path_only_changes(self) -> None:
+        previous_source = CorpusManifestSource(
+            source_id="same_source",
+            title="Same Source",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/source",
+            local_path="/tmp/checkout-a/source.md",
+            anchorability_hints=["markdown_headings"],
+            admission_reason="test",
+            content_digest="abc123",
+            byte_size=42,
+        )
+        current_source = CorpusManifestSource(
+            source_id="same_source",
+            title="Same Source",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/source",
+            local_path="/tmp/checkout-b/source.md",
+            anchorability_hints=["markdown_headings"],
+            admission_reason="test",
+            content_digest="abc123",
+            byte_size=42,
+        )
+
+        previous_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([previous_source]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[previous_source],
+        )
+        current_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([current_source]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[current_source],
+        )
+
+        self.assertEqual(previous_manifest.corpus_state_id, current_manifest.corpus_state_id)
+        summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
+        self.assertEqual(summary.refresh_status, "unchanged")
+        self.assertFalse(summary.updated_sources)
 
 
 if __name__ == "__main__":

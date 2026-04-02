@@ -7,6 +7,7 @@ from eubw_researcher.answering import TOPOLOGY_FACET_IDS
 from eubw_researcher.models import (
     ApprovedFetchedSourceEvidence,
     ClaimState,
+    CorpusRefreshSummary,
     ManualReviewArtifact,
     ManualReviewCheck,
     ManualReviewReport,
@@ -223,7 +224,7 @@ def build_manual_review_report(
     scenario_id: Optional[str],
     catalog_path: Optional[str],
     corpus_state_id: Optional[str],
-    corpus_refresh_summary=None,
+    corpus_refresh_summary: Optional[CorpusRefreshSummary] = None,
     reviewer_name: str = "Codex",
 ) -> ManualReviewReport:
     has_approved_entries = bool(result.approved_entries)

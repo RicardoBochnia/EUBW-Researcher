@@ -8,9 +8,13 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from eubw_researcher.corpus.catalog import load_source_catalog
-from eubw_researcher.corpus.freshness import build_manifest_sources, compute_corpus_state_id
+from eubw_researcher.corpus.freshness import (
+    build_manifest_sources,
+    compute_corpus_state_id,
+)
 from eubw_researcher.corpus.ingest import ingest_catalog
 from eubw_researcher.models import (
+    CorpusManifestSource,
     CorpusCoverageFamily,
     CorpusCoverageReport,
     IngestionBundle,
@@ -140,13 +144,21 @@ def write_corpus_coverage_report(report: CorpusCoverageReport, path: Path) -> No
 
 def load_or_build_ingestion_bundle(
     catalog_path: Path,
+    *,
+    manifest_sources: Optional[list[CorpusManifestSource]] = None,
+    corpus_state_id: Optional[str] = None,
 ) -> Tuple[SourceCatalog, IngestionBundle, Optional[CorpusCoverageReport], str]:
     catalog = load_source_catalog(catalog_path)
-    corpus_state_id = _catalog_state_id(catalog_path, catalog)
+    resolved_corpus_state_id = corpus_state_id
+    if resolved_corpus_state_id is None:
+        if manifest_sources is not None:
+            resolved_corpus_state_id = compute_corpus_state_id(manifest_sources)
+        else:
+            resolved_corpus_state_id = _catalog_state_id(catalog_path, catalog)
 
     if not is_real_corpus_catalog(catalog_path):
         bundle = ingest_catalog(catalog)
-        return catalog, bundle, None, corpus_state_id
+        return catalog, bundle, None, resolved_corpus_state_id
 
     bundle_cache_path, metadata_path = _cache_paths(catalog_path)
     bundle_cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,7 +167,7 @@ def load_or_build_ingestion_bundle(
     if bundle_cache_path.exists() and metadata_path.exists():
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            if metadata.get("corpus_state_id") == corpus_state_id:
+            if metadata.get("corpus_state_id") == resolved_corpus_state_id:
                 with bundle_cache_path.open("rb") as handle:
                     bundle = pickle.load(handle)
         except Exception:
@@ -169,7 +181,7 @@ def load_or_build_ingestion_bundle(
             json.dumps(
                 {
                     "catalog_path": str(catalog_path.resolve()),
-                    "corpus_state_id": corpus_state_id,
+                    "corpus_state_id": resolved_corpus_state_id,
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                 },
                 indent=2,
@@ -180,6 +192,6 @@ def load_or_build_ingestion_bundle(
     coverage_report = build_corpus_coverage_report(
         catalog_path=catalog_path,
         bundle=bundle,
-        corpus_state_id=corpus_state_id,
+        corpus_state_id=resolved_corpus_state_id,
     )
-    return catalog, bundle, coverage_report, corpus_state_id
+    return catalog, bundle, coverage_report, resolved_corpus_state_id

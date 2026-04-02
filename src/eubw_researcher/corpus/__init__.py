@@ -3,10 +3,13 @@
 from .archive import build_catalog_from_archive
 from .catalog import load_source_catalog, write_source_catalog
 from .freshness import (
+    build_manifest_sources,
     build_corpus_manifest,
     build_corpus_refresh_summary,
+    compute_corpus_state_id,
     default_corpus_manifest_path,
     default_corpus_refresh_summary_path,
+    enrich_manifest_sources,
     load_corpus_manifest,
     load_corpus_refresh_summary,
     write_corpus_manifest,
@@ -22,11 +25,14 @@ from .runtime import (
 
 __all__ = [
     "build_catalog_from_archive",
+    "build_manifest_sources",
     "build_corpus_manifest",
     "build_corpus_coverage_report",
     "build_corpus_refresh_summary",
+    "compute_corpus_state_id",
     "default_corpus_manifest_path",
     "default_corpus_refresh_summary_path",
+    "enrich_manifest_sources",
     "load_source_catalog",
     "load_corpus_manifest",
     "load_corpus_refresh_summary",

@@ -51,6 +51,8 @@ def main() -> int:
         build_catalog_from_archive,
         build_corpus_manifest,
         build_corpus_refresh_summary,
+        build_manifest_sources,
+        compute_corpus_state_id,
         load_corpus_manifest,
         load_or_build_ingestion_bundle,
         write_corpus_manifest,
@@ -65,12 +67,20 @@ def main() -> int:
     output_path = (repo_root / args.output).resolve()
     write_source_catalog(catalog, output_path)
 
-    _, bundle, coverage_report, _ = load_or_build_ingestion_bundle(output_path)
+    manifest_sources = build_manifest_sources(catalog)
+    corpus_state_id = compute_corpus_state_id(manifest_sources)
+    _, bundle, coverage_report, _ = load_or_build_ingestion_bundle(
+        output_path,
+        manifest_sources=manifest_sources,
+        corpus_state_id=corpus_state_id,
+    )
     manifest_path = (repo_root / args.manifest).resolve()
     previous_manifest = load_corpus_manifest(manifest_path)
     manifest = build_corpus_manifest(
         output_path,
         catalog,
+        sources=manifest_sources,
+        corpus_state_id=corpus_state_id,
         bundle=bundle,
         coverage_report=coverage_report,
         selection_config_path=(repo_root / args.config).resolve(),

@@ -90,12 +90,45 @@ def build_manifest_sources(
     return sources
 
 
+def enrich_manifest_sources(
+    sources: list[CorpusManifestSource],
+    *,
+    bundle: Optional[IngestionBundle] = None,
+) -> list[CorpusManifestSource]:
+    report_by_id = _report_lookup(bundle)
+    enriched_sources: list[CorpusManifestSource] = []
+    for source in sources:
+        report = report_by_id.get(source.source_id)
+        enriched_sources.append(
+            CorpusManifestSource(
+                source_id=source.source_id,
+                title=source.title,
+                source_kind=source.source_kind,
+                source_role_level=source.source_role_level,
+                jurisdiction=source.jurisdiction,
+                publication_status=source.publication_status,
+                publication_date=source.publication_date,
+                source_origin=source.source_origin,
+                canonical_url=source.canonical_url,
+                local_path=source.local_path,
+                anchorability_hints=list(source.anchorability_hints),
+                admission_reason=source.admission_reason,
+                content_digest=source.content_digest,
+                byte_size=source.byte_size,
+                normalization_status=getattr(report, "normalization_status", None),
+                chunk_count=getattr(report, "chunk_count", None),
+            )
+        )
+    return enriched_sources
+
+
 def compute_corpus_state_id(sources: list[CorpusManifestSource]) -> str:
     digest = hashlib.sha256()
     for source in sources:
         payload = dataclass_to_dict(source)
         payload.pop("normalization_status", None)
         payload.pop("chunk_count", None)
+        payload.pop("local_path", None)
         digest.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
     return digest.hexdigest()[:16]
 
@@ -104,21 +137,28 @@ def build_corpus_manifest(
     catalog_path: Path,
     catalog: SourceCatalog,
     *,
+    sources: Optional[list[CorpusManifestSource]] = None,
+    corpus_state_id: Optional[str] = None,
     bundle: Optional[IngestionBundle] = None,
     coverage_report: Optional[CorpusCoverageReport] = None,
     selection_config_path: Optional[Path] = None,
 ) -> CorpusManifest:
-    sources = build_manifest_sources(catalog, bundle=bundle)
+    manifest_sources = sources if sources is not None else build_manifest_sources(catalog)
+    manifest_sources = enrich_manifest_sources(manifest_sources, bundle=bundle)
     return CorpusManifest(
         catalog_path=str(catalog_path.resolve()),
-        corpus_state_id=compute_corpus_state_id(sources),
+        corpus_state_id=(
+            corpus_state_id
+            if corpus_state_id is not None
+            else compute_corpus_state_id(manifest_sources)
+        ),
         generated_at=datetime.now(timezone.utc).isoformat(),
         selection_config_path=(
             str(selection_config_path.resolve())
             if selection_config_path is not None
             else None
         ),
-        sources=sources,
+        sources=manifest_sources,
         coverage_passed=coverage_report.passed if coverage_report is not None else None,
         coverage_families=list(coverage_report.families) if coverage_report is not None else [],
     )
@@ -151,6 +191,7 @@ def _source_field_map(source: CorpusManifestSource) -> dict[str, object]:
     payload = dataclass_to_dict(source)
     payload.pop("normalization_status", None)
     payload.pop("chunk_count", None)
+    payload.pop("local_path", None)
     return payload
 
 
