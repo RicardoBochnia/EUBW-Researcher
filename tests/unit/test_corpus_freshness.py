@@ -10,6 +10,8 @@ from eubw_researcher.corpus import (
     build_corpus_refresh_summary,
     compute_corpus_state_id,
     ingest_catalog,
+    load_corpus_manifest,
+    load_corpus_refresh_summary,
     write_source_catalog,
 )
 from eubw_researcher.models import (
@@ -361,6 +363,54 @@ class CorpusFreshnessTests(unittest.TestCase):
         summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
         self.assertEqual(summary.refresh_status, "unchanged")
         self.assertFalse(summary.updated_sources)
+
+    def test_compute_corpus_state_id_is_order_independent(self) -> None:
+        source_a = CorpusManifestSource(
+            source_id="a_source",
+            title="A Source",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/a",
+            local_path="/tmp/a.md",
+            anchorability_hints=["markdown_headings"],
+            content_digest="aaa",
+            byte_size=1,
+        )
+        source_b = CorpusManifestSource(
+            source_id="b_source",
+            title="B Source",
+            source_kind=SourceKind.TECHNICAL_STANDARD,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="international",
+            publication_status="standard",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/b",
+            local_path="/tmp/b.md",
+            anchorability_hints=["markdown_headings"],
+            content_digest="bbb",
+            byte_size=2,
+        )
+
+        self.assertEqual(
+            compute_corpus_state_id([source_a, source_b]),
+            compute_corpus_state_id([source_b, source_a]),
+        )
+
+    def test_invalid_manifest_and_refresh_summary_json_return_none(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_root = Path(tmp_dir)
+            manifest_path = temp_root / "corpus_manifest.json"
+            refresh_summary_path = temp_root / "corpus_refresh_summary.json"
+            manifest_path.write_text("{", encoding="utf-8")
+            refresh_summary_path.write_text("{", encoding="utf-8")
+
+            self.assertIsNone(load_corpus_manifest(manifest_path))
+            self.assertIsNone(load_corpus_refresh_summary(refresh_summary_path))
 
 
 if __name__ == "__main__":

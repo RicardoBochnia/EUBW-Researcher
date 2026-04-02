@@ -73,10 +73,15 @@ def _load_cached_corpus_state_id(
     catalog_path: Path,
     catalog: SourceCatalog,
 ) -> Optional[str]:
+    resolved_catalog_path = str(catalog_path.resolve())
     manifest_path = default_corpus_manifest_path(catalog_path)
     if manifest_path.exists() and _cache_artifact_is_current(catalog_path, catalog, manifest_path):
         manifest = load_corpus_manifest(manifest_path)
-        if manifest is not None and manifest.corpus_state_id:
+        if (
+            manifest is not None
+            and manifest.corpus_state_id
+            and manifest.catalog_path == resolved_catalog_path
+        ):
             return manifest.corpus_state_id
 
     _, metadata_path = _cache_paths(catalog_path)
@@ -86,7 +91,11 @@ def _load_cached_corpus_state_id(
         except (OSError, json.JSONDecodeError, TypeError):
             return None
         corpus_state_id = metadata.get("corpus_state_id")
-        if isinstance(corpus_state_id, str) and corpus_state_id:
+        if (
+            isinstance(corpus_state_id, str)
+            and corpus_state_id
+            and metadata.get("catalog_path") == resolved_catalog_path
+        ):
             return corpus_state_id
     return None
 

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import eubw_researcher.corpus.runtime as corpus_runtime
 from eubw_researcher.corpus import load_or_build_ingestion_bundle, write_source_catalog
 from eubw_researcher.models import SourceCatalog, SourceCatalogEntry, SourceKind, SourceRoleLevel
 
@@ -178,6 +179,29 @@ class CorpusRuntimeTests(unittest.TestCase):
                 _, _, _, cached_state_id = load_or_build_ingestion_bundle(catalog_path)
 
             self.assertEqual(cached_state_id, corpus_state_id)
+
+    def test_real_corpus_state_id_ignores_manifest_for_other_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            catalog_path = self._build_real_catalog(Path(tmp_dir))
+            manifest_path = catalog_path.parent / "corpus_manifest.json"
+            manifest_path.write_text(
+                (
+                    "{\n"
+                    '  "catalog_path": "/tmp/other_catalog.json",\n'
+                    '  "corpus_state_id": "wrong-state-id",\n'
+                    f'  "generated_at": "{datetime.now(timezone.utc).isoformat()}",\n'
+                    '  "selection_config_path": null,\n'
+                    '  "sources": [],\n'
+                    '  "coverage_passed": true,\n'
+                    '  "coverage_families": []\n'
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+
+            catalog = corpus_runtime.load_source_catalog(catalog_path)
+
+            self.assertIsNone(corpus_runtime._load_cached_corpus_state_id(catalog_path, catalog))
 
     def test_corpus_coverage_gate_reports_missing_required_family(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

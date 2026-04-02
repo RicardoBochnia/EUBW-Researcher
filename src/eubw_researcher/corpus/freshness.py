@@ -123,12 +123,15 @@ def enrich_manifest_sources(
 
 def compute_corpus_state_id(sources: list[CorpusManifestSource]) -> str:
     digest = hashlib.sha256()
+    payloads: list[str] = []
     for source in sources:
         payload = dataclass_to_dict(source)
         payload.pop("normalization_status", None)
         payload.pop("chunk_count", None)
         payload.pop("local_path", None)
-        digest.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
+        payloads.append(json.dumps(payload, sort_keys=True))
+    for payload in sorted(payloads):
+        digest.update(payload.encode("utf-8"))
     return digest.hexdigest()[:16]
 
 
@@ -346,7 +349,10 @@ def _load_manifest_source(payload: dict) -> CorpusManifestSource:
 def load_corpus_manifest(path: Path) -> Optional[CorpusManifest]:
     if not path.exists():
         return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
     return CorpusManifest(
         catalog_path=payload["catalog_path"],
         corpus_state_id=payload["corpus_state_id"],
@@ -375,7 +381,10 @@ def _load_source_delta(payload: dict) -> CorpusSourceDelta:
 def load_corpus_refresh_summary(path: Path) -> Optional[CorpusRefreshSummary]:
     if not path.exists():
         return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
     return CorpusRefreshSummary(
         catalog_path=payload["catalog_path"],
         corpus_state_id=payload["corpus_state_id"],
