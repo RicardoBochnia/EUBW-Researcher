@@ -26,6 +26,8 @@ from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
     ClaimState,
     ScenarioVerdict,
+    SourceCatalog,
+    SourceCatalogEntry,
     SourceKind,
     SourceRoleLevel,
     WebAllowlistConfig,
@@ -100,6 +102,36 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         _, real_catalog = self._build_real_corpus_pipeline()
         catalog_path.parent.mkdir(parents=True, exist_ok=True)
         write_source_catalog(real_catalog, catalog_path)
+        return catalog_path
+
+    def _build_synthetic_real_corpus_catalog(self, root: Path) -> Path:
+        corpus_root = root / "artifacts" / "real_corpus"
+        source_root = corpus_root / "sources"
+        source_root.mkdir(parents=True, exist_ok=True)
+        regulation_path = source_root / "regulation.md"
+        regulation_path.write_text(
+            "# Article 1 Business Wallet compliance record\n\n"
+            "The Business Wallet provider keeps a compliance record.\n",
+            encoding="utf-8",
+        )
+        catalog = SourceCatalog(
+            entries=[
+                SourceCatalogEntry(
+                    source_id="synthetic_regulation",
+                    title="Synthetic Regulation Source",
+                    source_kind=SourceKind.REGULATION,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    publication_status="official_journal",
+                    publication_date=None,
+                    local_path=regulation_path,
+                    canonical_url="https://example.test/synthetic-regulation",
+                    anchorability_hints=["markdown_headings", "expect_anchors", "article_level"],
+                )
+            ]
+        )
+        catalog_path = corpus_root / "curated_catalog.json"
+        write_source_catalog(catalog, catalog_path)
         return catalog_path
 
     def test_scenario_c_returns_confirmed_standard_based_answer(self) -> None:
@@ -994,3 +1026,100 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         )
         self.assertTrue((real_dir / "verdict.json").exists())
         self.assertTrue((fixture_dir / "verdict.json").exists())
+
+    def test_cli_scripts_reject_missing_catalog_path_with_clear_message(self) -> None:
+        missing_catalog = (
+            Path(tempfile.mkdtemp())
+            / "artifacts"
+            / "real_corpus"
+            / "curated_catalog.json"
+        )
+        commands = {
+            "answer_question.py": [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "answer_question.py"),
+                "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+                "--catalog",
+                str(missing_catalog),
+            ],
+            "run_eval.py": [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "run_eval.py"),
+                "--scenario",
+                "scenario_c_protocol_authorization_server",
+                "--catalog",
+                str(missing_catalog),
+            ],
+            "run_scenario_d_closeout.py": [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "run_scenario_d_closeout.py"),
+                "--catalog",
+                str(missing_catalog),
+                "--validator-command",
+                "python3 -c pass",
+            ],
+        }
+
+        for script_name, command in commands.items():
+            with self.subTest(script=script_name):
+                completed = subprocess.run(
+                    command,
+                    cwd=REPO_ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("Catalog file not found:", completed.stderr)
+                self.assertIn(str(missing_catalog), completed.stderr)
+
+    def test_run_eval_cli_fails_real_corpus_coverage_gate_with_bounded_synthetic_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            catalog_path = self._build_synthetic_real_corpus_catalog(tmp_root)
+            scenarios_path = tmp_root / "synthetic_scenarios.json"
+            scenarios_path.write_text(
+                json.dumps(
+                    {
+                        "scenarios": [
+                            {
+                                "scenario_id": "synthetic_real_corpus_backstop",
+                                "question": "What does the regulation say about the Business Wallet compliance record?",
+                                "expectation": "Synthetic bounded real-corpus coverage gate backstop."
+                            }
+                        ]
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            output_dir = tmp_root / "eval_runs_real_corpus"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_eval.py"),
+                    "--scenario",
+                    "synthetic_real_corpus_backstop",
+                    "--catalog",
+                    str(catalog_path),
+                    "--scenarios-config",
+                    str(scenarios_path),
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            scenario_dir = output_dir / "synthetic_real_corpus_backstop"
+            verdict = json.loads((scenario_dir / "verdict.json").read_text(encoding="utf-8"))
+            coverage = json.loads(
+                (scenario_dir / "corpus_coverage_report.json").read_text(encoding="utf-8")
+            )
+            self.assertFalse(verdict["passed"])
+            self.assertIn("corpus_coverage_gate:fail", verdict["checks"])
+            self.assertFalse(coverage["passed"])

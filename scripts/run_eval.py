@@ -5,6 +5,17 @@ import sys
 from pathlib import Path
 
 
+def _resolve_catalog_path(repo_root: Path, catalog_arg: str | None) -> Path | None:
+    if catalog_arg is None:
+        return None
+    catalog_path = (repo_root / catalog_arg).resolve()
+    if not catalog_path.exists():
+        raise SystemExit(f"Catalog file not found: {catalog_path}")
+    if not catalog_path.is_file():
+        raise SystemExit(f"Catalog path is not a file: {catalog_path}")
+    return catalog_path
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", help="Scenario id from configs/evaluation_scenarios.yaml")
@@ -35,7 +46,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo_root / "src"))
 
-    catalog_path = (repo_root / args.catalog).resolve() if args.catalog else None
+    catalog_path = _resolve_catalog_path(repo_root, args.catalog)
     from eubw_researcher.evaluation import run_all_scenarios, run_named_scenario
     from eubw_researcher.evaluation.runner import default_output_dir
 

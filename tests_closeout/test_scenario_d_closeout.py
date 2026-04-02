@@ -435,6 +435,28 @@ class ScenarioDCloseoutTests(unittest.TestCase):
             self.assertFalse(result.passed)
             self.assertIn("valid JSON", result.error)
 
+    def test_invoke_spawned_validator_rejects_missing_required_output_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            request_path = tmp_path / "request.json"
+            output_path = tmp_path / "result.json"
+            request_path.write_text(
+                json.dumps(_build_spawned_validator_request(tmp_path, "Synthetic question?"), indent=2),
+                encoding="utf-8",
+            )
+
+            result = _invoke_spawned_validator(
+                repo_root=REPO_ROOT,
+                validator_command=f"{FAKE_VALIDATOR} --mode missing_fields",
+                request_path=request_path,
+                result_path=output_path,
+                timeout_seconds=10.0,
+            )
+
+            self.assertFalse(result.passed)
+            self.assertIn("Missing required validator output fields", result.error)
+            self.assertIn("validator_answer", result.error)
+
     def test_invoke_spawned_validator_rejects_unparseable_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)

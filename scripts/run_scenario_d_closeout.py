@@ -5,6 +5,15 @@ import sys
 from pathlib import Path
 
 
+def _resolve_catalog_path(repo_root: Path, catalog_arg: str) -> Path:
+    catalog_path = (repo_root / catalog_arg).resolve()
+    if not catalog_path.exists():
+        raise SystemExit(f"Catalog file not found: {catalog_path}")
+    if not catalog_path.is_file():
+        raise SystemExit(f"Catalog path is not a file: {catalog_path}")
+    return catalog_path
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -50,7 +59,7 @@ def main() -> int:
         run_scenario_d_closeout,
     )
 
-    catalog_path = (repo_root / args.catalog).resolve()
+    catalog_path = _resolve_catalog_path(repo_root, args.catalog)
     output_dir = (
         (repo_root / args.output_dir).resolve()
         if args.output_dir

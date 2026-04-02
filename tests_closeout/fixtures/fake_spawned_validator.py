@@ -94,6 +94,9 @@ def main() -> int:
     elif args.mode == "partial_json":
         Path(args.output).write_text('{"passed": true', encoding="utf-8")
         return 0
+    elif args.mode == "missing_fields":
+        payload.pop("validator_answer")
+        payload.pop("product_output_self_sufficient")
     elif args.mode == "bad_document_path":
         payload["raw_document_dependency"] = "minor_confirmation"
         payload["raw_document_reads"] = [
