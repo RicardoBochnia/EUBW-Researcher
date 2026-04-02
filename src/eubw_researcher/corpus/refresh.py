@@ -9,7 +9,6 @@ from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from eubw_researcher.corpus.archive import _resolve_archive_path
 from eubw_researcher.models import (
     ArchiveCorpusConfig,
     ArchiveRefreshReport,
@@ -41,6 +40,15 @@ def _file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _blocked_by_keyword(url: str, allowlist: WebAllowlistConfig) -> bool:
+    domain = normalize_domain(url)
+    policy = allowlist.policy_for_domain(domain)
+    if policy is None:
+        return False
+    lowered = url.lower()
+    return any(keyword in lowered for keyword in policy.blocked_url_keywords)
+
+
 def _matches_allowed_path(url: str, allowlist: WebAllowlistConfig, source_kind: SourceKind) -> bool:
     domain = normalize_domain(url)
     policy = allowlist.policy_for_domain(domain)
@@ -48,9 +56,9 @@ def _matches_allowed_path(url: str, allowlist: WebAllowlistConfig, source_kind: 
         return True
     if policy.source_kind != source_kind:
         return False
+    path = urlparse(url).path or "/"
     if not policy.allowed_path_prefixes:
         return True
-    path = urlparse(url).path or "/"
     return any(path.startswith(prefix) for prefix in policy.allowed_path_prefixes)
 
 
@@ -59,14 +67,29 @@ def _is_refreshable_url(url: Optional[str], allowlist: WebAllowlistConfig, sourc
         return False
     if not validate_domain(url, allowlist):
         return False
+    if _blocked_by_keyword(url, allowlist):
+        return False
     return _matches_allowed_path(url, allowlist, source_kind)
 
 
-def _relative_archive_path(archive_root: Path, local_path: Path) -> Path:
+def _resolve_refresh_local_path(archive_root: Path, raw_path: str) -> Optional[Path]:
+    normalized = raw_path.replace("\\", "/")
+    candidate = Path(normalized)
+    if candidate.is_absolute():
+        return None
+    parts = list(candidate.parts)
+    if parts and parts[0] == "sources":
+        parts = parts[1:]
+    resolved = (archive_root / Path(*parts)).resolve()
     try:
-        return local_path.resolve().relative_to(archive_root.resolve())
+        resolved.relative_to(archive_root.resolve())
     except ValueError:
-        return Path("external_sources") / local_path.name
+        return None
+    return resolved
+
+
+def _relative_archive_path(archive_root: Path, local_path: Path) -> Path:
+    return local_path.resolve().relative_to(archive_root.resolve())
 
 
 def _request_remote_source(
@@ -93,6 +116,39 @@ def _request_remote_source(
         if exc.code == 304:
             return None, None, etag, last_modified, True
         raise
+
+
+def _record_current_result(
+    results: list[ArchiveRefreshResult],
+    *,
+    selection,
+    canonical_url: str,
+    local_path: Path,
+    checked_at: str,
+    reason: str,
+    local_content_digest: Optional[str],
+    remote_etag: Optional[str],
+    remote_last_modified: Optional[str],
+    content_type: Optional[str] = None,
+) -> None:
+    results.append(
+        ArchiveRefreshResult(
+            archive_source_id=selection.archive_source_id,
+            source_id=selection.source_id,
+            title=selection.title,
+            canonical_url=canonical_url,
+            local_path=str(local_path),
+            checked_at=checked_at,
+            status="current",
+            reason=reason,
+            local_exists=True,
+            local_content_digest=local_content_digest,
+            remote_content_digest=local_content_digest,
+            remote_etag=remote_etag,
+            remote_last_modified=remote_last_modified,
+            content_type=content_type,
+        )
+    )
 
 
 def _stage_candidate(stage_root: Path, archive_root: Path, local_path: Path, raw_bytes: bytes) -> Path:
@@ -143,7 +199,22 @@ def refresh_archive_sources(
                 f"Archive source {selection.archive_source_id} is missing from {config.archive_catalog}."
             )
         canonical_url = row.get("source_url")
-        local_path = _resolve_archive_path(config.archive_root, row["local_path"])
+        local_path = _resolve_refresh_local_path(config.archive_root, row["local_path"])
+        if local_path is None:
+            results.append(
+                ArchiveRefreshResult(
+                    archive_source_id=selection.archive_source_id,
+                    source_id=selection.source_id,
+                    title=selection.title,
+                    canonical_url=canonical_url,
+                    local_path=None,
+                    checked_at=checked_at,
+                    status="skipped_invalid_local_path",
+                    reason="Archive catalog local_path is absolute or escapes the archive root.",
+                    local_exists=False,
+                )
+            )
+            continue
         local_exists = local_path.exists()
         local_content_digest = _file_digest(local_path) if local_exists else None
 
@@ -206,45 +277,78 @@ def refresh_archive_sources(
             continue
 
         if not_modified:
-            results.append(
-                ArchiveRefreshResult(
-                    archive_source_id=selection.archive_source_id,
-                    source_id=selection.source_id,
-                    title=selection.title,
+            accepted_digest = row.get("sha256")
+            if local_exists and accepted_digest and local_content_digest == accepted_digest:
+                if apply_updates:
+                    _update_archive_row(
+                        row,
+                        checked_at=checked_at,
+                        content_digest=local_content_digest,
+                        size_bytes=local_path.stat().st_size,
+                        etag=remote_etag,
+                        last_modified=remote_last_modified,
+                    )
+                _record_current_result(
+                    results,
+                    selection=selection,
                     canonical_url=canonical_url,
-                    local_path=str(local_path),
+                    local_path=local_path,
                     checked_at=checked_at,
-                    status="current",
-                    reason="Remote source returned not modified.",
-                    local_exists=local_exists,
+                    reason="Remote source returned not modified and the local archive matches the accepted digest.",
                     local_content_digest=local_content_digest,
-                    remote_content_digest=local_content_digest,
                     remote_etag=remote_etag,
                     remote_last_modified=remote_last_modified,
                 )
-            )
-            continue
+                continue
+
+            try:
+                raw_bytes, content_type, remote_etag, remote_last_modified, not_modified = _request_remote_source(
+                    canonical_url,
+                    runtime_config.web_timeout_seconds,
+                )
+            except Exception as exc:  # pragma: no cover
+                results.append(
+                    ArchiveRefreshResult(
+                        archive_source_id=selection.archive_source_id,
+                        source_id=selection.source_id,
+                        title=selection.title,
+                        canonical_url=canonical_url,
+                        local_path=str(local_path),
+                        checked_at=checked_at,
+                        status="fetch_failed",
+                        reason=(
+                            "Conditional refresh reported not modified, but the local archive did not match the "
+                            f"accepted digest and fallback fetch failed: {exc}"
+                        ),
+                        local_exists=local_exists,
+                        local_content_digest=local_content_digest,
+                    )
+                )
+                continue
 
         assert raw_bytes is not None
         remote_content_digest = hashlib.sha256(raw_bytes).hexdigest()
         if local_exists and local_content_digest == remote_content_digest:
-            results.append(
-                ArchiveRefreshResult(
-                    archive_source_id=selection.archive_source_id,
-                    source_id=selection.source_id,
-                    title=selection.title,
-                    canonical_url=canonical_url,
-                    local_path=str(local_path),
+            if apply_updates:
+                _update_archive_row(
+                    row,
                     checked_at=checked_at,
-                    status="current",
-                    reason="Remote source digest matches the local archive copy.",
-                    local_exists=local_exists,
-                    local_content_digest=local_content_digest,
-                    remote_content_digest=remote_content_digest,
-                    remote_etag=remote_etag,
-                    remote_last_modified=remote_last_modified,
-                    content_type=content_type,
+                    content_digest=local_content_digest,
+                    size_bytes=local_path.stat().st_size,
+                    etag=remote_etag,
+                    last_modified=remote_last_modified,
                 )
+            _record_current_result(
+                results,
+                selection=selection,
+                canonical_url=canonical_url,
+                local_path=local_path,
+                checked_at=checked_at,
+                reason="Remote source digest matches the local archive copy.",
+                local_content_digest=local_content_digest,
+                remote_etag=remote_etag,
+                remote_last_modified=remote_last_modified,
+                content_type=content_type,
             )
             continue
 

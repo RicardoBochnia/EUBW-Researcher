@@ -84,6 +84,13 @@ def main() -> int:
     )
 
     print(report_markdown_path)
+    if report.failed_sources > 0:
+        print(
+            f"Refresh completed with {report.failed_sources} failed source fetch(es). "
+            f"See report: {report_markdown_path}",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
