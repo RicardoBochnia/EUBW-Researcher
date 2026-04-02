@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -411,6 +412,42 @@ class CorpusFreshnessTests(unittest.TestCase):
 
             self.assertIsNone(load_corpus_manifest(manifest_path))
             self.assertIsNone(load_corpus_refresh_summary(refresh_summary_path))
+
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "catalog_path": str((temp_root / "catalog.json").resolve()),
+                        "corpus_state_id": "state-1234",
+                        "generated_at": "2026-04-02T00:00:00+00:00",
+                        "selection_config_path": None,
+                        "sources": [],
+                        "coverage_passed": True,
+                        "coverage_families": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            refresh_summary_path.write_text(
+                json.dumps(
+                    {
+                        "catalog_path": str((temp_root / "catalog.json").resolve()),
+                        "corpus_state_id": "state-1234",
+                        "previous_corpus_state_id": None,
+                        "generated_at": "2026-04-02T00:00:00+00:00",
+                        "refresh_status": "initial_build",
+                        "selection_config_path": None,
+                        "added_sources": [],
+                        "removed_sources": [],
+                        "updated_sources": [],
+                        "changed_web_sources": [],
+                        "coverage_deltas": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertIsNotNone(load_corpus_manifest(manifest_path))
+            self.assertIsNotNone(load_corpus_refresh_summary(refresh_summary_path))
 
 
 if __name__ == "__main__":

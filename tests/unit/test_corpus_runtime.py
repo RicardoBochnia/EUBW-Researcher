@@ -182,12 +182,14 @@ class CorpusRuntimeTests(unittest.TestCase):
 
     def test_real_corpus_state_id_ignores_manifest_for_other_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            catalog_path = self._build_real_catalog(Path(tmp_dir))
+            temp_root = Path(tmp_dir)
+            catalog_path = self._build_real_catalog(temp_root)
             manifest_path = catalog_path.parent / "corpus_manifest.json"
+            other_catalog_path = (temp_root / "other" / "catalog.json").resolve()
             manifest_path.write_text(
                 (
                     "{\n"
-                    '  "catalog_path": "/tmp/other_catalog.json",\n'
+                    f'  "catalog_path": "{other_catalog_path.as_posix()}",\n'
                     '  "corpus_state_id": "wrong-state-id",\n'
                     f'  "generated_at": "{datetime.now(timezone.utc).isoformat()}",\n'
                     '  "selection_config_path": null,\n'
