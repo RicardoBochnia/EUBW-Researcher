@@ -4,14 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-
-def _resolve_catalog_path(repo_root: Path, catalog_arg: str) -> Path:
-    catalog_path = (repo_root / catalog_arg).resolve()
-    if not catalog_path.exists():
-        raise SystemExit(f"Catalog file not found: {catalog_path}")
-    if not catalog_path.is_file():
-        raise SystemExit(f"Catalog path is not a file: {catalog_path}")
-    return catalog_path
+from _catalog_path import resolve_catalog_path
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,7 +36,7 @@ def main() -> int:
     from eubw_researcher.evaluation.runner import write_artifact_bundle
     from eubw_researcher.pipeline import ResearchPipeline
 
-    resolved_catalog_path = _resolve_catalog_path(repo_root, args.catalog)
+    resolved_catalog_path = resolve_catalog_path(repo_root, args.catalog)
     _, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(
         resolved_catalog_path
     )

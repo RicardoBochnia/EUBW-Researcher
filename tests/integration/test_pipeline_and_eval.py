@@ -1028,50 +1028,51 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         self.assertTrue((fixture_dir / "verdict.json").exists())
 
     def test_cli_scripts_reject_missing_catalog_path_with_clear_message(self) -> None:
-        missing_catalog = (
-            Path(tempfile.mkdtemp())
-            / "artifacts"
-            / "real_corpus"
-            / "curated_catalog.json"
-        )
-        commands = {
-            "answer_question.py": [
-                sys.executable,
-                str(REPO_ROOT / "scripts" / "answer_question.py"),
-                "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
-                "--catalog",
-                str(missing_catalog),
-            ],
-            "run_eval.py": [
-                sys.executable,
-                str(REPO_ROOT / "scripts" / "run_eval.py"),
-                "--scenario",
-                "scenario_c_protocol_authorization_server",
-                "--catalog",
-                str(missing_catalog),
-            ],
-            "run_scenario_d_closeout.py": [
-                sys.executable,
-                str(REPO_ROOT / "scripts" / "run_scenario_d_closeout.py"),
-                "--catalog",
-                str(missing_catalog),
-                "--validator-command",
-                "python3 -c pass",
-            ],
-        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            missing_catalog = (
+                Path(tmp_dir)
+                / "artifacts"
+                / "real_corpus"
+                / "curated_catalog.json"
+            )
+            commands = {
+                "answer_question.py": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "answer_question.py"),
+                    "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+                    "--catalog",
+                    str(missing_catalog),
+                ],
+                "run_eval.py": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_eval.py"),
+                    "--scenario",
+                    "scenario_c_protocol_authorization_server",
+                    "--catalog",
+                    str(missing_catalog),
+                ],
+                "run_scenario_d_closeout.py": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_scenario_d_closeout.py"),
+                    "--catalog",
+                    str(missing_catalog),
+                    "--validator-command",
+                    "python3 -c pass",
+                ],
+            }
 
-        for script_name, command in commands.items():
-            with self.subTest(script=script_name):
-                completed = subprocess.run(
-                    command,
-                    cwd=REPO_ROOT,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                self.assertNotEqual(completed.returncode, 0)
-                self.assertIn("Catalog file not found:", completed.stderr)
-                self.assertIn(str(missing_catalog), completed.stderr)
+            for script_name, command in commands.items():
+                with self.subTest(script=script_name):
+                    completed = subprocess.run(
+                        command,
+                        cwd=REPO_ROOT,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertNotEqual(completed.returncode, 0)
+                    self.assertIn("Catalog file not found:", completed.stderr)
+                    self.assertIn(str(missing_catalog), completed.stderr)
 
     def test_run_eval_cli_fails_real_corpus_coverage_gate_with_bounded_synthetic_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
