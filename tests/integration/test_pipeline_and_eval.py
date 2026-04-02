@@ -1076,6 +1076,53 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     self.assertIn("Catalog file not found:", completed.stderr)
                     self.assertIn(str(missing_catalog.resolve()), completed.stderr)
 
+    def test_answer_question_cli_rejects_invalid_output_dir_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            existing_file = Path(tmp_dir) / "existing_output.txt"
+            existing_file.write_text("not a directory", encoding="utf-8")
+
+            commands = {
+                "blank": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "answer_question.py"),
+                    "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+                    "--output-dir",
+                    "",
+                ],
+                "repo-root": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "answer_question.py"),
+                    "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+                    "--output-dir",
+                    ".",
+                ],
+                "existing-file": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "answer_question.py"),
+                    "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+                    "--output-dir",
+                    str(existing_file),
+                ],
+            }
+
+            expected_errors = {
+                "blank": "output_dir must not be empty",
+                "repo-root": "output_dir must not resolve to the repository root",
+                "existing-file": f"output_dir must be a directory path: {existing_file.resolve()}",
+            }
+
+            for case_name, command in commands.items():
+                with self.subTest(case=case_name):
+                    completed = subprocess.run(
+                        command,
+                        cwd=REPO_ROOT,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertNotEqual(completed.returncode, 0)
+                    self.assertIn(expected_errors[case_name], completed.stderr)
+
     def test_run_eval_cli_fails_real_corpus_coverage_gate_with_bounded_synthetic_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
