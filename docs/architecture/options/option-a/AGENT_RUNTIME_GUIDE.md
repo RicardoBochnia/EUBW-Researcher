@@ -29,6 +29,19 @@ The primary usage pattern is:
 - Run the separate Scenario D closeout harness:
   `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 
+## Stable agent-facing runtime facade
+
+For programmatic agent use, prefer `ResearchRuntimeFacade` from `eubw_researcher`.
+
+The facade is the stable runtime contract for:
+- answer-question runs
+- evidence-only runs
+- writing the standard reviewable artifact bundle
+
+The contract is documented in `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
+
+Anything below that facade boundary should be treated as internal implementation detail.
+
 The closeout harness invokes the validator as:
 - `<validator command> --input <request.json> --output <result.json>`
 
