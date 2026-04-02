@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,9 +19,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class WebAllowlistTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.allowlist = load_web_allowlist(REPO_ROOT / "configs" / "web_allowlist.yaml")
-        self.runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml")
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.allowlist = load_web_allowlist(REPO_ROOT / "configs" / "web_allowlist.yaml")
 
     def test_validate_domain_accepts_allowlisted_domain_and_rejects_other_domain(self) -> None:
         self.assertTrue(validate_domain("https://openid.net/specs/openid-4-vp", self.allowlist))
@@ -117,10 +118,12 @@ class WebAllowlistTests(unittest.TestCase):
         self.assertIsNotNone(policy)
         assert policy is not None
 
-        runtime = self.runtime
-        runtime.web_discovery_max_pages = 1
-        runtime.web_discovery_max_depth = 2
-        runtime.web_discovery_max_candidates_per_kind = 2
+        runtime = replace(
+            load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml"),
+            web_discovery_max_pages=1,
+            web_discovery_max_depth=2,
+            web_discovery_max_candidates_per_kind=2,
+        )
 
         discovery_html = b"""
         <html><body>

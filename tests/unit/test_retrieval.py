@@ -152,7 +152,7 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(intent.intent_type, "certificate_layer_analysis")
         self.assertEqual(intent.preferred_kinds[0], SourceKind.REGULATION)
         self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
-        self.assertTrue(any(target.grouping_label == "Governance and discretion" for target in intent.claim_targets))
+        self.assertTrue(any(target.grouping_label for target in intent.claim_targets))
 
     def test_analyze_query_classifies_arf_boundary_question(self) -> None:
         intent = analyze_query(

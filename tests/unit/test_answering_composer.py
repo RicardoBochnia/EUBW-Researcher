@@ -7,6 +7,7 @@ from eubw_researcher.models import (
     AnswerAlignmentRecord,
     Citation,
     CitationQuality,
+    ClaimTarget,
     ClaimState,
     ClaimType,
     ContradictionStatus,
@@ -46,12 +47,34 @@ def _topology_intent_with_answer_pattern(answer_pattern: str) -> QueryIntent:
     return intent
 
 
-def _generic_intent(intent_type: str = "wallet_requirements_summary") -> QueryIntent:
+def _generic_intent(
+    intent_type: str = "wallet_requirements_summary",
+    *,
+    grouping_label: str | None = None,
+) -> QueryIntent:
+    claim_targets = (
+        [
+            ClaimTarget(
+                target_id="synthetic_grouping_target",
+                claim_text="Synthetic grouped claim.",
+                claim_type=ClaimType.SYNTHESIS,
+                required_source_role_level=SourceRoleLevel.HIGH,
+                preferred_kinds=[SourceKind.REGULATION],
+                scope_terms=["synthetic"],
+                primary_terms=["grouped"],
+                support_groups=[["synthetic", "grouped"]],
+                contradiction_groups=[],
+                grouping_label=grouping_label,
+            )
+        ]
+        if grouping_label is not None
+        else []
+    )
     return QueryIntent(
         question="Synthetic generic question?",
         intent_type=intent_type,
         eu_first=True,
-        claim_targets=[],
+        claim_targets=claim_targets,
         preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
     )
 
@@ -557,6 +580,26 @@ class ComposerTests(unittest.TestCase):
             categories_by_claim["generic_project_claim"],
             "confirmed_non_governing",
         )
+
+    def test_generic_bundle_keeps_non_topology_contract_for_grouping_capable_intent(self) -> None:
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            [
+                _entry(
+                    "grouped_generic_claim",
+                    "Governing EU sources confirm a grouped synthetic requirement.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent(
+                "wallet_requirements_summary",
+                grouping_label="Certificates and identity",
+            ),
+        )
+
+        self.assertIsNone(bundle.facet_coverage_report)
+        self.assertIn("Confirmed:", bundle.rendered_answer)
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
 
     def test_alignment_fails_when_governing_boundary_wording_uses_open_claims(self) -> None:
         bundle = compose_answer_bundle(
