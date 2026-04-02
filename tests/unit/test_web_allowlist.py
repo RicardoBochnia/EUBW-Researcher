@@ -66,6 +66,13 @@ class WebAllowlistTests(unittest.TestCase):
         )
         self.assertIsNone(
             _admissible_document_policy(
+                "https://openid.net/specification/openid4vp",
+                policy,
+                self.allowlist,
+            )
+        )
+        self.assertIsNone(
+            _admissible_document_policy(
                 "https://openid.net/certification/openid4vp",
                 policy,
                 self.allowlist,
@@ -74,7 +81,7 @@ class WebAllowlistTests(unittest.TestCase):
 
     def test_followable_discovery_link_requires_explicit_cross_domain_permission(self) -> None:
         allowlist = WebAllowlistConfig(
-            allowed_domains=["example.test", "cdn.example.test"],
+            allowed_domains=["example.test", "cdn.example.test", "other.example.test"],
             domain_policies=[
                 WebDomainPolicy(
                     domain="example.test",
@@ -87,6 +94,13 @@ class WebAllowlistTests(unittest.TestCase):
                 ),
                 WebDomainPolicy(
                     domain="cdn.example.test",
+                    source_kind=SourceKind.TECHNICAL_STANDARD,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="international",
+                    allowed_path_prefixes=["/mirror/"],
+                ),
+                WebDomainPolicy(
+                    domain="other.example.test",
                     source_kind=SourceKind.TECHNICAL_STANDARD,
                     source_role_level=SourceRoleLevel.HIGH,
                     jurisdiction="international",
