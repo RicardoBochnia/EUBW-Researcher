@@ -4,8 +4,8 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 
 ## Local commands
 
-- Run unit and integration tests: `python3 scripts/run_tests.py`
-- Run the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
+- Run the full local test suite, including Scenario D closeout coverage: `python3 scripts/run_tests.py`
+- Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
 - Build the internal catalog for the local real corpus archive: `python3 scripts/build_real_corpus_catalog.py`
 - Ingest the generated real corpus catalog: `python3 scripts/ingest_sample_corpus.py --catalog artifacts/real_corpus/curated_catalog.json`

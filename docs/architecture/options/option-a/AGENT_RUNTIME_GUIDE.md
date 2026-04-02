@@ -16,9 +16,9 @@ The primary usage pattern is:
 
 - Build or refresh the real-corpus catalog:
   `python3 scripts/build_real_corpus_catalog.py`
-- Run the full testsuite:
+- Run the full testsuite, including Scenario D closeout coverage:
   `python3 scripts/run_tests.py`
-- Run the separate Scenario D closeout harness tests:
+- Run only the separate Scenario D closeout harness tests:
   `python3 scripts/run_closeout_tests.py`
 - Run fixture eval:
   `python3 scripts/run_eval.py --all`
