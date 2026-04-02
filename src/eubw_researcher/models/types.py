@@ -594,6 +594,24 @@ class BlindValidationRawRead:
 
 
 @dataclass
+class SpawnedValidatorResult:
+    passed: bool
+    context_inherited: bool
+    artifacts_used: List[str]
+    raw_document_reads: List[BlindValidationRawRead] = field(default_factory=list)
+    raw_document_dependency: str = "none"
+    product_output_self_sufficient: bool = False
+    summary: str = ""
+    validator_answer: str = ""
+    notes: Optional[str] = None
+    validator_command: Optional[str] = None
+    exit_code: Optional[int] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    error: Optional[str] = None
+
+
+@dataclass
 class BlindValidationReport:
     question: str
     intent_type: str
@@ -601,10 +619,12 @@ class BlindValidationReport:
     artifacts_used: List[str]
     raw_document_reads: List[BlindValidationRawRead] = field(default_factory=list)
     raw_document_dependency: str = "none"
+    structural_passed: bool = False
     product_output_self_sufficient: bool = False
     passed: bool = False
     summary: str = ""
     missing_facets: List[str] = field(default_factory=list)
+    spawned_validator: Optional[SpawnedValidatorResult] = None
 
 
 @dataclass

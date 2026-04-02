@@ -10,6 +10,7 @@ from eubw_researcher.models import (
     FacetCoverageReport,
     PinpointEvidenceReport,
     QueryIntent,
+    SpawnedValidatorResult,
 )
 
 
@@ -185,8 +186,69 @@ def build_blind_validation_report(result: TrustResultLike) -> BlindValidationRep
         artifacts_used=artifacts_used,
         raw_document_reads=[],
         raw_document_dependency=raw_document_dependency,
+        structural_passed=passed,
         product_output_self_sufficient=passed,
         passed=passed,
         summary=summary,
         missing_facets=missing_facets,
+    )
+
+
+def merge_spawned_validator_result(
+    structural_report: BlindValidationReport,
+    spawned_validator: SpawnedValidatorResult,
+) -> BlindValidationReport:
+    # Older structural reports may predate the explicit structural_passed field,
+    # so preserve backwards compatibility by falling back to the original
+    # top-level passed flag when needed.
+    structural_passed = structural_report.structural_passed or structural_report.passed
+    spawned_validator_passed = (
+        spawned_validator.passed
+        and not spawned_validator.context_inherited
+        and spawned_validator.raw_document_dependency != "central_reconstruction"
+        and spawned_validator.product_output_self_sufficient
+    )
+    combined_passed = structural_passed and spawned_validator_passed
+    raw_document_dependency = (
+        "central_reconstruction"
+        if not structural_passed
+        else spawned_validator.raw_document_dependency
+    )
+    artifacts_used = list(
+        dict.fromkeys(structural_report.artifacts_used + spawned_validator.artifacts_used)
+    )
+    failure_reasons: list[str] = []
+    if not structural_passed:
+        failure_reasons.append("the structural blind-validation precondition did not pass")
+    if spawned_validator.context_inherited:
+        failure_reasons.append("the spawned validator reported inherited context")
+    if spawned_validator.raw_document_dependency == "central_reconstruction":
+        failure_reasons.append("the spawned validator required central raw-document reconstruction")
+    if not spawned_validator.product_output_self_sufficient:
+        failure_reasons.append("the spawned validator did not judge the product output self-sufficient")
+    if not spawned_validator.passed:
+        failure_reasons.append("the spawned validator returned a failing result")
+    if spawned_validator.error:
+        failure_reasons.append(spawned_validator.error)
+    summary = (
+        "Product-output-first blind validation passes: the structural contract and the spawned no-context "
+        "validator both support reuse from the generated bundle."
+        if combined_passed
+        else "Product-output-first blind validation fails: "
+        + "; ".join(dict.fromkeys(failure_reasons))
+        + "."
+    )
+    return BlindValidationReport(
+        question=structural_report.question,
+        intent_type=structural_report.intent_type,
+        validation_mode="structural_plus_spawned_validator_closeout",
+        artifacts_used=artifacts_used,
+        raw_document_reads=spawned_validator.raw_document_reads,
+        raw_document_dependency=raw_document_dependency,
+        structural_passed=structural_passed,
+        product_output_self_sufficient=combined_passed,
+        passed=combined_passed,
+        summary=summary,
+        missing_facets=list(structural_report.missing_facets),
+        spawned_validator=spawned_validator,
     )

@@ -33,4 +33,8 @@ This note records the remaining deliberate V2 boundaries after the completed har
 - Implemented behavior: corpus-backed runs additionally emit `corpus_coverage_report.json` and fail the gate when required source-family coverage is not admitted.
 - Implemented behavior: `manual_review.json` is explicitly stored as an automated review prefill (`artifact_type="automated_review_prefill"`, `human_reviewed=false`) so it is not mistaken for completed human review.
 - Implemented behavior: the binding real-corpus review samples require `manual_review_report.md` to end in `accept`, and the report surfaces digest/provenance evidence for any approved fetched web source.
+- Implemented behavior: Scenario D closeout now uses a separate harness (`scripts/run_scenario_d_closeout.py`) that keeps the normal eval gate deterministic while recording a spawned-validator proof in the closeout bundle.
+- Implemented behavior: Scenario D closeout records both `spawned_validator_request.json` and `spawned_validator_result.json`, and folds the spawned-validator judgment into `blind_validation_report.json` under a nested `spawned_validator` block.
+- Implemented behavior: validator subprocess failure, timeout, invalid output, inherited context, or `central_reconstruction` all fail the closeout harness without changing the ordinary eval gate contract.
+- Accepted limitation: the spawned validator's raw-document reads are currently self-reported by the validator output contract; the harness validates the report shape and failure conditions but does not independently sandbox-check every file read.
 - Deliberate V2 boundary: real-corpus review readiness means reviewable, uncertainty-aware, source-bound output on the real corpus, not exact textual parity with the fixture corpus.

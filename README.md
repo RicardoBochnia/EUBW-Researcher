@@ -5,6 +5,7 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 ## Local commands
 
 - Run unit and integration tests: `python3 scripts/run_tests.py`
+- Run the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
 - Build the internal catalog for the local real corpus archive: `python3 scripts/build_real_corpus_catalog.py`
 - Ingest the generated real corpus catalog: `python3 scripts/ingest_sample_corpus.py --catalog artifacts/real_corpus/curated_catalog.json`
@@ -16,6 +17,11 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - Run the full configured evaluation set: `python3 scripts/run_eval.py --all`
 - Run eval against a non-fixture catalog: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Run the real-corpus review gate: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- Run the separate Scenario D closeout harness with a spawned validator: `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
+
+Validator contract for the closeout harness:
+- the harness invokes the validator as `<validator command> --input <request.json> --output <result.json>`
+- the validator must write JSON including `passed`, `context_inherited`, `artifacts_used`, `raw_document_dependency`, `product_output_self_sufficient`, `summary`, and `validator_answer`
 
 ## Notes
 
@@ -31,7 +37,9 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - `pinpoint_evidence.json` maps answer claims to reviewer-usable local source locators and records any precision limits explicitly.
 - `answer_alignment.json` records the structural answer-to-evidence alignment check used by the V2.2 topology gate.
 - `blind_validation_report.json` records the product-output-first self-sufficiency gate for whether the generated artifacts should be reusable without raw-document reconstruction.
+- Scenario D closeout runs additionally persist `spawned_validator_request.json` and `spawned_validator_result.json`; these are review-harness artifacts, not part of the normal deterministic eval gate.
 - The binding real-corpus review samples are `primary_success_scenario` and `scenario_b_registration_certificate_mandatory`; their `manual_review_report.md` must end in `accept`.
+- `scenario_d_certificate_topology_anchor` is the maintained Option A closeout proof case; use the separate closeout harness rather than the normal eval gate when a fresh no-context validator proof is required.
 - Approved fetched web sources are surfaced in `manual_review_report.md` with digest and provenance evidence for reviewability.
 - The local real corpus archive now lives under `artifacts/real_corpus/archive` and is intentionally excluded from git.
 - `configs/real_corpus_selection.yaml` is the inspectable bridge from the local source archive into the internal Option A source catalog.

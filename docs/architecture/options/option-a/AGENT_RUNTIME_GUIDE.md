@@ -18,12 +18,19 @@ The primary usage pattern is:
   `python3 scripts/build_real_corpus_catalog.py`
 - Run the full testsuite:
   `python3 scripts/run_tests.py`
+- Run the separate Scenario D closeout harness tests:
+  `python3 scripts/run_closeout_tests.py`
 - Run fixture eval:
   `python3 scripts/run_eval.py --all`
 - Run real-corpus eval:
   `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Run one direct research question:
   `python3 scripts/answer_question.py "<question>" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/manual_runs/<run-name>`
+- Run the separate Scenario D closeout harness:
+  `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
+
+The closeout harness invokes the validator as:
+- `<validator command> --input <request.json> --output <result.json>`
 
 Unless there is a strong reason otherwise, use the default real-corpus catalog at:
 - `artifacts/real_corpus/curated_catalog.json`
@@ -59,12 +66,17 @@ The highest-value artifacts are:
 - `provisional_grouping.json` when present
 - `corpus_coverage_report.json` for corpus-backed runs
 
+For Scenario D closeout runs, also inspect:
+- `spawned_validator_request.json`
+- `spawned_validator_result.json`
+
 ## V2 boundaries to respect
 
 Do not mis-state these accepted boundaries as bugs unless the user explicitly wants to go beyond V2:
 - no UI
 - no persistent provenance graph
 - no multi-agent orchestration inside the product
+- the Scenario D spawned-validator proof is a separate review harness, not in-product orchestration
 - no arbitrary open-web search
 - Germany remains best-effort, not a broad member-state engine
 - real-corpus acceptance means reviewable, uncertainty-aware, source-bound output, not exact wording parity with fixtures
