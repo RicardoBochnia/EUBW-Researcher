@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -240,6 +241,22 @@ class CorpusRuntimeTests(unittest.TestCase):
             )
 
             self.assertIsNone(corpus_runtime._load_cached_corpus_state_id(catalog_path, catalog))
+
+    def test_cache_artifact_is_not_current_when_catalog_mtime_matches_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            catalog_path = self._build_real_catalog(Path(tmp_dir))
+            catalog = corpus_runtime.load_source_catalog(catalog_path)
+            artifact_path = catalog_path.parent / "cache" / "normalized_bundle.pkl"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("cached", encoding="utf-8")
+
+            shared_mtime = artifact_path.stat().st_mtime_ns
+            for path in [catalog_path, *(entry.local_path for entry in catalog.entries if entry.local_path is not None)]:
+                assert path is not None
+                os.utime(path, ns=(shared_mtime, shared_mtime))
+            os.utime(artifact_path, ns=(shared_mtime, shared_mtime))
+
+            self.assertFalse(corpus_runtime._cache_artifact_is_current(catalog_path, catalog, artifact_path))
 
     def test_corpus_coverage_gate_reports_missing_required_family(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

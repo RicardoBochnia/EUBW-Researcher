@@ -53,7 +53,7 @@ def _cache_artifact_is_current(
 ) -> bool:
     try:
         artifact_mtime = artifact_path.stat().st_mtime_ns
-        if catalog_path.stat().st_mtime_ns > artifact_mtime:
+        if catalog_path.stat().st_mtime_ns >= artifact_mtime:
             return False
     except OSError:
         return False
@@ -62,7 +62,7 @@ def _cache_artifact_is_current(
         if entry.local_path is None:
             continue
         try:
-            if entry.local_path.stat().st_mtime_ns > artifact_mtime:
+            if entry.local_path.stat().st_mtime_ns >= artifact_mtime:
                 return False
         except OSError:
             return False

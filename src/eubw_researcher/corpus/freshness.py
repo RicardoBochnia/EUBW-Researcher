@@ -52,6 +52,18 @@ def _report_lookup(bundle: Optional[IngestionBundle]) -> Dict[str, object]:
     return {entry.source_id: entry for entry in bundle.report}
 
 
+def _normalized_anchorability_hints(hints: list[str]) -> list[str]:
+    return sorted(set(hints))
+
+
+def _normalized_source_payload(source: CorpusManifestSource) -> dict[str, object]:
+    payload = dataclass_to_dict(source)
+    payload["anchorability_hints"] = _normalized_anchorability_hints(
+        list(payload.get("anchorability_hints") or [])
+    )
+    return payload
+
+
 def build_manifest_sources(
     catalog: SourceCatalog,
     *,
@@ -78,7 +90,7 @@ def build_manifest_sources(
                 source_origin=entry.source_origin,
                 canonical_url=entry.canonical_url,
                 local_path=_resolved_path_string(entry.local_path),
-                anchorability_hints=list(entry.anchorability_hints),
+                anchorability_hints=_normalized_anchorability_hints(entry.anchorability_hints),
                 admission_reason=entry.admission_reason,
                 content_digest=content_digest,
                 byte_size=byte_size,
@@ -110,7 +122,7 @@ def enrich_manifest_sources(
                 source_origin=source.source_origin,
                 canonical_url=source.canonical_url,
                 local_path=source.local_path,
-                anchorability_hints=list(source.anchorability_hints),
+                anchorability_hints=_normalized_anchorability_hints(source.anchorability_hints),
                 admission_reason=source.admission_reason,
                 content_digest=source.content_digest,
                 byte_size=source.byte_size,
@@ -125,7 +137,7 @@ def compute_corpus_state_id(sources: list[CorpusManifestSource]) -> str:
     digest = hashlib.sha256()
     payloads: list[str] = []
     for source in sources:
-        payload = dataclass_to_dict(source)
+        payload = _normalized_source_payload(source)
         payload.pop("normalization_status", None)
         payload.pop("chunk_count", None)
         payload.pop("local_path", None)
@@ -190,7 +202,7 @@ def _delta_from_source(
 
 
 def _source_field_map(source: CorpusManifestSource) -> dict[str, object]:
-    payload = dataclass_to_dict(source)
+    payload = _normalized_source_payload(source)
     payload.pop("normalization_status", None)
     payload.pop("chunk_count", None)
     payload.pop("local_path", None)
@@ -208,7 +220,7 @@ def build_corpus_refresh_summary(
 
     added_sources = [
         _delta_from_source(source, change_type="added")
-        for source_id, source in current_by_id.items()
+        for source_id, source in sorted(current_by_id.items())
         if source_id not in previous_by_id
     ]
     removed_sources = [
@@ -221,7 +233,7 @@ def build_corpus_refresh_summary(
             previous_content_digest=source.content_digest,
             current_content_digest=None,
         )
-        for source_id, source in previous_by_id.items()
+        for source_id, source in sorted(previous_by_id.items())
         if source_id not in current_by_id
     ]
 

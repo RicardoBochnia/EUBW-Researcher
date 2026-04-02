@@ -402,6 +402,143 @@ class CorpusFreshnessTests(unittest.TestCase):
             compute_corpus_state_id([source_b, source_a]),
         )
 
+    def test_compute_corpus_state_id_ignores_anchorability_hint_order(self) -> None:
+        source_a = CorpusManifestSource(
+            source_id="same_source",
+            title="Same Source",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/same",
+            local_path="/tmp/same.md",
+            anchorability_hints=["section_level", "markdown_headings", "section_level"],
+            content_digest="aaa",
+            byte_size=1,
+        )
+        source_b = CorpusManifestSource(
+            source_id="same_source",
+            title="Same Source",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/same",
+            local_path="/tmp/same.md",
+            anchorability_hints=["markdown_headings", "section_level"],
+            content_digest="aaa",
+            byte_size=1,
+        )
+
+        self.assertEqual(
+            compute_corpus_state_id([source_a]),
+            compute_corpus_state_id([source_b]),
+        )
+
+        previous_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([source_a]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[source_a],
+        )
+        current_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([source_b]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[source_b],
+        )
+
+        summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
+        self.assertEqual(summary.refresh_status, "unchanged")
+        self.assertFalse(summary.updated_sources)
+
+    def test_refresh_summary_sorts_added_and_removed_sources(self) -> None:
+        removed_a = CorpusManifestSource(
+            source_id="a_removed",
+            title="A Removed",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/a-removed",
+            local_path="/tmp/a-removed.md",
+            anchorability_hints=["markdown_headings"],
+            content_digest="aaa",
+            byte_size=1,
+        )
+        removed_b = CorpusManifestSource(
+            source_id="b_removed",
+            title="B Removed",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/b-removed",
+            local_path="/tmp/b-removed.md",
+            anchorability_hints=["markdown_headings"],
+            content_digest="bbb",
+            byte_size=1,
+        )
+        added_a = CorpusManifestSource(
+            source_id="a_added",
+            title="A Added",
+            source_kind=SourceKind.TECHNICAL_STANDARD,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="international",
+            publication_status="standard",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/a-added",
+            local_path="/tmp/a-added.md",
+            anchorability_hints=["markdown_headings"],
+            content_digest="ccc",
+            byte_size=1,
+        )
+        added_b = CorpusManifestSource(
+            source_id="b_added",
+            title="B Added",
+            source_kind=SourceKind.TECHNICAL_STANDARD,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="international",
+            publication_status="standard",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/b-added",
+            local_path="/tmp/b-added.md",
+            anchorability_hints=["markdown_headings"],
+            content_digest="ddd",
+            byte_size=1,
+        )
+
+        previous_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([removed_b, removed_a]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[removed_b, removed_a],
+        )
+        current_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([added_b, added_a]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[added_b, added_a],
+        )
+
+        summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
+        self.assertEqual([item.source_id for item in summary.added_sources], ["a_added", "b_added"])
+        self.assertEqual([item.source_id for item in summary.removed_sources], ["a_removed", "b_removed"])
+
     def test_invalid_manifest_and_refresh_summary_json_return_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_root = Path(tmp_dir)
