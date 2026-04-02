@@ -10,3 +10,6 @@ artifacts/real_corpus/
 tmp_review_all/
 tmp_review_real/
 .DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
