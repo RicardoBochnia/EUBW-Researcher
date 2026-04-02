@@ -31,18 +31,21 @@ def main() -> int:
         ResearchRuntimeFacade,
     )
     facade = ResearchRuntimeFacade(repo_root)
-    response = facade.run(
-        AgentRuntimeRequest(
-            question=args.question,
-            mode=(
-                AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE
-                if args.output_dir
-                else AgentRuntimeMode.ANSWER_QUESTION
-            ),
-            catalog_path=args.catalog,
-            output_dir=args.output_dir,
+    try:
+        response = facade.run(
+            AgentRuntimeRequest(
+                question=args.question,
+                mode=(
+                    AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE
+                    if args.output_dir
+                    else AgentRuntimeMode.ANSWER_QUESTION
+                ),
+                catalog_path=args.catalog,
+                output_dir=args.output_dir,
+            )
         )
-    )
+    except (FileNotFoundError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
 
     print(response.result.rendered_answer)
     return 0

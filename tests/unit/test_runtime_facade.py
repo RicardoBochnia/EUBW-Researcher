@@ -96,6 +96,39 @@ class RuntimeFacadeTests(unittest.TestCase):
                 corpus_state_id="state-456",
             )
 
+    def test_evidence_only_route_sets_mode_without_writing_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            catalog_path = self._write_default_catalog(repo_root)
+            coverage_report = SimpleNamespace(passed=True)
+            result = self._patched_result()
+
+            with patch("eubw_researcher.runtime_facade.load_runtime_config", return_value="runtime"), patch(
+                "eubw_researcher.runtime_facade.load_source_hierarchy",
+                return_value="hierarchy",
+            ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
+                "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
+                return_value=(None, "bundle", coverage_report, "state-789"),
+            ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch(
+                "eubw_researcher.runtime_facade.write_artifact_bundle"
+            ) as write_bundle:
+                pipeline_cls.return_value.answer_question.return_value = result
+
+                response = ResearchRuntimeFacade(repo_root).run_evidence_only(
+                    "Synthetic question?",
+                    catalog_path=catalog_path,
+                )
+
+            pipeline_cls.return_value.answer_question.assert_called_once_with(
+                "Synthetic question?"
+            )
+            write_bundle.assert_not_called()
+            self.assertEqual(response.mode, AgentRuntimeMode.EVIDENCE_ONLY)
+            self.assertEqual(response.catalog_path, catalog_path.resolve())
+            self.assertIsNone(response.output_dir)
+            self.assertEqual(response.corpus_state_id, "state-789")
+            self.assertIs(response.result.corpus_coverage_report, coverage_report)
+
     def test_write_route_requires_output_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             facade = ResearchRuntimeFacade(tmp_dir)
@@ -126,3 +159,10 @@ class RuntimeFacadeTests(unittest.TestCase):
                         output_dir="artifacts/should_not_write",
                     )
                 )
+
+    def test_missing_catalog_raises_regular_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            facade = ResearchRuntimeFacade(tmp_dir)
+
+            with self.assertRaisesRegex(FileNotFoundError, "Catalog file not found:"):
+                facade.answer_question("Synthetic question?")

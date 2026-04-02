@@ -148,9 +148,9 @@ class ResearchRuntimeFacade:
     def _resolve_catalog_path(self, catalog_path: Optional[RuntimePath]) -> Path:
         resolved_path = self._resolve_path(catalog_path or self.DEFAULT_CATALOG_PATH)
         if not resolved_path.exists():
-            raise SystemExit(f"Catalog file not found: {resolved_path}")
+            raise FileNotFoundError(f"Catalog file not found: {resolved_path}")
         if not resolved_path.is_file():
-            raise SystemExit(f"Catalog path is not a file: {resolved_path}")
+            raise ValueError(f"Catalog path is not a file: {resolved_path}")
         return resolved_path
 
     def _resolve_output_dir(
@@ -176,7 +176,7 @@ class ResearchRuntimeFacade:
         return path.resolve()
 
     @staticmethod
-    def _coerce_mode(mode: AgentRuntimeMode) -> AgentRuntimeMode:
+    def _coerce_mode(mode: Union[AgentRuntimeMode, str]) -> AgentRuntimeMode:
         if isinstance(mode, AgentRuntimeMode):
             return mode
         return AgentRuntimeMode(mode)
