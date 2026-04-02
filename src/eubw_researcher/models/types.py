@@ -506,6 +506,10 @@ class ManualReviewReport:
     discovery_gap_handling_verdict: str
     open_follow_ups: List[str]
     final_judgment: str
+    source_bound_verdict: str = "not_assessed"
+    pinpoint_traceability_verdict: str = "not_assessed"
+    answer_evidence_alignment_verdict: str = "not_assessed"
+    product_output_self_sufficiency_verdict: str = "not_assessed"
     approved_fetched_source_evidence: List[ApprovedFetchedSourceEvidence] = field(default_factory=list)
     report_type: str = "automated_review_prefill"
     human_reviewed: bool = False
@@ -529,6 +533,78 @@ class FacetCoverageReport:
 
     def all_addressed(self) -> bool:
         return all(facet.addressed for facet in self.facets)
+
+
+@dataclass
+class PinpointEvidenceRecord:
+    answer_claim_id: str
+    answer_section: str
+    answer_claim_text: str
+    source_id: str
+    source_role_level: SourceRoleLevel
+    citation_quality: CitationQuality
+    locator_type: str
+    locator_value: str
+    locator_precision: str
+    document_path: Optional[Path]
+    canonical_url: Optional[str]
+    limitation_note: Optional[str] = None
+
+
+@dataclass
+class PinpointEvidenceReport:
+    question: str
+    intent_type: str
+    records: List[PinpointEvidenceRecord] = field(default_factory=list)
+    all_cited_evidence_mapped: bool = True
+    missing_citation_claim_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
+class AnswerAlignmentRecord:
+    answer_claim_id: str
+    answer_section: str
+    wording_category: str
+    claim_ids: List[str]
+    claim_states: List[ClaimState]
+    cited_source_ids: List[str]
+    cited_source_roles: List[SourceRoleLevel]
+    evidence_partition_labels: List[str] = field(default_factory=list)
+    alignment_status: str = "pass"
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class AnswerAlignmentReport:
+    question: str
+    intent_type: str
+    records: List[AnswerAlignmentRecord] = field(default_factory=list)
+    blocking_violations: List[str] = field(default_factory=list)
+
+    def has_blocking_violations(self) -> bool:
+        return bool(self.blocking_violations)
+
+
+@dataclass
+class BlindValidationRawRead:
+    source_id: str
+    document_path: Optional[Path]
+    purpose: str
+    classification: str
+
+
+@dataclass
+class BlindValidationReport:
+    question: str
+    intent_type: str
+    validation_mode: str
+    artifacts_used: List[str]
+    raw_document_reads: List[BlindValidationRawRead] = field(default_factory=list)
+    raw_document_dependency: str = "none"
+    product_output_self_sufficient: bool = False
+    passed: bool = False
+    summary: str = ""
+    missing_facets: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -564,6 +640,9 @@ class AnswerResult:
     provisional_grouping: List[ProvisionalGroup] = field(default_factory=list)
     manual_review: Optional[ManualReviewArtifact] = None
     facet_coverage_report: Optional[FacetCoverageReport] = None
+    pinpoint_evidence_report: Optional[PinpointEvidenceReport] = None
+    answer_alignment_report: Optional[AnswerAlignmentReport] = None
+    blind_validation_report: Optional[BlindValidationReport] = None
     corpus_coverage_report: Optional[CorpusCoverageReport] = None
 
 

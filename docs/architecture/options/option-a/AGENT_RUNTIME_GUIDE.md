@@ -50,6 +50,9 @@ The highest-value artifacts are:
 - `final_answer.txt`
 - `manual_review_report.md`
 - `approved_ledger.json`
+- `pinpoint_evidence.json`
+- `answer_alignment.json`
+- `blind_validation_report.json`
 - `gap_records.json`
 - `web_fetch_records.json`
 - `retrieval_plan.json`

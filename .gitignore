@@ -7,4 +7,6 @@ artifacts/review_fixture/
 artifacts/review_real/
 artifacts/tmp_eval_probe/
 artifacts/real_corpus/
+tmp_review_all/
+tmp_review_real/
 .DS_Store

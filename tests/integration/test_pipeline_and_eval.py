@@ -131,6 +131,9 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 self.assertTrue((scenario_dir / "web_fetch_records.json").exists())
                 self.assertTrue((scenario_dir / "manual_review.json").exists())
                 self.assertTrue((scenario_dir / "manual_review_report.md").exists())
+                self.assertTrue((scenario_dir / "pinpoint_evidence.json").exists())
+                self.assertTrue((scenario_dir / "answer_alignment.json").exists())
+                self.assertTrue((scenario_dir / "blind_validation_report.json").exists())
                 self.assertTrue((scenario_dir / "ingestion_report.json").exists())
                 if scenario_id == "primary_success_scenario":
                     self.assertTrue((scenario_dir / "provisional_grouping.json").exists())
@@ -790,6 +793,9 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 self.assertTrue((scenario_dir / "final_answer.txt").exists())
                 self.assertTrue((scenario_dir / "manual_review.json").exists())
                 self.assertTrue((scenario_dir / "manual_review_report.md").exists())
+                self.assertTrue((scenario_dir / "pinpoint_evidence.json").exists())
+                self.assertTrue((scenario_dir / "answer_alignment.json").exists())
+                self.assertTrue((scenario_dir / "blind_validation_report.json").exists())
                 self.assertTrue((scenario_dir / "ingestion_report.json").exists())
                 self.assertTrue((scenario_dir / "corpus_coverage_report.json").exists())
                 if scenario_id == "primary_success_scenario":
@@ -800,6 +806,9 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 if scenario_id == "scenario_d_certificate_topology_anchor":
                     self.assertIn("manual_review_accept:ok", verdict.checks)
                     self.assertTrue((scenario_dir / "facet_coverage.json").exists())
+                    self.assertIn("pinpoint_evidence_artifact:ok", verdict.checks)
+                    self.assertIn("answer_alignment:ok", verdict.checks)
+                    self.assertIn("blind_validation:ok", verdict.checks)
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
@@ -872,6 +881,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         self.assertIn("organisation-level certificate", result.rendered_answer)
         self.assertIn("Interpretive:", result.rendered_answer)
         self.assertIn("Open:", result.rendered_answer)
+        self.assertIn("Evidence (medium-rank project support):", result.rendered_answer)
         self.assertTrue(
             any(
                 citation.source_id == "eudi_discussion_topic_x_rp_registration"
@@ -894,6 +904,9 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 corpus_state_id="synthetic-state",
             )
             self.assertTrue((Path(tmp_dir) / "facet_coverage.json").exists())
+            self.assertTrue((Path(tmp_dir) / "pinpoint_evidence.json").exists())
+            self.assertTrue((Path(tmp_dir) / "answer_alignment.json").exists())
+            self.assertTrue((Path(tmp_dir) / "blind_validation_report.json").exists())
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
@@ -928,6 +941,9 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 "approved_ledger.json",
                 "manual_review.json",
                 "manual_review_report.md",
+                "pinpoint_evidence.json",
+                "answer_alignment.json",
+                "blind_validation_report.json",
                 "corpus_coverage_report.json",
                 "final_answer.txt",
                 "provisional_grouping.json",

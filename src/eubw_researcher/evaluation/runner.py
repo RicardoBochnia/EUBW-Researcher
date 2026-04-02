@@ -284,6 +284,34 @@ def _evaluate_scenario(scenario, result) -> ScenarioVerdict:
                     checks.append(f"facet:{facet_id}:fail")
                     passed = False
 
+        pinpoint_report = getattr(result, "pinpoint_evidence_report", None)
+        if (
+            pinpoint_report is not None
+            and pinpoint_report.all_cited_evidence_mapped
+            and pinpoint_report.records
+        ):
+            checks.append("pinpoint_evidence_artifact:ok")
+        else:
+            checks.append("pinpoint_evidence_artifact:fail")
+            passed = False
+
+        alignment_report = getattr(result, "answer_alignment_report", None)
+        if (
+            alignment_report is not None
+            and not alignment_report.has_blocking_violations()
+        ):
+            checks.append("answer_alignment:ok")
+        else:
+            checks.append("answer_alignment:fail")
+            passed = False
+
+        blind_validation_report = getattr(result, "blind_validation_report", None)
+        if blind_validation_report is not None and blind_validation_report.passed:
+            checks.append("blind_validation:ok")
+        else:
+            checks.append("blind_validation:fail")
+            passed = False
+
     gap_by_question = {gap.sub_question: gap for gap in result.gap_records}
     def _entry_needs_gap(entry) -> bool:
         return entry.final_claim_state.value in {"open", "blocked"} or (
@@ -469,6 +497,21 @@ def write_artifact_bundle(
     if result.facet_coverage_report is not None:
         (output_dir / "facet_coverage.json").write_text(
             json.dumps(dataclass_to_dict(result.facet_coverage_report), indent=2),
+            encoding="utf-8",
+        )
+    if result.pinpoint_evidence_report is not None:
+        (output_dir / "pinpoint_evidence.json").write_text(
+            json.dumps(dataclass_to_dict(result.pinpoint_evidence_report), indent=2),
+            encoding="utf-8",
+        )
+    if result.answer_alignment_report is not None:
+        (output_dir / "answer_alignment.json").write_text(
+            json.dumps(dataclass_to_dict(result.answer_alignment_report), indent=2),
+            encoding="utf-8",
+        )
+    if result.blind_validation_report is not None:
+        (output_dir / "blind_validation_report.json").write_text(
+            json.dumps(dataclass_to_dict(result.blind_validation_report), indent=2),
             encoding="utf-8",
         )
     (output_dir / "manual_review.json").write_text(

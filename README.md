@@ -25,9 +25,12 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - A compact reviewer entrypoint lives in `docs/architecture/options/option-a/REVIEW_GUIDE.md`.
 - Known V2 residual limits and their mitigation/acceptance are recorded in `docs/architecture/options/option-a/HARDENING_NOTES.md`.
 - Default eval outputs are split by corpus: `artifacts/eval_runs` for fixtures and `artifacts/eval_runs_real_corpus` for the real archive catalog.
-- Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, and `manual_review_report.md`; grouping-capable runs additionally emit `provisional_grouping.json`.
+- Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, `manual_review_report.md`, `pinpoint_evidence.json`, `answer_alignment.json`, and `blind_validation_report.json`; grouping-capable runs additionally emit `provisional_grouping.json`.
 - Corpus-backed bundles additionally emit `corpus_coverage_report.json`, and the real-corpus ingestion bundle is cached under `artifacts/real_corpus/cache/` so repeated review runs do not re-normalize the full archive.
 - `manual_review.json` is an automated prefill artifact; `manual_review_report.md` is the primary human-readable review surface.
+- `pinpoint_evidence.json` maps answer claims to reviewer-usable local source locators and records any precision limits explicitly.
+- `answer_alignment.json` records the structural answer-to-evidence alignment check used by the V2.2 topology gate.
+- `blind_validation_report.json` records the product-output-first self-sufficiency gate for whether the generated artifacts should be reusable without raw-document reconstruction.
 - The binding real-corpus review samples are `primary_success_scenario` and `scenario_b_registration_certificate_mandatory`; their `manual_review_report.md` must end in `accept`.
 - Approved fetched web sources are surfaced in `manual_review_report.md` with digest and provenance evidence for reviewability.
 - The local real corpus archive now lives under `artifacts/real_corpus/archive` and is intentionally excluded from git.

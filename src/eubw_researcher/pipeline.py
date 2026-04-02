@@ -4,9 +4,8 @@ import logging
 from typing import Dict, List
 
 from eubw_researcher.answering import (
-    build_facet_coverage_report,
     build_provisional_grouping,
-    compose_answer,
+    compose_answer_bundle,
 )
 from eubw_researcher.evidence import build_ledger, has_direct_admissible_support
 from eubw_researcher.models import (
@@ -24,6 +23,7 @@ from eubw_researcher.models import (
     WebFetchRecord,
 )
 from eubw_researcher.retrieval import analyze_query, build_retrieval_plan, retrieve_candidates
+from eubw_researcher.trust import build_blind_validation_report
 from eubw_researcher.web import fetch_and_normalize_official_sources
 
 LOGGER = logging.getLogger(__name__)
@@ -372,21 +372,15 @@ class ResearchPipeline:
                 else:
                     gap_records.append(gap)
 
-        rendered_answer = compose_answer(
+        composed_answer = compose_answer_bundle(
             question,
             approved_entries,
             query_intent=query_intent,
             clarification_note=query_intent.clarification_note,
             documents=self.ingestion_bundle.documents,
         )
-        facet_coverage_report = build_facet_coverage_report(
-            question,
-            query_intent,
-            rendered_answer,
-            approved_entries,
-        )
         provisional_grouping = build_provisional_grouping(query_intent, approved_entries)
-        return AnswerResult(
+        result = AnswerResult(
             question=question,
             query_intent=query_intent,
             retrieval_plan=retrieval_plan,
@@ -395,7 +389,11 @@ class ResearchPipeline:
             ingestion_report=[*self.ingestion_bundle.report, *web_ingestion_reports],
             ledger_entries=ledger_entries,
             approved_entries=approved_entries,
-            rendered_answer=rendered_answer,
+            rendered_answer=composed_answer.rendered_answer,
             provisional_grouping=provisional_grouping,
-            facet_coverage_report=facet_coverage_report,
+            facet_coverage_report=composed_answer.facet_coverage_report,
+            pinpoint_evidence_report=composed_answer.pinpoint_evidence_report,
+            answer_alignment_report=composed_answer.answer_alignment_report,
         )
+        result.blind_validation_report = build_blind_validation_report(result)
+        return result

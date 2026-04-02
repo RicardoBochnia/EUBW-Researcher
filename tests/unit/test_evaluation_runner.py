@@ -10,22 +10,32 @@ from eubw_researcher.evaluation.review import (
 from eubw_researcher.evaluation.runner import _evaluate_scenario
 from eubw_researcher.models import (
     AnchorQuality,
+    AnswerAlignmentRecord,
+    AnswerAlignmentReport,
+    BlindValidationReport,
     CitationQuality,
     ClaimState,
     EvaluationScenario,
     FacetCoverageFacet,
     FacetCoverageReport,
     NormalizationStatus,
+    PinpointEvidenceRecord,
+    PinpointEvidenceReport,
     ScenarioVerdict,
     SourceKind,
     SourceOrigin,
     SourceRoleLevel,
     WebFetchRecord,
 )
+from eubw_researcher.trust import (
+    build_blind_validation_report,
+    pinpoint_traceability_status,
+)
 
 
 def _minimal_result(record_type: str) -> SimpleNamespace:
     entry = SimpleNamespace(
+        claim_id="synthetic-claim",
         final_claim_state=ClaimState.CONFIRMED,
         citations=[
             SimpleNamespace(
@@ -80,10 +90,216 @@ def _minimal_result(record_type: str) -> SimpleNamespace:
             )
         ],
         facet_coverage_report=None,
+        pinpoint_evidence_report=PinpointEvidenceReport(
+            question="Synthetic question?",
+            intent_type="synthetic_intent",
+            records=[
+                PinpointEvidenceRecord(
+                    answer_claim_id="synthetic-claim",
+                    answer_section="Confirmed",
+                    answer_claim_text="Synthetic claim",
+                    source_id="synthetic-local-source",
+                    source_role_level=SourceRoleLevel.HIGH,
+                    citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                    locator_type="heading_path",
+                    locator_value="Article 1",
+                    locator_precision="provision_level",
+                    document_path=None,
+                    canonical_url=None,
+                    limitation_note="Exact line-level pinpoint is not available; this run exposes the nearest heading anchor.",
+                )
+            ],
+        ),
+        answer_alignment_report=AnswerAlignmentReport(
+            question="Synthetic question?",
+            intent_type="synthetic_intent",
+            records=[
+                AnswerAlignmentRecord(
+                    answer_claim_id="synthetic-claim",
+                    answer_section="Confirmed",
+                    wording_category="governing_confirmed",
+                    claim_ids=["synthetic-claim"],
+                    claim_states=[ClaimState.CONFIRMED],
+                    cited_source_ids=["synthetic-local-source"],
+                    cited_source_roles=[SourceRoleLevel.HIGH],
+                )
+            ],
+        ),
+        blind_validation_report=BlindValidationReport(
+            question="Synthetic question?",
+            intent_type="synthetic_intent",
+            validation_mode="structural_product_output_contract_check",
+            artifacts_used=[
+                "final_answer.txt",
+                "approved_ledger.json",
+                "pinpoint_evidence.json",
+                "answer_alignment.json",
+            ],
+            raw_document_dependency="none",
+            product_output_self_sufficient=True,
+            passed=True,
+            summary="Synthetic blind validation pass.",
+        ),
     )
 
 
 class EvaluationRunnerTests(unittest.TestCase):
+    def test_pinpoint_traceability_rejects_approximate_only_locators(self) -> None:
+        result = _minimal_result("fetch")
+        result.pinpoint_evidence_report.records[0].locator_precision = "approximate"
+
+        pinpoint_ok, message = pinpoint_traceability_status(result)
+
+        self.assertFalse(pinpoint_ok)
+        self.assertIn("only approximate document-level locators", message)
+
+    def test_pinpoint_traceability_rejects_any_claim_without_precise_locator(self) -> None:
+        result = _minimal_result("fetch")
+        result.pinpoint_evidence_report.records.append(
+            PinpointEvidenceRecord(
+                answer_claim_id="approximate-only-claim",
+                answer_section="Open",
+                answer_claim_text="Synthetic approximate-only claim",
+                source_id="synthetic-local-source-2",
+                source_role_level=SourceRoleLevel.HIGH,
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                locator_type="document_title",
+                locator_value="Synthetic approximate-only source",
+                locator_precision="approximate",
+                document_path=None,
+                canonical_url=None,
+                limitation_note="Only document-title traceability is available for this citation.",
+            )
+        )
+
+        pinpoint_ok, message = pinpoint_traceability_status(result)
+
+        self.assertFalse(pinpoint_ok)
+        self.assertIn("approximate-only-claim", message)
+
+    def test_pinpoint_traceability_allows_audit_confirmable_document_only_claim(self) -> None:
+        result = _minimal_result("fetch")
+        result.ledger_entries[0].citation_quality = CitationQuality.DOCUMENT_ONLY
+        result.ledger_entries[0].governing_evidence = [
+            SimpleNamespace(
+                anchor_audit_note=(
+                    "Expected anchors were not recoverable; treat this as a technical extraction failure "
+                    "because the governing source remains directly readable."
+                )
+            )
+        ]
+        result.pinpoint_evidence_report.records[0].citation_quality = CitationQuality.DOCUMENT_ONLY
+        result.pinpoint_evidence_report.records[0].locator_precision = "approximate"
+
+        pinpoint_ok, message = pinpoint_traceability_status(result)
+        blind_validation = build_blind_validation_report(result)
+
+        self.assertTrue(pinpoint_ok)
+        self.assertIn("reviewer-usable locators", message)
+        self.assertTrue(blind_validation.passed)
+
+    def test_pinpoint_traceability_allows_audit_confirmable_composite_answer_claim(self) -> None:
+        result = _minimal_result("fetch")
+        result.ledger_entries[0].citation_quality = CitationQuality.DOCUMENT_ONLY
+        result.ledger_entries[0].governing_evidence = [
+            SimpleNamespace(
+                anchor_audit_note=(
+                    "Expected anchors were not recoverable; treat this as a technical extraction failure "
+                    "because the governing source remains directly readable."
+                )
+            )
+        ]
+        result.pinpoint_evidence_report.records = [
+            PinpointEvidenceRecord(
+                answer_claim_id="synthetic-summary",
+                answer_section="Interpretive",
+                answer_claim_text="Synthetic summary claim",
+                source_id="synthetic-local-source",
+                source_role_level=SourceRoleLevel.HIGH,
+                citation_quality=CitationQuality.DOCUMENT_ONLY,
+                locator_type="document_title",
+                locator_value="Synthetic governing source",
+                locator_precision="approximate",
+                document_path=None,
+                canonical_url=None,
+                limitation_note="Only document-title traceability is available for this citation.",
+            )
+        ]
+        result.answer_alignment_report = AnswerAlignmentReport(
+            question="Synthetic question?",
+            intent_type="synthetic_intent",
+            records=[
+                AnswerAlignmentRecord(
+                    answer_claim_id="synthetic-summary",
+                    answer_section="Interpretive",
+                    wording_category="interpretive_state_forwarded",
+                    claim_ids=["synthetic-claim"],
+                    claim_states=[ClaimState.CONFIRMED],
+                    cited_source_ids=["synthetic-local-source"],
+                    cited_source_roles=[SourceRoleLevel.HIGH],
+                )
+            ],
+        )
+
+        pinpoint_ok, message = pinpoint_traceability_status(result)
+
+        self.assertTrue(pinpoint_ok)
+        self.assertIn("reviewer-usable locators", message)
+
+    def test_blind_validation_uses_structural_topology_sections_not_rendered_text_markers(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="certificate_topology_analysis")
+        result.rendered_answer = "Topology answer rendered with different formatting."
+        result.facet_coverage_report = FacetCoverageReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            facets=[FacetCoverageFacet(facet_id, True, []) for facet_id in [
+                "multiplicity_single_certificate",
+                "derived_certificate_term_status",
+                "registration_certificate_role",
+                "access_certificate_role",
+                "unresolved_or_interpretive_status",
+            ]],
+        )
+        result.answer_alignment_report = AnswerAlignmentReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            records=[
+                AnswerAlignmentRecord(
+                    answer_claim_id="term-status",
+                    answer_section="Not explicitly defined",
+                    wording_category="term_status_scan",
+                    claim_ids=[],
+                    claim_states=[],
+                    cited_source_ids=["synthetic-local-source"],
+                    cited_source_roles=[SourceRoleLevel.HIGH],
+                ),
+                AnswerAlignmentRecord(
+                    answer_claim_id="interpretive",
+                    answer_section="Interpretive",
+                    wording_category="interpretive_governing_boundary",
+                    claim_ids=["synthetic-claim"],
+                    claim_states=[ClaimState.INTERPRETIVE],
+                    cited_source_ids=["synthetic-local-source"],
+                    cited_source_roles=[SourceRoleLevel.HIGH],
+                ),
+                AnswerAlignmentRecord(
+                    answer_claim_id="open",
+                    answer_section="Open",
+                    wording_category="open_state_forwarded",
+                    claim_ids=["synthetic-open"],
+                    claim_states=[ClaimState.OPEN],
+                    cited_source_ids=["synthetic-local-source"],
+                    cited_source_roles=[SourceRoleLevel.HIGH],
+                ),
+            ],
+        )
+
+        report = build_blind_validation_report(result)
+
+        self.assertTrue(report.passed)
+        self.assertEqual(report.missing_facets, [])
+
     def test_required_web_fetch_count_counts_fetch_records_only(self) -> None:
         scenario = EvaluationScenario(
             scenario_id="synthetic_fetch_gate",
@@ -182,6 +398,8 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("Approved Fetched-Source Evidence", markdown)
         self.assertIn("digest=`abc123`", markdown)
         self.assertIn("provenance=`configured_seed_url`", markdown)
+        self.assertIn("Pinpoint traceability verdict", markdown)
+        self.assertIn("Reusable without raw-document reconstruction", markdown)
 
     def test_certificate_topology_eval_requires_facet_coverage(self) -> None:
         result = _minimal_result("fetch")
@@ -229,6 +447,9 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertFalse(verdict.passed)
         self.assertIn("facet_coverage_artifact:ok", verdict.checks)
         self.assertIn("facet:multiplicity_single_certificate:fail", verdict.checks)
+        self.assertIn("pinpoint_evidence_artifact:ok", verdict.checks)
+        self.assertIn("answer_alignment:ok", verdict.checks)
+        self.assertIn("blind_validation:ok", verdict.checks)
 
     def test_manual_review_report_rejects_incomplete_topology_facet_coverage(self) -> None:
         result = _minimal_result("fetch")
@@ -258,6 +479,37 @@ class EvaluationRunnerTests(unittest.TestCase):
         )
 
         self.assertEqual(report.usefulness_verdict, "needs_follow_up")
+        self.assertEqual(report.final_judgment, "reject")
+
+    def test_topology_review_report_rejects_missing_v2_2_trust_artifacts(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="certificate_topology_analysis")
+        result.facet_coverage_report = FacetCoverageReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            facets=[FacetCoverageFacet(facet_id, True, []) for facet_id in [
+                "multiplicity_single_certificate",
+                "derived_certificate_term_status",
+                "registration_certificate_role",
+                "access_certificate_role",
+                "unresolved_or_interpretive_status",
+            ]],
+        )
+        result.pinpoint_evidence_report = None
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_topology_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_topology_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
 
 

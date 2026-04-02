@@ -11,6 +11,10 @@ from eubw_researcher.models import (
     ManualReviewCheck,
     ManualReviewReport,
 )
+from eubw_researcher.trust import (
+    answer_alignment_status,
+    pinpoint_traceability_status,
+)
 
 
 def _topology_facet_status(result, facet_id: str) -> tuple[bool, str]:
@@ -105,6 +109,38 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
                 "Grouping artifact is present for grouping-capable intent."
                 if grouped_ok
                 else "Grouping-capable intent produced no provisional grouping."
+            ),
+        )
+    )
+
+    pinpoint_ok, pinpoint_evidence = pinpoint_traceability_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="pinpoint_traceability",
+            status="pass" if pinpoint_ok else "fail",
+            evidence=pinpoint_evidence,
+        )
+    )
+
+    alignment_ok, alignment_evidence = answer_alignment_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="answer_evidence_alignment",
+            status="pass" if alignment_ok else "fail",
+            evidence=alignment_evidence,
+        )
+    )
+
+    blind_validation_report = getattr(result, "blind_validation_report", None)
+    blind_validation_ok = blind_validation_report is not None and blind_validation_report.passed
+    checks.append(
+        ManualReviewCheck(
+            check_id="product_output_self_sufficiency",
+            status="pass" if blind_validation_ok else "fail",
+            evidence=(
+                blind_validation_report.summary
+                if blind_validation_report is not None
+                else "blind_validation_report.json was not produced."
             ),
         )
     )
@@ -219,6 +255,11 @@ def build_manual_review_report(
         result.facet_coverage_report is not None
         and result.facet_coverage_report.all_addressed()
     ) if result.query_intent.intent_type == "certificate_topology_analysis" else True
+    pinpoint_ok, _ = pinpoint_traceability_status(result)
+    alignment_ok, _ = answer_alignment_status(result)
+    blind_validation_report = getattr(result, "blind_validation_report", None)
+    blind_validation_ok = blind_validation_report is not None and blind_validation_report.passed
+    source_bound_ok = has_approved_entries and not blocked_visible
     correctness_verdict = "acceptable" if verdict.passed else "needs_follow_up"
     usefulness_verdict = (
         "acceptable" if has_approved_entries and topology_facets_ok else "needs_follow_up"
@@ -228,6 +269,12 @@ def build_manual_review_report(
     discovery_verdict = (
         "acceptable" if gap_ok else "needs_follow_up"
     ) if gap_exercised else "not_exercised"
+    source_bound_verdict = "acceptable" if source_bound_ok else "needs_follow_up"
+    pinpoint_verdict = "acceptable" if pinpoint_ok else "needs_follow_up"
+    alignment_verdict = "acceptable" if alignment_ok else "needs_follow_up"
+    self_sufficiency_verdict = (
+        "acceptable" if blind_validation_ok else "needs_follow_up"
+    )
     final_judgment = (
         "accept"
         if all(
@@ -237,6 +284,10 @@ def build_manual_review_report(
                 usefulness_verdict,
                 hierarchy_verdict,
                 uncertainty_verdict,
+                source_bound_verdict,
+                pinpoint_verdict,
+                alignment_verdict,
+                self_sufficiency_verdict,
             ]
         )
         and discovery_verdict in {"acceptable", "not_exercised"}
@@ -260,6 +311,18 @@ def build_manual_review_report(
         open_follow_ups.append(
             "Topology facet coverage is incomplete; inspect facet_coverage.json before treating this run as reusable."
         )
+    if not pinpoint_ok:
+        open_follow_ups.append(
+            "Pinpoint traceability is incomplete; inspect pinpoint_evidence.json before relying on this run."
+        )
+    if not alignment_ok:
+        open_follow_ups.append(
+            "Answer wording and cited evidence are not structurally aligned; inspect answer_alignment.json."
+        )
+    if not blind_validation_ok:
+        open_follow_ups.append(
+            "The product-output-first blind-validation gate did not pass; inspect blind_validation_report.json."
+        )
     if not open_follow_ups:
         open_follow_ups.append("No blocking follow-up from this review pass.")
 
@@ -276,6 +339,10 @@ def build_manual_review_report(
         discovery_gap_handling_verdict=discovery_verdict,
         open_follow_ups=open_follow_ups,
         final_judgment=final_judgment,
+        source_bound_verdict=source_bound_verdict,
+        pinpoint_traceability_verdict=pinpoint_verdict,
+        answer_evidence_alignment_verdict=alignment_verdict,
+        product_output_self_sufficiency_verdict=self_sufficiency_verdict,
         approved_fetched_source_evidence=_approved_fetched_source_evidence(result),
     )
 
@@ -299,6 +366,13 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
         f"- Source-role / hierarchy verdict: `{report.source_role_hierarchy_verdict}`",
         f"- Uncertainty-handling verdict: `{report.uncertainty_handling_verdict}`",
         f"- Discovery / gap-handling verdict: `{report.discovery_gap_handling_verdict}`",
+        "",
+        "## Trust Surface",
+        "",
+        f"- Source-bound verdict: `{report.source_bound_verdict}`",
+        f"- Pinpoint traceability verdict: `{report.pinpoint_traceability_verdict}`",
+        f"- Answer / evidence alignment verdict: `{report.answer_evidence_alignment_verdict}`",
+        f"- Reusable without raw-document reconstruction: `{report.product_output_self_sufficiency_verdict}`",
         "",
         "## Open Follow-Ups",
         "",

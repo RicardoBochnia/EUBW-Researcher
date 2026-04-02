@@ -54,6 +54,9 @@ Every reviewable run should include:
 - `approved_ledger.json`
 - `web_fetch_records.json`
 - `final_answer.txt`
+- `pinpoint_evidence.json`
+- `answer_alignment.json`
+- `blind_validation_report.json`
 - `manual_review.json`
 - `manual_review_report.md`
 - `verdict.json` for eval runs
@@ -70,6 +73,9 @@ Every reviewable run should include:
 - `web_fetch_records.json` only contains allowlisted URLs, and rejected web sources stay out of the approved ledger.
 - `manual_review.json` is clearly marked as an automated prefill, not mistaken for human review.
 - `manual_review_report.md` is present and gives a usable human-readable review summary.
+- `pinpoint_evidence.json` maps each cited answer claim to a concrete local locator and is explicit when only approximate traceability is available.
+- `answer_alignment.json` shows no blocking wording-to-evidence alignment violations.
+- `blind_validation_report.json` passes and records that the run should be reusable without raw-document reconstruction.
 - Any approved fetched web source is surfaced in `manual_review_report.md` with digest and provenance evidence.
 - `ledger_entries.json` shows weak anchors as `document_only`.
 - Any `document_only` `confirmed` claim carries a credible technical anchor audit note.
