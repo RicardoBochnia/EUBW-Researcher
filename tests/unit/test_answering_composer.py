@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import Optional
 
 from eubw_researcher.answering import build_facet_coverage_report, compose_answer_bundle
 from eubw_researcher.models import (
@@ -50,7 +51,7 @@ def _topology_intent_with_answer_pattern(answer_pattern: str) -> QueryIntent:
 def _generic_intent(
     intent_type: str = "wallet_requirements_summary",
     *,
-    grouping_label: str | None = None,
+    grouping_label: Optional[str] = None,
 ) -> QueryIntent:
     claim_targets = (
         [
