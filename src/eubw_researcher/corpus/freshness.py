@@ -291,10 +291,14 @@ def build_corpus_refresh_summary(
     refresh_status = "initial_build"
     previous_corpus_state_id = previous_manifest.corpus_state_id if previous_manifest else None
     if previous_manifest is not None:
+        has_refresh_deltas = bool(
+            added_sources or removed_sources or updated_sources or coverage_deltas
+        )
         refresh_status = (
-            "unchanged"
-            if previous_manifest.corpus_state_id == current_manifest.corpus_state_id
-            else "refreshed"
+            "refreshed"
+            if has_refresh_deltas
+            or previous_manifest.corpus_state_id != current_manifest.corpus_state_id
+            else "unchanged"
         )
 
     return CorpusRefreshSummary(

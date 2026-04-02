@@ -18,6 +18,8 @@ from eubw_researcher.corpus import (
 from eubw_researcher.models import (
     CorpusManifest,
     CorpusManifestSource,
+    CorpusCoverageFamily,
+    NormalizationStatus,
     SourceCatalog,
     SourceCatalogEntry,
     SourceKind,
@@ -364,6 +366,67 @@ class CorpusFreshnessTests(unittest.TestCase):
         summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
         self.assertEqual(summary.refresh_status, "unchanged")
         self.assertFalse(summary.updated_sources)
+
+    def test_refresh_summary_marks_same_state_id_coverage_change_as_refreshed(self) -> None:
+        source = CorpusManifestSource(
+            source_id="same_source",
+            title="Same Source",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            publication_status="official_journal",
+            publication_date=None,
+            source_origin=SourceOrigin.LOCAL,
+            canonical_url="https://example.test/source",
+            local_path="/tmp/source.md",
+            anchorability_hints=["markdown_headings"],
+            admission_reason="test",
+            content_digest="abc123",
+            byte_size=42,
+            normalization_status=NormalizationStatus.SUCCESS,
+            chunk_count=3,
+        )
+
+        previous_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([source]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[source],
+            coverage_passed=False,
+            coverage_families=[
+                CorpusCoverageFamily(
+                    family_id="current_technical_standards",
+                    minimum_count=2,
+                    admitted_count=1,
+                    admitted_source_ids=["same_source"],
+                    missing=True,
+                )
+            ],
+        )
+        current_manifest = CorpusManifest(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id=compute_corpus_state_id([source]),
+            generated_at="2026-04-02T00:00:00+00:00",
+            selection_config_path=None,
+            sources=[source],
+            coverage_passed=True,
+            coverage_families=[
+                CorpusCoverageFamily(
+                    family_id="current_technical_standards",
+                    minimum_count=2,
+                    admitted_count=2,
+                    admitted_source_ids=["same_source", "other_source"],
+                    missing=False,
+                )
+            ],
+        )
+
+        summary = build_corpus_refresh_summary(current_manifest, previous_manifest)
+
+        self.assertEqual(summary.refresh_status, "refreshed")
+        self.assertEqual(summary.previous_corpus_state_id, previous_manifest.corpus_state_id)
+        self.assertEqual(len(summary.coverage_deltas), 1)
 
     def test_compute_corpus_state_id_is_order_independent(self) -> None:
         source_a = CorpusManifestSource(
