@@ -112,6 +112,13 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(intent.intent_type, "wallet_requirements_summary")
         self.assertGreaterEqual(len(intent.claim_targets), 4)
 
+    def test_eubw_alias_routes_to_business_wallet_requirements_path(self) -> None:
+        intent = analyze_query(
+            "What requirements apply to the EUBW, and how can they be provisionally structured?"
+        )
+        self.assertEqual(intent.intent_type, "wallet_requirements_summary")
+        self.assertGreaterEqual(len(intent.claim_targets), 4)
+
     def test_protocol_paraphrase_stays_on_protocol_comparison_route(self) -> None:
         intent = analyze_query(
             "Compare OpenID4VCI and OpenID4VP on token endpoint use and wallet metadata handling."
@@ -145,6 +152,22 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(intent.answer_pattern, "certificate_topology")
         self.assertGreaterEqual(len(intent.claim_targets), 5)
 
+    def test_authorisation_spelling_routes_consistently_with_protocol_question(self) -> None:
+        canonical_intent = analyze_query(
+            "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"
+        )
+        normalized_intent = analyze_query(
+            "What is the difference between OpenID4VCI and OpenID4VP regarding the authorisation server?"
+        )
+        self.assertEqual(normalized_intent.intent_type, canonical_intent.intent_type)
+        self.assertEqual(normalized_intent.preferred_kinds, canonical_intent.preferred_kinds)
+        normalized_plan = build_retrieval_plan(normalized_intent, self.hierarchy, self.runtime)
+        canonical_plan = build_retrieval_plan(canonical_intent, self.hierarchy, self.runtime)
+        self.assertEqual(
+            [step.required_kind for step in normalized_plan.steps[:4]],
+            [step.required_kind for step in canonical_plan.steps[:4]],
+        )
+
     def test_analyze_query_classifies_certificate_layer_guidance_question(self) -> None:
         intent = analyze_query(
             "What national guidance exists for Business Wallet access certificate handling?"
@@ -153,6 +176,13 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(intent.preferred_kinds[0], SourceKind.REGULATION)
         self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
         self.assertTrue(any(target.grouping_label for target in intent.claim_targets))
+
+    def test_wallet_specific_access_cert_alias_routes_to_certificate_layer_analysis(self) -> None:
+        intent = analyze_query(
+            "What national guidance exists for Business Wallet access cert handling?"
+        )
+        self.assertEqual(intent.intent_type, "certificate_layer_analysis")
+        self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
 
     def test_analyze_query_classifies_arf_boundary_question(self) -> None:
         intent = analyze_query(
@@ -176,6 +206,26 @@ class RetrievalTests(unittest.TestCase):
             intent.preferred_kinds[:2],
             [SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
         )
+        self.assertEqual(
+            intent.clarification_note,
+            "Broad question: continue with an EU-first first-pass answer.",
+        )
+
+    def test_api_client_access_cert_without_wallet_context_routes_to_broad_fallback(self) -> None:
+        intent = analyze_query(
+            "How should we rotate an access cert for internal API clients?"
+        )
+        self.assertEqual(intent.intent_type, "broad_regulation_question")
+        self.assertEqual(
+            intent.clarification_note,
+            "Broad question: continue with an EU-first first-pass answer.",
+        )
+
+    def test_unrelated_broad_question_keeps_existing_fallback_route(self) -> None:
+        intent = analyze_query(
+            "Give me an overview of Union rules for company supervision."
+        )
+        self.assertEqual(intent.intent_type, "broad_regulation_question")
         self.assertEqual(
             intent.clarification_note,
             "Broad question: continue with an EU-first first-pass answer.",
