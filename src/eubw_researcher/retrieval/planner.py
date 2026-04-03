@@ -14,6 +14,7 @@ from eubw_researcher.models import (
     SourceKind,
     SourceRoleLevel,
 )
+from eubw_researcher.retrieval.terminology import normalize_query_terms
 
 
 def _contains_any(text: str, terms: List[str]) -> bool:
@@ -668,7 +669,7 @@ def _arf_boundary_targets() -> List[ClaimTarget]:
 
 
 def analyze_query(question: str) -> QueryIntent:
-    lowered = question.lower()
+    lowered = normalize_query_terms(question).lower()
     tokens = _token_set(lowered)
     eu_first = True
 
