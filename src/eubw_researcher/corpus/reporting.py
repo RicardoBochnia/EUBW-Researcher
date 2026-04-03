@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections import Counter
 from pathlib import Path
 from typing import List
@@ -127,14 +126,9 @@ def build_corpus_state_snapshot(
     }
     return {
         "corpus_state_id": corpus_state_id,
-        "catalog_path": catalog_path.resolve().as_posix(),
+        "catalog_path": catalog_path.as_posix(),
         "total_sources": len(catalog.entries),
         "counts_by_kind": counts_by_kind,
         "counts_by_role_level": counts_by_role_level,
         "source_ids": sorted(e.source_id for e in catalog.entries),
     }
-
-
-def write_corpus_state_snapshot(snapshot: dict, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")

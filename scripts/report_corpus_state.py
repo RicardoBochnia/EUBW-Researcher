@@ -59,7 +59,7 @@ def main() -> int:
         print(
             f"note: coverage report not available for {catalog_path} "
             "(only generated for the real corpus catalog)",
-            file=__import__("sys").stderr,
+            file=sys.stderr,
         )
 
     snapshot_path = output_dir / "corpus_state_snapshot.json"

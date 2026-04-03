@@ -12,13 +12,13 @@ from .reporting import (
     build_corpus_state_snapshot,
     render_corpus_coverage_summary_md,
     render_corpus_selection_summary_md,
-    write_corpus_state_snapshot,
 )
 from .runtime import (
     build_corpus_coverage_report,
     is_real_corpus_catalog,
     load_or_build_ingestion_bundle,
     write_corpus_coverage_report,
+    write_corpus_state_snapshot,
 )
 
 __all__ = [

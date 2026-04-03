@@ -149,6 +149,11 @@ def write_corpus_coverage_report(report: CorpusCoverageReport, path: Path) -> No
     path.write_text(json.dumps(dataclass_to_dict(report), indent=2), encoding="utf-8")
 
 
+def write_corpus_state_snapshot(snapshot: dict, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+
+
 def load_or_build_ingestion_bundle(
     catalog_path: Path,
 ) -> Tuple[SourceCatalog, IngestionBundle, Optional[CorpusCoverageReport], str]:
