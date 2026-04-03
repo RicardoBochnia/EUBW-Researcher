@@ -48,12 +48,12 @@ def render_corpus_selection_summary_md(catalog: SourceCatalog) -> str:
             lines.append("")
             lines.append(f"### {kind.value} ({len(kind_entries)})")
             lines.append("")
-            lines.append("| Source | Jurisdiction | Admission reason |")
-            lines.append("|--------|-------------|-----------------|")
+            lines.append("| Source | Kind | Jurisdiction | Admission reason |")
+            lines.append("|--------|------|-------------|-----------------|")
             for entry in kind_entries:
                 reason = (entry.admission_reason or "").replace("|", "\\|")
                 title = entry.title.replace("|", "\\|")
-                lines.append(f"| {title} | {entry.jurisdiction} | {reason} |")
+                lines.append(f"| {title} | {entry.source_kind.value} | {entry.jurisdiction} | {reason} |")
 
     lines.append("")
     return "\n".join(lines)
