@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from _catalog_path import resolve_catalog_path
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -36,8 +38,8 @@ def main() -> int:
     )
     from eubw_researcher.corpus.runtime import write_corpus_coverage_report
 
-    catalog_path = (repo_root / args.catalog).resolve()
     catalog_path_for_snapshot = Path(args.catalog)
+    catalog_path = resolve_catalog_path(repo_root, args.catalog)
     output_dir = (repo_root / args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
