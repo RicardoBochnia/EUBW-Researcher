@@ -14,6 +14,7 @@ from eubw_researcher.config import (
 from eubw_researcher.corpus import (
     is_real_corpus_catalog,
     load_or_build_ingestion_bundle,
+    render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
 from eubw_researcher.models import ScenarioVerdict, dataclass_to_dict
@@ -526,6 +527,10 @@ def write_artifact_bundle(
         write_corpus_coverage_report(
             result.corpus_coverage_report,
             output_dir / "corpus_coverage_report.json",
+        )
+        (output_dir / "corpus_coverage_summary.md").write_text(
+            render_corpus_coverage_summary_md(result.corpus_coverage_report),
+            encoding="utf-8",
         )
     if verdict is not None:
         (output_dir / "verdict.json").write_text(
