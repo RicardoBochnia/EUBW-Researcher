@@ -41,7 +41,7 @@ _TERMINOLOGY_MAPPINGS: tuple[_TerminologyMapping, ...] = (
 
 
 def _alias_pattern(alias: str) -> re.Pattern[str]:
-    return re.compile(rf"(?<![a-zA-Z0-9]){re.escape(alias)}(?![a-zA-Z0-9])", re.IGNORECASE)
+    return re.compile(rf"(?<!\w){re.escape(alias)}(?!\w)", re.IGNORECASE)
 
 
 _COMPILED_TERMINOLOGY_MAPPINGS: tuple[_CompiledTerminologyMapping, ...] = tuple(
