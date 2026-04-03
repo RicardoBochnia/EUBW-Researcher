@@ -37,6 +37,7 @@ def main() -> int:
     from eubw_researcher.corpus.runtime import write_corpus_coverage_report
 
     catalog_path = (repo_root / args.catalog).resolve()
+    catalog_path_for_snapshot = Path(args.catalog)
     output_dir = (repo_root / args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -64,7 +65,7 @@ def main() -> int:
 
     snapshot_path = output_dir / "corpus_state_snapshot.json"
     write_corpus_state_snapshot(
-        build_corpus_state_snapshot(catalog, corpus_state_id, catalog_path),
+        build_corpus_state_snapshot(catalog, corpus_state_id, catalog_path_for_snapshot),
         snapshot_path,
     )
 
