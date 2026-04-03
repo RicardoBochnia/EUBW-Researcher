@@ -54,3 +54,15 @@ class TerminologyNormalizationTests(unittest.TestCase):
                 ("access cert", "access certificate"),
             ],
         )
+
+    def test_applied_mappings_are_reported_in_textual_order(self) -> None:
+        self.assertEqual(
+            explain_query_term_normalization(
+                "Does the authorisation server help the EUBW wallet relying party?"
+            ),
+            [
+                ("authorisation server", "authorization server"),
+                ("eubw", "business wallet"),
+                ("wallet relying party", "wallet-relying party"),
+            ],
+        )
