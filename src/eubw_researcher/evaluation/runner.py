@@ -17,7 +17,6 @@ from eubw_researcher.corpus import (
     render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
-from eubw_researcher.corpus.catalog import load_source_catalog
 from eubw_researcher.models import ScenarioVerdict, dataclass_to_dict
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
@@ -529,12 +528,10 @@ def write_artifact_bundle(
             result.corpus_coverage_report,
             output_dir / "corpus_coverage_report.json",
         )
-        if catalog_path is not None:
-            _catalog = load_source_catalog(catalog_path)
-            (output_dir / "corpus_coverage_summary.md").write_text(
-                render_corpus_coverage_summary_md(result.corpus_coverage_report, _catalog),
-                encoding="utf-8",
-            )
+        (output_dir / "corpus_coverage_summary.md").write_text(
+            render_corpus_coverage_summary_md(result.corpus_coverage_report),
+            encoding="utf-8",
+        )
     if verdict is not None:
         (output_dir / "verdict.json").write_text(
             json.dumps(dataclass_to_dict(verdict), indent=2),

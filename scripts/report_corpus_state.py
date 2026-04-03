@@ -52,9 +52,15 @@ def main() -> int:
     coverage_summary_path = output_dir / "corpus_coverage_summary.md"
     if coverage_report is not None:
         coverage_summary_path.write_text(
-            render_corpus_coverage_summary_md(coverage_report, catalog), encoding="utf-8"
+            render_corpus_coverage_summary_md(coverage_report), encoding="utf-8"
         )
         write_corpus_coverage_report(coverage_report, output_dir / "corpus_coverage_report.json")
+    else:
+        print(
+            f"note: coverage report not available for {catalog_path} "
+            "(only generated for the real corpus catalog)",
+            file=__import__("sys").stderr,
+        )
 
     snapshot_path = output_dir / "corpus_state_snapshot.json"
     write_corpus_state_snapshot(
@@ -65,6 +71,7 @@ def main() -> int:
     print(selection_path)
     if coverage_report is not None:
         print(coverage_summary_path)
+        print(output_dir / "corpus_coverage_report.json")
     print(snapshot_path)
     return 0
 

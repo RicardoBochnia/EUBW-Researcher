@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 from eubw_researcher.evaluation.review import (
@@ -8,8 +10,11 @@ from eubw_researcher.evaluation.review import (
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
-from eubw_researcher.evaluation.runner import _evaluate_scenario
+from eubw_researcher.evaluation.runner import _evaluate_scenario, write_artifact_bundle
 from eubw_researcher.models import (
+    CorpusCoverageFamily,
+    CorpusCoverageReport,
+    RetrievalPlan,
     AnchorQuality,
     AnswerAlignmentRecord,
     AnswerAlignmentReport,
@@ -615,6 +620,61 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
+
+
+class WriteArtifactBundleCoverageTests(unittest.TestCase):
+    def _make_coverage_report(self) -> CorpusCoverageReport:
+        return CorpusCoverageReport(
+            catalog_path="/fake/curated_catalog.json",
+            corpus_state_id="teststate01",
+            generation_timestamp="2026-01-01T00:00:00+00:00",
+            admitted_source_counts_by_kind={"regulation": 1},
+            families=[
+                CorpusCoverageFamily(
+                    family_id="governing_eu_regulation",
+                    minimum_count=1,
+                    admitted_count=1,
+                    admitted_source_ids=["reg_a"],
+                    missing=False,
+                )
+            ],
+            passed=True,
+        )
+
+    def _make_result(self):
+        result = _minimal_result("fetch")
+        result.corpus_coverage_report = self._make_coverage_report()
+        result.provisional_grouping = []
+        result.facet_coverage_report = None
+        result.query_intent = SimpleNamespace(intent_type="synthetic_intent", claim_targets=[])
+        # write_artifact_bundle serializes retrieval_plan via dataclass_to_dict;
+        # replace the SimpleNamespace with a proper serializable dataclass
+        result.retrieval_plan = RetrievalPlan(question="Synthetic question?", steps=[])
+        result.ledger_entries = []
+        result.approved_entries = []
+        result.ingestion_report = []
+        result.gap_records = []
+        return result
+
+    def test_write_artifact_bundle_writes_coverage_summary_md(self):
+        result = self._make_result()
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            write_artifact_bundle(output_dir, result, corpus_state_id="teststate01")
+            summary_path = output_dir / "corpus_coverage_summary.md"
+            self.assertTrue(summary_path.exists(), "corpus_coverage_summary.md not written")
+            content = summary_path.read_text(encoding="utf-8")
+            self.assertIn("teststate01", content)
+            self.assertIn("PASS", content)
+            self.assertIn("governing_eu_regulation", content)
+
+    def test_write_artifact_bundle_skips_coverage_summary_when_report_absent(self):
+        result = self._make_result()
+        result.corpus_coverage_report = None
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            write_artifact_bundle(output_dir, result)
+            self.assertFalse((output_dir / "corpus_coverage_summary.md").exists())
 
 
 if __name__ == "__main__":

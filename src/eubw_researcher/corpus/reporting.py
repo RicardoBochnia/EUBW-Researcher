@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import List
 
@@ -59,10 +60,7 @@ def render_corpus_selection_summary_md(catalog: SourceCatalog) -> str:
     return "\n".join(lines)
 
 
-def render_corpus_coverage_summary_md(
-    report: CorpusCoverageReport,
-    catalog: SourceCatalog,  # kept for potential future per-source detail
-) -> str:
+def render_corpus_coverage_summary_md(report: CorpusCoverageReport) -> str:
     """Human-readable markdown coverage summary.
 
     Shows overall PASS/FAIL, corpus_state_id, counts by kind, and
@@ -114,19 +112,22 @@ def build_corpus_state_snapshot(
     counts_by_role_level keys follow high → medium → low order.
     source_ids is sorted.
     """
+    kind_counter = Counter(e.source_kind for e in catalog.entries)
+    role_counter = Counter(e.source_role_level for e in catalog.entries)
+
     counts_by_kind = {
-        kind.value: sum(1 for e in catalog.entries if e.source_kind == kind)
+        kind.value: kind_counter[kind]
         for kind in _KIND_ORDER
-        if any(e.source_kind == kind for e in catalog.entries)
+        if kind_counter[kind]
     }
     counts_by_role_level = {
-        level.value: sum(1 for e in catalog.entries if e.source_role_level == level)
+        level.value: role_counter[level]
         for level in _ROLE_LEVEL_ORDER
-        if any(e.source_role_level == level for e in catalog.entries)
+        if role_counter[level]
     }
     return {
         "corpus_state_id": corpus_state_id,
-        "catalog_path": str(catalog_path),
+        "catalog_path": catalog_path.resolve().as_posix(),
         "total_sources": len(catalog.entries),
         "counts_by_kind": counts_by_kind,
         "counts_by_role_level": counts_by_role_level,

@@ -140,8 +140,7 @@ class TestRenderCorpusSelectionSummaryMd(unittest.TestCase):
 class TestRenderCorpusCoverageSummaryMd(unittest.TestCase):
     def test_pass_output(self):
         report = _make_coverage_report(passed=True)
-        catalog = _make_catalog()
-        output = render_corpus_coverage_summary_md(report, catalog)
+        output = render_corpus_coverage_summary_md(report)
         self.assertIn("# Corpus Coverage Summary", output)
         self.assertIn("abc123def456", output)
         self.assertIn("PASS", output)
@@ -150,14 +149,12 @@ class TestRenderCorpusCoverageSummaryMd(unittest.TestCase):
 
     def test_fail_output(self):
         report = _make_coverage_report(passed=False)
-        catalog = _make_catalog()
-        output = render_corpus_coverage_summary_md(report, catalog)
+        output = render_corpus_coverage_summary_md(report)
         self.assertIn("FAIL", output)
 
     def test_no_timestamp(self):
         report = _make_coverage_report()
-        catalog = _make_catalog()
-        output = render_corpus_coverage_summary_md(report, catalog)
+        output = render_corpus_coverage_summary_md(report)
         # generation_timestamp from the report must not bleed into the md
         self.assertNotIn("2026-01-01T00:00:00", output)
 
