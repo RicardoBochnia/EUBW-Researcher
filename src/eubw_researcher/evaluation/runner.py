@@ -17,7 +17,7 @@ from eubw_researcher.corpus import (
     render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
-from eubw_researcher.models import ScenarioVerdict, dataclass_to_dict
+from eubw_researcher.models import ManualReviewReport, ScenarioVerdict, dataclass_to_dict
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
@@ -439,6 +439,32 @@ def _run_pipeline(repo_root: Path, catalog_path: Optional[Path] = None):
     return pipeline, coverage_report, corpus_state_id, resolved_catalog_path
 
 
+def _build_manual_review_outputs(
+    result,
+    *,
+    verdict: Optional[ScenarioVerdict],
+    scenario_id: Optional[str],
+    catalog_path: Optional[Path],
+    corpus_state_id: Optional[str],
+    reviewer_name: str,
+    manual_review_report: Optional[ManualReviewReport] = None,
+) -> tuple[object, ManualReviewReport, str]:
+    manual_review = build_manual_review_artifact(result, scenario_id=scenario_id)
+    resolved_report = manual_review_report or build_manual_review_report(
+        result,
+        verdict or ScenarioVerdict(scenario_id=scenario_id or "direct_run", passed=True, checks=[]),
+        scenario_id=scenario_id,
+        catalog_path=str(catalog_path.resolve()) if catalog_path else None,
+        corpus_state_id=corpus_state_id,
+        reviewer_name=reviewer_name,
+    )
+    return (
+        manual_review,
+        resolved_report,
+        build_manual_review_report_markdown(resolved_report),
+    )
+
+
 def write_artifact_bundle(
     output_dir: Path,
     result,
@@ -447,19 +473,17 @@ def write_artifact_bundle(
     catalog_path: Optional[Path] = None,
     corpus_state_id: Optional[str] = None,
     reviewer_name: str = "Codex",
-) -> None:
+    manual_review_report: Optional[ManualReviewReport] = None,
+) -> ManualReviewReport:
     output_dir.mkdir(parents=True, exist_ok=True)
-    manual_review = build_manual_review_artifact(result, scenario_id=scenario_id)
-    manual_review_report = build_manual_review_report(
+    manual_review, resolved_report, manual_review_report_markdown = _build_manual_review_outputs(
         result,
-        verdict or ScenarioVerdict(scenario_id=scenario_id or "direct_run", passed=True, checks=[]),
+        verdict=verdict,
         scenario_id=scenario_id,
-        catalog_path=str(catalog_path.resolve()) if catalog_path else None,
+        catalog_path=catalog_path,
         corpus_state_id=corpus_state_id,
         reviewer_name=reviewer_name,
-    )
-    manual_review_report_markdown = build_manual_review_report_markdown(
-        manual_review_report
+        manual_review_report=manual_review_report,
     )
 
     (output_dir / "retrieval_plan.json").write_text(
@@ -537,6 +561,7 @@ def write_artifact_bundle(
             json.dumps(dataclass_to_dict(verdict), indent=2),
             encoding="utf-8",
         )
+    return resolved_report
 
 
 def run_named_scenario(

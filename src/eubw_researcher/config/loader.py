@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import List
 
@@ -10,6 +11,8 @@ from eubw_researcher.models import (
     ArchiveSourceSelection,
     ClaimState,
     EvaluationScenario,
+    RealQuestionPack,
+    RealQuestionPackQuestion,
     HierarchyRule,
     RuntimeConfig,
     SourceHierarchyConfig,
@@ -29,6 +32,13 @@ def _load_json_yaml(path: Path) -> object:
 def _resolve_path(base_dir: Path, raw_path: str) -> Path:
     path = Path(raw_path)
     return path if path.is_absolute() else (base_dir / path).resolve()
+
+
+def _optional_stripped(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
 
 
 def load_source_hierarchy(path: Path) -> SourceHierarchyConfig:
@@ -146,6 +156,65 @@ def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
         )
         for item in payload["scenarios"]
     ]
+
+
+def load_real_question_pack(path: Path) -> RealQuestionPack:
+    payload = _load_json_yaml(path)
+    questions = [
+        RealQuestionPackQuestion(
+            question_id=item["question_id"].strip(),
+            title=item["title"].strip(),
+            question=item["question"].strip(),
+            review_focus=item["review_focus"].strip(),
+            expected_intent_type=_optional_stripped(item.get("expected_intent_type")),
+            tags=[tag.strip() for tag in item.get("tags", []) if tag.strip()],
+            review_prompts=[
+                prompt.strip() for prompt in item.get("review_prompts", []) if prompt.strip()
+            ],
+            seed_from_scenario_id=_optional_stripped(item.get("seed_from_scenario_id")),
+        )
+        for item in payload["questions"]
+    ]
+    if not questions:
+        raise ValueError(f"Real-question pack must define at least one question: {path}")
+
+    seen_question_ids: set[str] = set()
+    for question in questions:
+        if not question.question_id:
+            raise ValueError(f"Real-question pack contains a blank question_id: {path}")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", question.question_id):
+            raise ValueError(
+                "Real-question pack question_id must use only letters, numbers, "
+                f"periods, underscores, or hyphens: {question.question_id}"
+            )
+        if question.question_id.startswith("."):
+            raise ValueError(
+                "Real-question pack question_id must not be '.' or '..' and must not "
+                f"start with a period: {question.question_id}"
+            )
+        if question.question_id in seen_question_ids:
+            raise ValueError(
+                f"Real-question pack contains duplicate question_id '{question.question_id}': {path}"
+            )
+        if not question.title:
+            raise ValueError(
+                f"Real-question pack question '{question.question_id}' is missing a title: {path}"
+            )
+        if not question.question:
+            raise ValueError(
+                f"Real-question pack question '{question.question_id}' is missing a question: {path}"
+            )
+        if not question.review_focus:
+            raise ValueError(
+                f"Real-question pack question '{question.question_id}' is missing review_focus: {path}"
+            )
+        if not question.review_prompts:
+            raise ValueError(
+                f"Real-question pack question '{question.question_id}' must define review_prompts: {path}"
+            )
+        seen_question_ids.add(question.question_id)
+
+    return RealQuestionPack(questions=questions)
 
 
 def configure_logging(runtime_config: RuntimeConfig) -> None:

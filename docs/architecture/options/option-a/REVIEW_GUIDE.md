@@ -34,9 +34,12 @@ This is a V2 research-version review target, not a production-readiness claim.
   `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 - Run a direct question with reviewable artifacts:
   `python3 scripts/answer_question.py "What is the difference between a wallet-relying party registration certificate and a wallet-relying party access certificate?" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/review_demo`
+- Run the curated real-question manual-review pack:
+  `python3 scripts/run_real_question_pack.py --all`
 
 By default, fixture eval writes to `artifacts/eval_runs` and real-corpus eval writes to `artifacts/eval_runs_real_corpus`.
 The real-corpus gate also reuses the cached normalized bundle under `artifacts/real_corpus/cache/` and writes `corpus_coverage_report.json` into each scenario bundle.
+The real-question pack writes to `artifacts/real_question_pack_runs/<run-id>/...` and adds a top-level `pack_run_manifest.json` that records repo state, runtime contract, corpus state, and compact per-question review signals.
 
 ## What should be green
 
@@ -64,6 +67,10 @@ Every reviewable run should include:
 - `verdict.json` for eval runs
 - `provisional_grouping.json` for grouping-capable runs
 - `corpus_coverage_report.json` for corpus-backed runs
+
+For the real-question pack, the top-level run directory additionally includes:
+
+- `pack_run_manifest.json`
 
 Scenario D closeout runs additionally include:
 
@@ -109,6 +116,7 @@ The V2 release gate treats the real-corpus `primary_success_scenario` and `scena
 Scenario D is the maintained closeout proof case; run its separate harness when a fresh no-context validator proof is needed without destabilizing the deterministic eval gate.
 
 If the real-corpus eval directory is regenerated under a different output path, inspect the latest scenario directory with the same scenario id.
+For the real-question pack, use `pack_run_manifest.json` to see which question bundles were produced and which review-signal verdicts changed, without treating the pack as a benchmark percentage gate.
 
 ## Current V2 boundary
 
