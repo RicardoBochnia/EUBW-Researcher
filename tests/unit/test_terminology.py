@@ -36,6 +36,12 @@ class TerminologyNormalizationTests(unittest.TestCase):
         self.assertEqual(normalize_query_terms(question), question)
         self.assertEqual(explain_query_term_normalization(question), [])
 
+    def test_access_cert_alias_normalizes_with_wallet_specific_context(self) -> None:
+        self.assertEqual(
+            normalize_query_terms("What national guidance exists for Business Wallet access cert handling?"),
+            "What national guidance exists for Business Wallet access certificate handling?",
+        )
+
     def test_applied_mappings_are_inspectable_and_deterministic(self) -> None:
         self.assertEqual(
             explain_query_term_normalization(

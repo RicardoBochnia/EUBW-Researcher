@@ -211,7 +211,7 @@ class RetrievalTests(unittest.TestCase):
             "Broad question: continue with an EU-first first-pass answer.",
         )
 
-    def test_generic_access_cert_query_keeps_broad_fallback_route(self) -> None:
+    def test_api_client_access_cert_without_wallet_context_routes_to_broad_fallback(self) -> None:
         intent = analyze_query(
             "How should we rotate an access cert for internal API clients?"
         )
