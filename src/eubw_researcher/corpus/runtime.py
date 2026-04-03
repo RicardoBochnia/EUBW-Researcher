@@ -6,7 +6,7 @@ import pickle
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from eubw_researcher.corpus.catalog import load_source_catalog
 from eubw_researcher.corpus.ingest import ingest_catalog
@@ -149,7 +149,7 @@ def write_corpus_coverage_report(report: CorpusCoverageReport, path: Path) -> No
     path.write_text(json.dumps(dataclass_to_dict(report), indent=2), encoding="utf-8")
 
 
-def write_corpus_state_snapshot(snapshot: dict, path: Path) -> None:
+def write_corpus_state_snapshot(snapshot: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
 

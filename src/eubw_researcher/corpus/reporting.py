@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from eubw_researcher.models import (
     CorpusCoverageReport,
@@ -101,7 +101,7 @@ def build_corpus_state_snapshot(
     catalog: SourceCatalog,
     corpus_state_id: str,
     catalog_path: Path,
-) -> dict:
+) -> dict[str, Any]:
     """Deterministic machine-readable snapshot of the current corpus state.
 
     Deliberately omits generation_timestamp so that identical catalog state
