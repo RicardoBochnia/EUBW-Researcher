@@ -54,6 +54,11 @@ Unless there is a strong reason otherwise, use the default real-corpus catalog a
 
 ## Preferred operating pattern
 
+- prefer `ResearchRuntimeFacade` for programmatic agent-driven runs
+- use the documented CLI entrypoints when validating end-to-end behavior
+- default to the curated real-corpus catalog unless the task explicitly requires another input
+- inspect the generated artifact bundle as the primary review surface, not answer text alone
+
 ## Refresh Governance Decision
 
 Treat refresh differently from discovery:

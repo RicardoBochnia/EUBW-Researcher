@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from eubw_researcher.models import (
@@ -67,6 +68,9 @@ def _request_remote_source(
     etag: Optional[str] = None,
     last_modified: Optional[str] = None,
 ) -> tuple[Optional[bytes], Optional[str], Optional[str], Optional[str], bool]:
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"Unsupported canonical URL scheme for refresh: {scheme or 'missing'}.")
     headers = {"User-Agent": USER_AGENT}
     if etag:
         headers["If-None-Match"] = etag
@@ -183,24 +187,23 @@ def refresh_archive_sources(
             )
             continue
         local_exists = local_path.exists()
-        local_content_digest = _file_digest(local_path) if local_exists else None
-
-        if canonical_url is None:
+        if local_exists and not local_path.is_file():
             results.append(
                 ArchiveRefreshResult(
                     archive_source_id=selection.archive_source_id,
                     source_id=selection.source_id,
                     title=selection.title,
-                    canonical_url=None,
+                    canonical_url=canonical_url,
                     local_path=str(local_path),
                     checked_at=checked_at,
-                    status="skipped_missing_canonical_url",
-                    reason="No canonical source URL is configured for this archive entry.",
-                    local_exists=local_exists,
-                    local_content_digest=local_content_digest,
+                    status="skipped_invalid_local_path",
+                    reason="Archive catalog local_path exists but is not a regular file.",
+                    local_exists=True,
                 )
             )
             continue
+        local_content_digest = _file_digest(local_path) if local_exists else None
+
         if not _is_refreshable_url(canonical_url):
             results.append(
                 ArchiveRefreshResult(

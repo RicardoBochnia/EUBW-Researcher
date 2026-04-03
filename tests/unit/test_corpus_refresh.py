@@ -190,7 +190,7 @@ class CorpusRefreshTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
-    def test_refresh_fetches_known_canonical_url_even_without_allowlist_policy(self) -> None:
+    def test_refresh_attempts_known_canonical_url_even_without_allowlist_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
             archive_root = tmp_root / "archive"
@@ -245,6 +245,62 @@ class CorpusRefreshTests(unittest.TestCase):
             self.assertEqual(report.failed_sources, 1)
             self.assertEqual(report.results[0].status, "fetch_failed")
 
+    def test_refresh_rejects_unsupported_canonical_url_scheme(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            archive_root = tmp_root / "archive"
+            local_path = archive_root / "reference_web" / "sample.html"
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            local_path.write_text("<html><body>old</body></html>", encoding="utf-8")
+            catalog_path = archive_root / "catalog.json"
+            catalog_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "source_id": "ARCHIVE-1",
+                            "title": "Archive Sample",
+                            "local_path": "sources/reference_web/sample.html",
+                            "source_url": "file:///tmp/not-allowed.html",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            config_path = tmp_root / "selection.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "archive_root": "archive",
+                        "archive_catalog": "archive/catalog.json",
+                        "sources": [
+                            {
+                                "archive_source_id": "ARCHIVE-1",
+                                "source_id": "sample_regulation",
+                                "title": "Sample Regulation",
+                                "source_kind": "regulation",
+                                "source_role_level": "high",
+                                "jurisdiction": "EU",
+                                "publication_status": "official_journal",
+                                "publication_date": None,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = load_archive_corpus_config(config_path)
+
+            report = refresh_archive_sources(
+                config,
+                self._runtime_config(),
+                stage_root=tmp_root / "stage",
+                config_path=config_path,
+            )
+
+            self.assertEqual(report.failed_sources, 1)
+            self.assertEqual(report.results[0].status, "fetch_failed")
+            self.assertIn("Unsupported canonical URL scheme", report.results[0].reason)
+
     def test_refresh_skips_invalid_local_path_outside_archive_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
@@ -296,6 +352,60 @@ class CorpusRefreshTests(unittest.TestCase):
             )
 
             self.assertEqual(report.results[0].status, "skipped_invalid_local_path")
+
+    def test_refresh_skips_local_path_that_is_not_a_regular_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            archive_root = tmp_root / "archive"
+            local_dir = archive_root / "reference_web" / "sample.html"
+            local_dir.mkdir(parents=True, exist_ok=True)
+            catalog_path = archive_root / "catalog.json"
+            catalog_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "source_id": "ARCHIVE-1",
+                            "title": "Archive Sample",
+                            "local_path": "sources/reference_web/sample.html",
+                            "source_url": "https://example.test/source.html",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            config_path = tmp_root / "selection.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "archive_root": "archive",
+                        "archive_catalog": "archive/catalog.json",
+                        "sources": [
+                            {
+                                "archive_source_id": "ARCHIVE-1",
+                                "source_id": "sample_regulation",
+                                "title": "Sample Regulation",
+                                "source_kind": "regulation",
+                                "source_role_level": "high",
+                                "jurisdiction": "EU",
+                                "publication_status": "official_journal",
+                                "publication_date": None,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = load_archive_corpus_config(config_path)
+
+            report = refresh_archive_sources(
+                config,
+                self._runtime_config(),
+                stage_root=tmp_root / "stage",
+                config_path=config_path,
+            )
+
+            self.assertEqual(report.results[0].status, "skipped_invalid_local_path")
+            self.assertIn("not a regular file", report.results[0].reason)
 
     def test_refresh_304_fallback_fetches_when_local_digest_no_longer_matches_accepted_digest(self) -> None:
         current_body = b"<html><body><h1>Current</h1></body></html>"
