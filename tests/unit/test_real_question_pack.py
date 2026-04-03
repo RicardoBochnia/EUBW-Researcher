@@ -307,7 +307,99 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             self.assertNotIn("facet_coverage.json", payload["question_runs"][0]["artifacts_present"])
             self.assertIn("verdict.json", payload["question_runs"][0]["artifacts_present"])
 
-    def test_runner_rejects_unknown_question_id(self) -> None:
+    def test_runner_records_missing_artifacts_in_manifest_without_raising(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            pack_path = self._write_pack_config(repo_root)
+            output_dir = repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run"
+            question_dir = output_dir / "synthetic_question"
+
+            def _rewrite_bundle_incomplete(bundle_dir, result, *, verdict=None, **_kwargs):
+                bundle_dir.mkdir(parents=True, exist_ok=True)
+                for artifact_name in [
+                    "retrieval_plan.json",
+                    "gap_records.json",
+                    "web_fetch_records.json",
+                    "ingestion_report.json",
+                    "ledger_entries.json",
+                    "approved_ledger.json",
+                    "final_answer.txt",
+                    "pinpoint_evidence.json",
+                    "answer_alignment.json",
+                    "blind_validation_report.json",
+                    "manual_review.json",
+                    "manual_review_report.md",
+                    "corpus_coverage_report.json",
+                    # verdict.json intentionally omitted to simulate a missing artifact
+                ]:
+                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+            def _build_report(_result, verdict, **_kwargs):
+                return SimpleNamespace(
+                    final_judgment="accept" if verdict.passed else "reject",
+                    usefulness_verdict="accept",
+                    source_bound_verdict="accept",
+                    pinpoint_traceability_verdict="accept",
+                    product_output_self_sufficiency_verdict="accept",
+                )
+
+            with patch(
+                "eubw_researcher.evaluation.real_question_pack._git_metadata",
+                return_value={"commit": "abc123", "branch": "branch", "dirty": False},
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
+            ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
+                side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle_incomplete,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_report_markdown",
+                return_value="# Report\n",
+            ):
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir
+                )
+
+                # Must not raise even when an artifact is missing
+                run_root, manifest = run_real_question_pack(
+                    repo_root,
+                    pack_path=pack_path,
+                    question_id="synthetic_question",
+                    output_dir=output_dir,
+                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                )
+
+            payload = json.loads((run_root / "pack_run_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(payload["question_runs"]), 1)
+            run_summary = payload["question_runs"][0]
+            self.assertIn("verdict.json", run_summary["missing_artifacts"])
+            self.assertEqual(run_summary["final_judgment"], "reject")
+
+    def test_question_verdict_encodes_missing_artifacts(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        )
+
+        verdict = _build_question_verdict(
+            question,
+            result,
+            missing_artifacts=["facet_coverage.json", "verdict.json"],
+        )
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("intent_type:synthetic_intent:ok", verdict.checks)
+        self.assertTrue(
+            any("required_artifacts:missing:" in c for c in verdict.checks),
+            msg=f"Expected artifact-missing check in {verdict.checks}",
+        )
+
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_root = Path(tmp_dir)
             pack_path = self._write_pack_config(repo_root)

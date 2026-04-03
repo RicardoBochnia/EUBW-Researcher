@@ -10,7 +10,10 @@ from typing import Optional, Union
 from eubw_researcher import ResearchRuntimeFacade
 from eubw_researcher.config import load_real_question_pack
 from eubw_researcher.corpus import is_real_corpus_catalog
-from eubw_researcher.evaluation.review import build_manual_review_report
+from eubw_researcher.evaluation.review import (
+    build_manual_review_report,
+    build_manual_review_report_markdown,
+)
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
     RealQuestionPack,
@@ -131,9 +134,25 @@ def run_real_question_pack(
             artifact for artifact in expected_artifacts if artifact not in actual_artifacts
         ]
         if missing_artifacts:
-            raise ValueError(
-                "Real-question pack bundle is missing expected artifacts for "
-                f"{question.question_id}: {', '.join(sorted(missing_artifacts))}"
+            verdict = _build_question_verdict(
+                question,
+                response.result,
+                missing_artifacts=missing_artifacts,
+            )
+            report = build_manual_review_report(
+                response.result,
+                verdict,
+                scenario_id=question.question_id,
+                catalog_path=str(response.catalog_path),
+                corpus_state_id=response.corpus_state_id,
+            )
+            (question_output_dir / "verdict.json").write_text(
+                json.dumps(dataclass_to_dict(verdict), indent=2),
+                encoding="utf-8",
+            )
+            (question_output_dir / "manual_review_report.md").write_text(
+                build_manual_review_report_markdown(report),
+                encoding="utf-8",
             )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
@@ -246,6 +265,7 @@ def _prepare_question_output_dir(question_output_dir: Path) -> None:
 def _build_question_verdict(
     question: RealQuestionPackQuestion,
     result,
+    missing_artifacts: Optional[list[str]] = None,
 ) -> ScenarioVerdict:
     checks: list[str] = []
     passed = True
@@ -261,6 +281,12 @@ def _build_question_verdict(
             passed = False
     else:
         checks.append("intent_type:not_specified")
+
+    if missing_artifacts:
+        checks.append(
+            "required_artifacts:missing:" + ",".join(sorted(missing_artifacts))
+        )
+        passed = False
 
     return ScenarioVerdict(
         scenario_id=question.question_id,
