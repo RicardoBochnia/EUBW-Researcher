@@ -157,6 +157,9 @@ def run_real_question_pack(
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
         )
+        missing_artifacts = [
+            artifact for artifact in expected_artifacts if artifact not in actual_artifacts
+        ]
         question_runs.append(
             RealQuestionPackQuestionRunSummary(
                 question_id=question.question_id,

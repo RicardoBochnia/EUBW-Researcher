@@ -314,7 +314,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             output_dir = repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run"
             question_dir = output_dir / "synthetic_question"
 
-            def _rewrite_bundle_incomplete(bundle_dir, result, *, verdict=None, **_kwargs):
+            def _rewrite_bundle_missing_facet(bundle_dir, result, *, verdict=None, **_kwargs):
                 bundle_dir.mkdir(parents=True, exist_ok=True)
                 for artifact_name in [
                     "retrieval_plan.json",
@@ -330,7 +330,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     "manual_review.json",
                     "manual_review_report.md",
                     "corpus_coverage_report.json",
-                    # verdict.json intentionally omitted to simulate a missing artifact
+                    "verdict.json",
+                    # facet_coverage.json intentionally omitted;
+                    # the runner cannot synthesise it, so it stays missing after recompute
                 ]:
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
 
@@ -353,13 +355,15 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 side_effect=_build_report,
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
-                side_effect=_rewrite_bundle_incomplete,
+                side_effect=_rewrite_bundle_missing_facet,
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report_markdown",
                 return_value="# Report\n",
             ):
+                # Use topology intent so facet_coverage.json is expected
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
-                    question_dir
+                    question_dir,
+                    intent_type="certificate_topology_analysis",
                 )
 
                 # Must not raise even when an artifact is missing
@@ -374,7 +378,11 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             payload = json.loads((run_root / "pack_run_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(len(payload["question_runs"]), 1)
             run_summary = payload["question_runs"][0]
-            self.assertIn("verdict.json", run_summary["missing_artifacts"])
+            # facet_coverage.json is expected for topology but was never written; it remains
+            # missing even after the runner's rewrite of verdict.json / manual_review_report.md
+            self.assertEqual(run_summary["missing_artifacts"], ["facet_coverage.json"])
+            # artifacts_present and missing_artifacts are consistent: facet_coverage.json is absent
+            self.assertNotIn("facet_coverage.json", run_summary["artifacts_present"])
             self.assertEqual(run_summary["final_judgment"], "reject")
 
     def test_question_verdict_encodes_missing_artifacts(self) -> None:
@@ -399,7 +407,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             msg=f"Expected artifact-missing check in {verdict.checks}",
         )
 
-
+    def test_runner_rejects_unknown_question_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_root = Path(tmp_dir)
             pack_path = self._write_pack_config(repo_root)
