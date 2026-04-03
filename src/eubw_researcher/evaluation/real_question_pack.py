@@ -109,6 +109,13 @@ def run_real_question_pack(
             response.result,
             missing_artifacts=[],
         )
+        report = build_manual_review_report(
+            response.result,
+            verdict,
+            scenario_id=question.question_id,
+            catalog_path=str(response.catalog_path),
+            corpus_state_id=response.corpus_state_id,
+        )
         write_artifact_bundle(
             question_output_dir,
             response.result,
@@ -116,6 +123,7 @@ def run_real_question_pack(
             scenario_id=question.question_id,
             catalog_path=response.catalog_path,
             corpus_state_id=response.corpus_state_id,
+            manual_review_report=report,
         )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
@@ -128,13 +136,6 @@ def run_real_question_pack(
                 "Real-question pack bundle is missing expected artifacts for "
                 f"{question.question_id}: {', '.join(sorted(missing_artifacts))}"
             )
-        report = build_manual_review_report(
-            response.result,
-            verdict,
-            scenario_id=question.question_id,
-            catalog_path=str(response.catalog_path),
-            corpus_state_id=response.corpus_state_id,
-        )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
         )

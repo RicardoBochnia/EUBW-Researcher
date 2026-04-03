@@ -83,8 +83,11 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             output_dir = repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run"
             question_dir = output_dir / "synthetic_question"
             fixed_now = datetime(2026, 4, 3, 10, 15, 30, tzinfo=timezone.utc)
+            built_reports = []
+            captured_report = {}
 
-            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, manual_review_report=None, **_kwargs):
+                captured_report["value"] = manual_review_report
                 bundle_dir.mkdir(parents=True, exist_ok=True)
                 for artifact_name in [
                     "retrieval_plan.json",
@@ -105,13 +108,15 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
 
             def _build_report(_result, verdict, **_kwargs):
-                return SimpleNamespace(
+                report = SimpleNamespace(
                     final_judgment="accept" if verdict.passed else "reject",
                     usefulness_verdict="accept",
                     source_bound_verdict="accept",
                     pinpoint_traceability_verdict="accept",
                     product_output_self_sufficiency_verdict="needs_follow_up",
                 )
+                built_reports.append(report)
+                return report
 
             with patch(
                 "eubw_researcher.evaluation.real_question_pack._utcnow",
@@ -162,6 +167,8 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             self.assertEqual(payload["question_runs"][0]["missing_artifacts"], [])
             self.assertNotIn("score", payload)
             self.assertNotIn("pass_rate", payload)
+            self.assertEqual(len(built_reports), 1)
+            self.assertIs(captured_report["value"], built_reports[0])
 
     def test_runner_rejects_question_summary_when_expected_intent_drifts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
