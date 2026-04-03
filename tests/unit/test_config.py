@@ -134,6 +134,32 @@ class ConfigLoadingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicate question_id 'duplicate'"):
                 load_real_question_pack(pack_path)
 
+    def test_real_question_pack_rejects_unsafe_question_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "real_question_pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "../unsafe",
+                                "title": "Unsafe",
+                                "question": "Question?",
+                                "review_focus": "Focus",
+                                "review_prompts": ["Prompt"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "question_id must use only letters, numbers, periods, underscores, or hyphens",
+            ):
+                load_real_question_pack(pack_path)
+
 
 if __name__ == "__main__":
     unittest.main()

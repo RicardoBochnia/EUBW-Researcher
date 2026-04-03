@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import List
 
@@ -174,6 +175,11 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
     for question in questions:
         if not question.question_id:
             raise ValueError(f"Real-question pack contains a blank question_id: {path}")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", question.question_id):
+            raise ValueError(
+                "Real-question pack question_id must use only letters, numbers, "
+                f"periods, underscores, or hyphens: {question.question_id}"
+            )
         if question.question_id in seen_question_ids:
             raise ValueError(
                 f"Real-question pack contains duplicate question_id '{question.question_id}': {path}"

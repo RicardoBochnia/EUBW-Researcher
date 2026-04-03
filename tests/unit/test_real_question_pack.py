@@ -102,6 +102,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
                 return self._fake_response(bundle_dir)
 
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+                if verdict is not None:
+                    (bundle_dir / "verdict.json").write_text("{}", encoding="utf-8")
+
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
                     final_judgment="accept" if verdict.passed else "reject",
@@ -126,6 +130,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ) as facade_cls, patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
             ):
                 facade_cls.return_value.write_reviewable_artifact_bundle.side_effect = _write_bundle
 
@@ -182,6 +189,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
                 return self._fake_response(bundle_dir, intent_type="wrong_intent")
 
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+                if verdict is not None:
+                    (bundle_dir / "verdict.json").write_text("{}", encoding="utf-8")
+
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
                     final_judgment="accept" if verdict.passed else "reject",
@@ -199,6 +210,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ) as facade_cls, patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
             ):
                 facade_cls.return_value.write_reviewable_artifact_bundle.side_effect = _write_bundle
 
@@ -246,6 +260,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
                 return self._fake_response(bundle_dir, intent_type="certificate_topology_analysis")
 
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+                if verdict is not None:
+                    (bundle_dir / "verdict.json").write_text("{}", encoding="utf-8")
+
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
                     final_judgment="accept" if verdict.passed else "reject",
@@ -263,6 +281,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ) as facade_cls, patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
             ):
                 facade_cls.return_value.write_reviewable_artifact_bundle.side_effect = _write_bundle
 
@@ -281,6 +302,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "facet_coverage.json",
                 payload["question_runs"][0]["missing_artifacts"],
             )
+            self.assertIn("verdict.json", payload["question_runs"][0]["artifacts_present"])
 
     def test_runner_rejects_unknown_question_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -296,6 +318,22 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     pack_path=pack_path,
                     question_id="missing",
                     output_dir=repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run",
+                )
+
+    def test_runner_rejects_repo_root_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            pack_path = self._write_pack_config(repo_root)
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "Real-question pack output_dir must not resolve to the repository root",
+            ):
+                run_real_question_pack(
+                    repo_root,
+                    pack_path=pack_path,
+                    question_id="synthetic_question",
+                    output_dir=".",
                 )
 
 

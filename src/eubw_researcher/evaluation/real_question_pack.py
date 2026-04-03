@@ -12,6 +12,7 @@ from eubw_researcher import ResearchRuntimeFacade
 from eubw_researcher.config import load_real_question_pack
 from eubw_researcher.corpus import is_real_corpus_catalog
 from eubw_researcher.evaluation.review import build_manual_review_report
+from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
     RealQuestionPack,
     RealQuestionPackQuestion,
@@ -75,6 +76,7 @@ def run_real_question_pack(
         if output_dir is not None
         else default_real_question_pack_output_dir(resolved_repo_root)
     )
+    _validate_run_root(resolved_repo_root, run_root)
     run_root.mkdir(parents=True, exist_ok=True)
 
     facade = ResearchRuntimeFacade(resolved_repo_root)
@@ -109,12 +111,23 @@ def run_real_question_pack(
             response.result,
             missing_artifacts=missing_artifacts,
         )
+        write_artifact_bundle(
+            question_output_dir,
+            response.result,
+            verdict=verdict,
+            scenario_id=question.question_id,
+            catalog_path=response.catalog_path,
+            corpus_state_id=response.corpus_state_id,
+        )
         report = build_manual_review_report(
             response.result,
             verdict,
             scenario_id=question.question_id,
             catalog_path=str(response.catalog_path),
             corpus_state_id=response.corpus_state_id,
+        )
+        actual_artifacts = sorted(
+            path.name for path in question_output_dir.iterdir() if path.is_file()
         )
         question_runs.append(
             RealQuestionPackQuestionRunSummary(
@@ -200,6 +213,13 @@ def _resolve_path(repo_root: Path, value: PathLike) -> Path:
     if not path.is_absolute():
         path = repo_root / path
     return path.resolve()
+
+
+def _validate_run_root(repo_root: Path, run_root: Path) -> None:
+    if run_root == repo_root:
+        raise ValueError("Real-question pack output_dir must not resolve to the repository root")
+    if run_root.exists() and not run_root.is_dir():
+        raise ValueError(f"Real-question pack output_dir must be a directory path: {run_root}")
 
 
 def _prepare_question_output_dir(question_output_dir: Path) -> None:
