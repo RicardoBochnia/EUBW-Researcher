@@ -281,6 +281,44 @@ class ArchiveCorpusConfig:
 
 
 @dataclass
+class ArchiveRefreshResult:
+    archive_source_id: str
+    source_id: str
+    title: str
+    canonical_url: Optional[str]
+    local_path: Optional[str]
+    checked_at: str
+    status: str
+    reason: str
+    local_exists: bool
+    local_content_digest: Optional[str] = None
+    remote_content_digest: Optional[str] = None
+    remote_etag: Optional[str] = None
+    remote_last_modified: Optional[str] = None
+    content_type: Optional[str] = None
+    stage_path: Optional[str] = None
+    applied: bool = False
+
+
+@dataclass
+class ArchiveRefreshReport:
+    config_path: str
+    archive_catalog_path: str
+    stage_root: str
+    generated_at: str
+    apply_updates: bool
+    checked_sources: int
+    refreshable_sources: int
+    current_sources: int
+    changed_sources: int
+    staged_sources: int
+    applied_sources: int
+    skipped_sources: int
+    failed_sources: int
+    results: List[ArchiveRefreshResult] = field(default_factory=list)
+
+
+@dataclass
 class RuntimeConfig:
     logging_level: str
     retrieval_top_k: int
