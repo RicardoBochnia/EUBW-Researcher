@@ -187,6 +187,11 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
                 "Real-question pack question_id must use only letters, numbers, "
                 f"periods, underscores, or hyphens: {question.question_id}"
             )
+        if question.question_id.startswith("."):
+            raise ValueError(
+                "Real-question pack question_id must not be '.' or '..' and must not "
+                f"start with a period: {question.question_id}"
+            )
         if question.question_id in seen_question_ids:
             raise ValueError(
                 f"Real-question pack contains duplicate question_id '{question.question_id}': {path}"
