@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List, Tuple
 
 
 @dataclass(frozen=True)
 class _TerminologyMapping:
     canonical_term: str
-    aliases: Tuple[str, ...]
+    aliases: tuple[str, ...]
 
 
-_TERMINOLOGY_MAPPINGS: Tuple[_TerminologyMapping, ...] = (
+@dataclass(frozen=True)
+class _CompiledTerminologyMapping:
+    canonical_term: str
+    patterns: tuple[re.Pattern[str], ...]
+
+
+_TERMINOLOGY_MAPPINGS: tuple[_TerminologyMapping, ...] = (
     _TerminologyMapping(
         canonical_term="business wallet",
         aliases=("eu business wallet", "eubw"),
@@ -36,22 +41,31 @@ _TERMINOLOGY_MAPPINGS: Tuple[_TerminologyMapping, ...] = (
 
 
 def _alias_pattern(alias: str) -> re.Pattern[str]:
-    return re.compile(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", re.IGNORECASE)
+    return re.compile(rf"(?<![a-zA-Z0-9]){re.escape(alias)}(?![a-zA-Z0-9])", re.IGNORECASE)
 
 
-def explain_query_term_normalization(question: str) -> List[tuple[str, str]]:
+_COMPILED_TERMINOLOGY_MAPPINGS: tuple[_CompiledTerminologyMapping, ...] = tuple(
+    _CompiledTerminologyMapping(
+        canonical_term=mapping.canonical_term,
+        patterns=tuple(_alias_pattern(alias) for alias in mapping.aliases),
+    )
+    for mapping in _TERMINOLOGY_MAPPINGS
+)
+
+
+def explain_query_term_normalization(question: str) -> list[tuple[str, str]]:
     normalized = question
-    applied: List[tuple[str, str]] = []
+    applied: list[tuple[str, str]] = []
 
-    for mapping in _TERMINOLOGY_MAPPINGS:
-        for alias in mapping.aliases:
-            pattern = _alias_pattern(alias)
-
-            def _replace(match: re.Match[str]) -> str:
+    for mapping in _COMPILED_TERMINOLOGY_MAPPINGS:
+        for pattern in mapping.patterns:
+            found_match = False
+            for match in pattern.finditer(normalized):
+                found_match = True
                 applied.append((match.group(0).lower(), mapping.canonical_term))
-                return mapping.canonical_term
-
-            normalized = pattern.sub(_replace, normalized)
+            if not found_match:
+                continue
+            normalized = pattern.sub(mapping.canonical_term, normalized)
 
     return applied
 
@@ -59,8 +73,8 @@ def explain_query_term_normalization(question: str) -> List[tuple[str, str]]:
 def normalize_query_terms(question: str) -> str:
     normalized = question
 
-    for mapping in _TERMINOLOGY_MAPPINGS:
-        for alias in mapping.aliases:
-            normalized = _alias_pattern(alias).sub(mapping.canonical_term, normalized)
+    for mapping in _COMPILED_TERMINOLOGY_MAPPINGS:
+        for pattern in mapping.patterns:
+            normalized = pattern.sub(mapping.canonical_term, normalized)
 
     return normalized
