@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from eubw_researcher.evaluation.real_question_pack import (
+    _build_question_verdict,
     default_real_question_pack_output_dir,
     _git_metadata,
     run_real_question_pack,
@@ -348,6 +349,20 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         self.assertEqual(metadata["branch"], "branch-name")
         self.assertEqual(metadata["commit"], "commit-sha")
         self.assertTrue(metadata["dirty"])
+
+    def test_question_verdict_does_not_encode_artifact_checks(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        )
+
+        verdict = _build_question_verdict(question, result)
+
+        self.assertTrue(verdict.passed)
+        self.assertEqual(verdict.checks, ["intent_type:synthetic_intent:ok"])
 
 
 if __name__ == "__main__":

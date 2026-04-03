@@ -107,7 +107,6 @@ def run_real_question_pack(
         verdict = _build_question_verdict(
             question,
             response.result,
-            missing_artifacts=[],
         )
         report = build_manual_review_report(
             response.result,
@@ -247,8 +246,6 @@ def _prepare_question_output_dir(question_output_dir: Path) -> None:
 def _build_question_verdict(
     question: RealQuestionPackQuestion,
     result,
-    *,
-    missing_artifacts: list[str],
 ) -> ScenarioVerdict:
     checks: list[str] = []
     passed = True
@@ -264,12 +261,6 @@ def _build_question_verdict(
             passed = False
     else:
         checks.append("intent_type:not_specified")
-
-    if missing_artifacts:
-        checks.append("required_artifacts:fail:" + ",".join(sorted(missing_artifacts)))
-        passed = False
-    else:
-        checks.append("required_artifacts:ok")
 
     return ScenarioVerdict(
         scenario_id=question.question_id,
