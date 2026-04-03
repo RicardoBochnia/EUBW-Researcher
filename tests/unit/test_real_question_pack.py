@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from eubw_researcher.evaluation.real_question_pack import (
     default_real_question_pack_output_dir,
+    _git_metadata,
     run_real_question_pack,
 )
 
@@ -80,9 +81,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             repo_root = Path(tmp_dir)
             pack_path = self._write_pack_config(repo_root)
             output_dir = repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run"
+            question_dir = output_dir / "synthetic_question"
             fixed_now = datetime(2026, 4, 3, 10, 15, 30, tzinfo=timezone.utc)
 
-            def _write_bundle(question: str, bundle_dir: Path, *, catalog_path=None):
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
                 bundle_dir.mkdir(parents=True, exist_ok=True)
                 for artifact_name in [
                     "retrieval_plan.json",
@@ -98,13 +100,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     "manual_review.json",
                     "manual_review_report.md",
                     "corpus_coverage_report.json",
+                    "verdict.json",
                 ]:
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
-                return self._fake_response(bundle_dir)
-
-            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                if verdict is not None:
-                    (bundle_dir / "verdict.json").write_text("{}", encoding="utf-8")
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -134,7 +132,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
                 side_effect=_rewrite_bundle,
             ):
-                facade_cls.return_value.write_reviewable_artifact_bundle.side_effect = _write_bundle
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir
+                )
 
                 run_root, manifest = run_real_question_pack(
                     repo_root,
@@ -168,8 +168,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             repo_root = Path(tmp_dir)
             pack_path = self._write_pack_config(repo_root)
             output_dir = repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run"
+            question_dir = output_dir / "synthetic_question"
 
-            def _write_bundle(question: str, bundle_dir: Path, *, catalog_path=None):
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
                 bundle_dir.mkdir(parents=True, exist_ok=True)
                 for artifact_name in [
                     "retrieval_plan.json",
@@ -185,13 +186,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     "manual_review.json",
                     "manual_review_report.md",
                     "corpus_coverage_report.json",
+                    "verdict.json",
                 ]:
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
-                return self._fake_response(bundle_dir, intent_type="wrong_intent")
-
-            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                if verdict is not None:
-                    (bundle_dir / "verdict.json").write_text("{}", encoding="utf-8")
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -214,7 +211,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
                 side_effect=_rewrite_bundle,
             ):
-                facade_cls.return_value.write_reviewable_artifact_bundle.side_effect = _write_bundle
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir,
+                    intent_type="wrong_intent",
+                )
 
                 run_root, _manifest = run_real_question_pack(
                     repo_root,
@@ -239,7 +239,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             question_dir.mkdir(parents=True, exist_ok=True)
             (question_dir / "facet_coverage.json").write_text("stale", encoding="utf-8")
 
-            def _write_bundle(question: str, bundle_dir: Path, *, catalog_path=None):
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
                 self.assertFalse((bundle_dir / "facet_coverage.json").exists())
                 bundle_dir.mkdir(parents=True, exist_ok=True)
                 for artifact_name in [
@@ -256,13 +256,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     "manual_review.json",
                     "manual_review_report.md",
                     "corpus_coverage_report.json",
+                    "verdict.json",
                 ]:
                     (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
-                return self._fake_response(bundle_dir, intent_type="certificate_topology_analysis")
-
-            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                if verdict is not None:
-                    (bundle_dir / "verdict.json").write_text("{}", encoding="utf-8")
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -285,7 +281,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
                 side_effect=_rewrite_bundle,
             ):
-                facade_cls.return_value.write_reviewable_artifact_bundle.side_effect = _write_bundle
+                response = self._fake_response(question_dir, intent_type="synthetic_intent")
+                response.result.web_fetch_records = []
+                facade_cls.return_value.run_evidence_only.return_value = response
 
                 run_root, _manifest = run_real_question_pack(
                     repo_root,
@@ -298,10 +296,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             payload = json.loads(
                 (run_root / "pack_run_manifest.json").read_text(encoding="utf-8")
             )
-            self.assertIn(
-                "facet_coverage.json",
-                payload["question_runs"][0]["missing_artifacts"],
-            )
+            self.assertNotIn("facet_coverage.json", payload["question_runs"][0]["artifacts_present"])
             self.assertIn("verdict.json", payload["question_runs"][0]["artifacts_present"])
 
     def test_runner_rejects_unknown_question_id(self) -> None:
@@ -335,6 +330,17 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=".",
                 )
+
+    def test_git_metadata_treats_unknown_status_as_dirty(self) -> None:
+        with patch(
+            "eubw_researcher.evaluation.real_question_pack._run_git_command",
+            side_effect=["branch-name", "commit-sha", None],
+        ):
+            metadata = _git_metadata(Path("/tmp/repo"))
+
+        self.assertEqual(metadata["branch"], "branch-name")
+        self.assertEqual(metadata["commit"], "commit-sha")
+        self.assertTrue(metadata["dirty"])
 
 
 if __name__ == "__main__":

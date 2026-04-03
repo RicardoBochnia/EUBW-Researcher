@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,6 +38,12 @@ REQUIRED_BUNDLE_ARTIFACTS = [
     "blind_validation_report.json",
     "manual_review.json",
     "manual_review_report.md",
+]
+OPTIONAL_BUNDLE_ARTIFACTS = [
+    "provisional_grouping.json",
+    "facet_coverage.json",
+    "corpus_coverage_report.json",
+    "verdict.json",
 ]
 
 
@@ -91,25 +96,18 @@ def run_real_question_pack(
     for question in selected_questions:
         question_output_dir = run_root / question.question_id
         _prepare_question_output_dir(question_output_dir)
-        response = facade.write_reviewable_artifact_bundle(
+        response = facade.run_evidence_only(
             question.question,
-            question_output_dir,
             catalog_path=catalog_path,
-        )
-        actual_artifacts = sorted(
-            path.name for path in question_output_dir.iterdir() if path.is_file()
         )
         expected_artifacts = _expected_bundle_artifacts(
             response.result,
             response.catalog_path,
         )
-        missing_artifacts = [
-            artifact for artifact in expected_artifacts if artifact not in actual_artifacts
-        ]
         verdict = _build_question_verdict(
             question,
             response.result,
-            missing_artifacts=missing_artifacts,
+            missing_artifacts=[],
         )
         write_artifact_bundle(
             question_output_dir,
@@ -119,6 +117,17 @@ def run_real_question_pack(
             catalog_path=response.catalog_path,
             corpus_state_id=response.corpus_state_id,
         )
+        actual_artifacts = sorted(
+            path.name for path in question_output_dir.iterdir() if path.is_file()
+        )
+        missing_artifacts = [
+            artifact for artifact in expected_artifacts if artifact not in actual_artifacts
+        ]
+        if missing_artifacts:
+            raise ValueError(
+                "Real-question pack bundle is missing expected artifacts for "
+                f"{question.question_id}: {', '.join(sorted(missing_artifacts))}"
+            )
         report = build_manual_review_report(
             response.result,
             verdict,
@@ -223,13 +232,15 @@ def _validate_run_root(repo_root: Path, run_root: Path) -> None:
 
 
 def _prepare_question_output_dir(question_output_dir: Path) -> None:
-    if question_output_dir.exists():
-        if not question_output_dir.is_dir():
-            raise ValueError(
-                f"Real-question output path must be a directory: {question_output_dir}"
-            )
-        shutil.rmtree(question_output_dir)
+    if question_output_dir.exists() and not question_output_dir.is_dir():
+        raise ValueError(
+            f"Real-question output path must be a directory: {question_output_dir}"
+        )
     question_output_dir.mkdir(parents=True, exist_ok=True)
+    for artifact_name in [*REQUIRED_BUNDLE_ARTIFACTS, *OPTIONAL_BUNDLE_ARTIFACTS]:
+        artifact_path = question_output_dir / artifact_name
+        if artifact_path.exists() and artifact_path.is_file():
+            artifact_path.unlink()
 
 
 def _build_question_verdict(
@@ -267,7 +278,7 @@ def _build_question_verdict(
 
 
 def _expected_bundle_artifacts(result, catalog_path: Path) -> list[str]:
-    expected = list(REQUIRED_BUNDLE_ARTIFACTS)
+    expected = list(REQUIRED_BUNDLE_ARTIFACTS) + ["verdict.json"]
     if result.query_intent.intent_type == "certificate_topology_analysis":
         expected.append("facet_coverage.json")
     if result.provisional_grouping:
@@ -292,7 +303,7 @@ def _git_metadata(repo_root: Path) -> dict[str, Optional[Union[str, bool]]]:
     return {
         "branch": branch,
         "commit": commit,
-        "dirty": bool(status),
+        "dirty": True if status is None else bool(status),
     }
 
 

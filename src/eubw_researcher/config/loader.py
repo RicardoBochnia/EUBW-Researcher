@@ -34,6 +34,13 @@ def _resolve_path(base_dir: Path, raw_path: str) -> Path:
     return path if path.is_absolute() else (base_dir / path).resolve()
 
 
+def _optional_stripped(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
 def load_source_hierarchy(path: Path) -> SourceHierarchyConfig:
     payload = _load_json_yaml(path)
     rules = [
@@ -159,12 +166,12 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
             title=item["title"].strip(),
             question=item["question"].strip(),
             review_focus=item["review_focus"].strip(),
-            expected_intent_type=item.get("expected_intent_type"),
+            expected_intent_type=_optional_stripped(item.get("expected_intent_type")),
             tags=[tag.strip() for tag in item.get("tags", []) if tag.strip()],
             review_prompts=[
                 prompt.strip() for prompt in item.get("review_prompts", []) if prompt.strip()
             ],
-            seed_from_scenario_id=item.get("seed_from_scenario_id"),
+            seed_from_scenario_id=_optional_stripped(item.get("seed_from_scenario_id")),
         )
         for item in payload["questions"]
     ]

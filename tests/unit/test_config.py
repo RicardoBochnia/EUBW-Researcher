@@ -160,6 +160,33 @@ class ConfigLoadingTests(unittest.TestCase):
             ):
                 load_real_question_pack(pack_path)
 
+    def test_real_question_pack_strips_optional_string_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "real_question_pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "safe_id",
+                                "title": "Title",
+                                "question": "Question?",
+                                "review_focus": "Focus",
+                                "expected_intent_type": " synthetic_intent ",
+                                "seed_from_scenario_id": "   ",
+                                "review_prompts": ["Prompt"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            pack = load_real_question_pack(pack_path)
+
+            self.assertEqual(pack.questions[0].expected_intent_type, "synthetic_intent")
+            self.assertIsNone(pack.questions[0].seed_from_scenario_id)
+
 
 if __name__ == "__main__":
     unittest.main()
