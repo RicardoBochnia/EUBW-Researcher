@@ -31,6 +31,11 @@ class TerminologyNormalizationTests(unittest.TestCase):
         question = "Give me an overview of Union rules for company supervision."
         self.assertEqual(normalize_query_terms(question), question)
 
+    def test_access_cert_alias_requires_wallet_specific_context(self) -> None:
+        question = "How should we rotate an access cert for internal API clients?"
+        self.assertEqual(normalize_query_terms(question), question)
+        self.assertEqual(explain_query_term_normalization(question), [])
+
     def test_applied_mappings_are_inspectable_and_deterministic(self) -> None:
         self.assertEqual(
             explain_query_term_normalization(

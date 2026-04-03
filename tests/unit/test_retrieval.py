@@ -177,6 +177,13 @@ class RetrievalTests(unittest.TestCase):
         self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
         self.assertTrue(any(target.grouping_label for target in intent.claim_targets))
 
+    def test_wallet_specific_access_cert_alias_routes_to_certificate_layer_analysis(self) -> None:
+        intent = analyze_query(
+            "What national guidance exists for Business Wallet access cert handling?"
+        )
+        self.assertEqual(intent.intent_type, "certificate_layer_analysis")
+        self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
+
     def test_analyze_query_classifies_arf_boundary_question(self) -> None:
         intent = analyze_query(
             "Does the ARF require a verifier authorization server in the presentation flow?"
@@ -199,6 +206,16 @@ class RetrievalTests(unittest.TestCase):
             intent.preferred_kinds[:2],
             [SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
         )
+        self.assertEqual(
+            intent.clarification_note,
+            "Broad question: continue with an EU-first first-pass answer.",
+        )
+
+    def test_generic_access_cert_query_keeps_broad_fallback_route(self) -> None:
+        intent = analyze_query(
+            "How should we rotate an access cert for internal API clients?"
+        )
+        self.assertEqual(intent.intent_type, "broad_regulation_question")
         self.assertEqual(
             intent.clarification_note,
             "Broad question: continue with an EU-first first-pass answer.",
