@@ -91,6 +91,7 @@ def run_scenario_d_closeout(
         load_scenarios=load_evaluation_scenarios,
         scenario_config_resolver=_scenario_config_path,
         evaluate_scenario=_evaluate_scenario,
+        blind_validation_report_builder=build_blind_validation_report,
         pipeline_runner=_run_pipeline,
         bundle_writer=write_artifact_bundle,
     )

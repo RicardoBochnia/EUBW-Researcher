@@ -524,6 +524,7 @@ def run_spawned_validator_gate(
         Callable[[Path, Optional[Path], Optional[Path]], Path]
     ] = None,
     evaluate_scenario: Optional[Callable[[EvaluationScenario, Any], ScenarioVerdict]] = None,
+    blind_validation_report_builder: Optional[Callable[[Any], BlindValidationReport]] = None,
     pipeline_runner: Optional[Callable[..., Tuple[Any, Any, str, Path]]] = None,
     bundle_writer: Optional[Callable[..., Any]] = None,
 ) -> Tuple[List[Tuple[str, ScenarioVerdict]], Path]:
@@ -533,6 +534,8 @@ def run_spawned_validator_gate(
         scenario_config_resolver = _scenario_config_path
     if evaluate_scenario is None:
         evaluate_scenario = _evaluate_scenario
+    if blind_validation_report_builder is None:
+        blind_validation_report_builder = build_blind_validation_report
     if pipeline_runner is None:
         pipeline_runner = _run_pipeline
     if bundle_writer is None:
@@ -560,7 +563,7 @@ def run_spawned_validator_gate(
             coverage_report,
         )
         if result.blind_validation_report is None:
-            result.blind_validation_report = build_blind_validation_report(result)
+            result.blind_validation_report = blind_validation_report_builder(result)
         scenario_dir = output_dir / scenario.scenario_id
         scenario_dir.mkdir(parents=True, exist_ok=True)
         _clear_spawned_validator_sidecar_files(scenario_dir)
