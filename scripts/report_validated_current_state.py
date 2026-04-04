@@ -10,7 +10,10 @@ from _catalog_path import resolve_catalog_path
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate a compact validated current-state report for the real-corpus eval gate."
+        description=(
+            "Generate a compact validated current-state report from the authoritative "
+            "real-corpus eval manifest produced by run_eval.py --all."
+        )
     )
     parser.add_argument(
         "--catalog",
@@ -24,7 +27,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--real-question-pack-manifest",
-        help="Optional pack_run_manifest.json path to record as supplemental evidence.",
+        help=(
+            "Optional explicit pack_run_manifest.json path to record as supplemental "
+            "evidence. No automatic discovery is performed."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -50,11 +56,10 @@ def main() -> int:
         write_corpus_state_snapshot,
     )
     from eubw_researcher.evaluation import load_eval_run_manifest
-    from eubw_researcher.evaluation.runner import _git_metadata
+    from eubw_researcher.evaluation.git_metadata import collect_git_metadata
     from eubw_researcher.models import dataclass_to_dict
     from eubw_researcher.runtime_facade import ResearchRuntimeFacade
 
-    catalog_path_for_snapshot = Path(args.catalog)
     catalog_path = resolve_catalog_path(repo_root, args.catalog)
     eval_manifest_path = (repo_root / args.eval_manifest).resolve()
     if not eval_manifest_path.is_file():
@@ -87,7 +92,7 @@ def main() -> int:
     snapshot = build_corpus_state_snapshot(
         catalog,
         corpus_state_id,
-        catalog_path_for_snapshot,
+        catalog_path,
     )
     write_corpus_state_snapshot(snapshot, snapshot_path)
 
@@ -114,7 +119,7 @@ def main() -> int:
         corpus_state_snapshot_path=snapshot_path,
         real_question_pack_manifest=pack_manifest,
         real_question_pack_manifest_path=pack_manifest_path,
-        git_metadata=_git_metadata(repo_root),
+        git_metadata=collect_git_metadata(repo_root),
     )
 
     report_json_path = output_dir / "validated_current_state_report.json"

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
@@ -11,11 +10,14 @@ from eubw_researcher import ResearchRuntimeFacade
 from eubw_researcher.config import load_real_question_pack
 from eubw_researcher.corpus import is_real_corpus_catalog
 from eubw_researcher.evaluation.review import (
+    build_manual_review_artifact,
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
+from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
+    ManualReviewArtifact,
     RealQuestionPack,
     RealQuestionPackQuestion,
     RealQuestionPackQuestionRunSummary,
@@ -107,9 +109,14 @@ def run_real_question_pack(
             response.result,
             response.catalog_path,
         )
+        review_artifact = build_manual_review_artifact(
+            response.result,
+            scenario_id=question.question_id,
+        )
         verdict = _build_question_verdict(
             question,
             response.result,
+            review_artifact=review_artifact,
         )
         report = build_manual_review_report(
             response.result,
@@ -126,6 +133,7 @@ def run_real_question_pack(
             catalog_path=response.catalog_path,
             corpus_state_id=response.corpus_state_id,
             manual_review_report=report,
+            manual_review_artifact=review_artifact,
         )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
@@ -138,6 +146,7 @@ def run_real_question_pack(
                 question,
                 response.result,
                 missing_artifacts=missing_artifacts,
+                review_artifact=review_artifact,
             )
             report = build_manual_review_report(
                 response.result,
@@ -183,6 +192,7 @@ def run_real_question_pack(
                 product_output_self_sufficiency_verdict=(
                     report.product_output_self_sufficiency_verdict
                 ),
+                review_complete=False,
             )
         )
         runtime_contract_version = _stable_value(
@@ -269,6 +279,7 @@ def _build_question_verdict(
     question: RealQuestionPackQuestion,
     result,
     missing_artifacts: Optional[list[str]] = None,
+    review_artifact: Optional[ManualReviewArtifact] = None,
 ) -> ScenarioVerdict:
     checks: list[str] = []
     passed = True
@@ -290,6 +301,12 @@ def _build_question_verdict(
             "required_artifacts:missing:" + ",".join(sorted(missing_artifacts))
         )
         passed = False
+
+    if review_artifact is not None:
+        for check in review_artifact.checks:
+            if check.status != "pass":
+                checks.append(f"review_check:{check.check_id}:fail")
+                passed = False
 
     return ScenarioVerdict(
         scenario_id=question.question_id,
@@ -318,25 +335,4 @@ def _stable_value(current, candidate, label: str):
 
 
 def _git_metadata(repo_root: Path) -> dict[str, Optional[Union[str, bool]]]:
-    branch = _run_git_command(repo_root, "branch", "--show-current")
-    commit = _run_git_command(repo_root, "rev-parse", "HEAD")
-    status = _run_git_command(repo_root, "status", "--short")
-    return {
-        "branch": branch,
-        "commit": commit,
-        "dirty": True if status is None else bool(status),
-    }
-
-
-def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return None
-    output = completed.stdout.strip()
-    return output or None
+    return collect_git_metadata(repo_root)

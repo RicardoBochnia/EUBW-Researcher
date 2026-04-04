@@ -151,6 +151,8 @@ def build_validated_current_state_report(
     real_question_pack_manifest_path: Optional[Path] = None,
     git_metadata: Optional[Mapping[str, Any]] = None,
 ) -> ValidatedCurrentStateReport:
+    snapshot_catalog_path = str(Path(snapshot["catalog_path"]).resolve())
+    eval_catalog_path = str(Path(eval_manifest.catalog_path).resolve())
     binding_review_samples = [
         ValidatedBindingReviewSample(
             scenario_id=item.scenario_id,
@@ -163,16 +165,16 @@ def build_validated_current_state_report(
         if item.require_manual_review_accept
     ]
     current_catalog_matches_eval_gate = (
-        snapshot["catalog_path"] == eval_manifest.catalog_path
+        snapshot_catalog_path == eval_catalog_path
         and snapshot["corpus_state_id"] == eval_manifest.corpus_state_id
     )
     current_runtime_matches_eval_gate = (
         runtime_contract_version == eval_manifest.runtime_contract_version
     )
-    coverage_gate_passed = bool(eval_manifest.coverage_gate_passed)
+    coverage_gate_passed = eval_manifest.coverage_gate_passed
     eval_gate_passed = eval_manifest.overall_passed
     validated = (
-        coverage_gate_passed
+        coverage_gate_passed is True
         and eval_gate_passed
         and current_catalog_matches_eval_gate
         and current_runtime_matches_eval_gate
@@ -180,8 +182,12 @@ def build_validated_current_state_report(
     supplemental_matches_state = None
     supplemental_run_id = None
     if real_question_pack_manifest is not None:
+        pack_catalog_path = real_question_pack_manifest.get("catalog_path")
         supplemental_matches_state = (
-            real_question_pack_manifest.get("catalog_path") == snapshot["catalog_path"]
+            (
+                pack_catalog_path is not None
+                and str(Path(pack_catalog_path).resolve()) == snapshot_catalog_path
+            )
             and real_question_pack_manifest.get("corpus_state_id") == snapshot["corpus_state_id"]
             and real_question_pack_manifest.get("runtime_contract_version")
             == runtime_contract_version
@@ -191,7 +197,7 @@ def build_validated_current_state_report(
         report_version="validated_current_state.v1",
         binding_gate_surface=eval_manifest.binding_gate_surface,
         validated=validated,
-        catalog_path=snapshot["catalog_path"],
+        catalog_path=snapshot_catalog_path,
         corpus_state_id=snapshot["corpus_state_id"],
         runtime_contract_version=runtime_contract_version,
         git_commit=(git_metadata or {}).get("commit"),
@@ -231,6 +237,13 @@ def build_validated_current_state_report(
 def render_validated_current_state_report_md(
     report: ValidatedCurrentStateReport,
 ) -> str:
+    coverage_gate_text = (
+        "yes"
+        if report.coverage_gate_passed is True
+        else "no"
+        if report.coverage_gate_passed is False
+        else "unknown"
+    )
     overall = "VALIDATED" if report.validated else "NOT VALIDATED"
     lines: List[str] = []
     lines.append("# Validated Current State")
@@ -259,9 +272,7 @@ def render_validated_current_state_report_md(
     lines.append("")
     lines.append("## Gate checks")
     lines.append("")
-    lines.append(
-        f"- Coverage gate passed: {'yes' if report.coverage_gate_passed else 'no'}"
-    )
+    lines.append(f"- Coverage gate passed: {coverage_gate_text}")
     lines.append(
         f"- Eval gate passed: {'yes' if report.eval_gate_passed else 'no'}"
     )

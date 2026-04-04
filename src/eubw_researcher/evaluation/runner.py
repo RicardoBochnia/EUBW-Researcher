@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
@@ -23,10 +22,12 @@ from eubw_researcher.models import (
     EvalRunManifest,
     EvalScenarioRunSummary,
     EvaluationScenario,
+    ManualReviewArtifact,
     ManualReviewReport,
     ScenarioVerdict,
     dataclass_to_dict,
 )
+from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
@@ -57,43 +58,6 @@ def _scenario_config_path(
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
-    """Run a fixed git metadata command for local reporting.
-
-    This helper is only used with static literal git subcommands defined in
-    this module; it must not be called with user-provided command fragments.
-    """
-    allowed_commands = {
-        ("branch", "--show-current"),
-        ("rev-parse", "HEAD"),
-        ("status", "--short"),
-    }
-    if args not in allowed_commands:
-        raise ValueError(f"Unsupported git metadata command: {args}")
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return None
-    output = completed.stdout.strip()
-    return output or None
-
-
-def _git_metadata(repo_root: Path) -> dict[str, Any]:
-    branch = _run_git_command(repo_root, "branch", "--show-current")
-    commit = _run_git_command(repo_root, "rev-parse", "HEAD")
-    status = _run_git_command(repo_root, "status", "--short")
-    return {
-        "branch": branch,
-        "commit": commit,
-        "dirty": bool(status) if status is not None else True,
-    }
 
 
 def _evaluate_scenario_with_review_report(
@@ -512,8 +476,13 @@ def _build_manual_review_outputs(
     corpus_state_id: Optional[str],
     reviewer_name: str,
     manual_review_report: Optional[ManualReviewReport] = None,
-) -> tuple[object, ManualReviewReport, str]:
-    manual_review = build_manual_review_artifact(result, scenario_id=scenario_id)
+    manual_review_artifact: Optional[ManualReviewArtifact] = None,
+) -> tuple[ManualReviewArtifact, ManualReviewReport, str]:
+    manual_review = (
+        manual_review_artifact
+        if manual_review_artifact is not None
+        else build_manual_review_artifact(result, scenario_id=scenario_id)
+    )
     resolved_report = manual_review_report or build_manual_review_report(
         result,
         verdict or ScenarioVerdict(scenario_id=scenario_id or "direct_run", passed=True, checks=[]),
@@ -538,6 +507,7 @@ def write_artifact_bundle(
     corpus_state_id: Optional[str] = None,
     reviewer_name: str = "Codex",
     manual_review_report: Optional[ManualReviewReport] = None,
+    manual_review_artifact: Optional[ManualReviewArtifact] = None,
 ) -> ManualReviewReport:
     output_dir.mkdir(parents=True, exist_ok=True)
     manual_review, resolved_report, manual_review_report_markdown = _build_manual_review_outputs(
@@ -548,6 +518,7 @@ def write_artifact_bundle(
         corpus_state_id=corpus_state_id,
         reviewer_name=reviewer_name,
         manual_review_report=manual_review_report,
+        manual_review_artifact=manual_review_artifact,
     )
 
     (output_dir / "retrieval_plan.json").write_text(
@@ -631,7 +602,6 @@ def write_artifact_bundle(
 def build_eval_run_manifest(
     repo_root: Path,
     *,
-    output_dir: Path,
     scenario_config_path: Path,
     catalog_path: Path,
     corpus_state_id: str,
@@ -641,7 +611,7 @@ def build_eval_run_manifest(
     coverage_report_path: Optional[Path],
     coverage_summary_path: Optional[Path],
 ) -> EvalRunManifest:
-    git_metadata = _git_metadata(repo_root)
+    git_metadata = collect_git_metadata(repo_root)
     return EvalRunManifest(
         run_timestamp=_utcnow().isoformat(),
         scenario_config_path=str(scenario_config_path.resolve()),
@@ -707,6 +677,17 @@ def load_eval_run_manifest(path: Path) -> EvalRunManifest:
     )
 
 
+def _clear_authoritative_eval_artifacts(output_dir: Path) -> None:
+    for artifact_name in (
+        "eval_run_manifest.json",
+        "corpus_coverage_report.json",
+        "corpus_coverage_summary.md",
+    ):
+        artifact_path = output_dir / artifact_name
+        if artifact_path.exists():
+            artifact_path.unlink()
+
+
 def run_named_scenario(
     repo_root: Path,
     scenario_id: str,
@@ -716,6 +697,7 @@ def run_named_scenario(
 ) -> Tuple[Path, ScenarioVerdict]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
+    _clear_authoritative_eval_artifacts(output_dir)
     pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,
@@ -789,7 +771,7 @@ def run_all_scenarios(
                 manual_review_accept_satisfied=(
                     review_report.final_judgment == "accept"
                     if scenario.require_manual_review_accept
-                    else False
+                    else None
                 ),
                 final_judgment=review_report.final_judgment,
                 output_dir=str(scenario_dir.resolve()),
@@ -812,7 +794,6 @@ def run_all_scenarios(
         )
     manifest = build_eval_run_manifest(
         repo_root,
-        output_dir=output_dir,
         scenario_config_path=resolved_scenarios_path,
         catalog_path=resolved_catalog_path,
         corpus_state_id=corpus_state_id,

@@ -745,6 +745,7 @@ class RealQuestionPackQuestionRunSummary:
     source_bound_verdict: str
     pinpoint_traceability_verdict: str
     product_output_self_sufficiency_verdict: str
+    review_complete: bool = False
 
 
 @dataclass
@@ -769,7 +770,7 @@ class EvalScenarioRunSummary:
     scenario_id: str
     passed: bool
     require_manual_review_accept: bool
-    manual_review_accept_satisfied: bool
+    manual_review_accept_satisfied: Optional[bool]
     final_judgment: str
     output_dir: str
     verdict_path: str
@@ -817,7 +818,7 @@ class ValidatedCurrentStateReport:
     total_sources: int
     counts_by_kind: Dict[str, int]
     counts_by_role_level: Dict[str, int]
-    coverage_gate_passed: bool
+    coverage_gate_passed: Optional[bool]
     eval_gate_passed: bool
     current_catalog_matches_eval_gate: bool
     current_runtime_matches_eval_gate: bool

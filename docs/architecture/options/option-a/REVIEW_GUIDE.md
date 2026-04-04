@@ -32,6 +32,8 @@ This is a V2 research-version review target, not a production-readiness claim.
   `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Generate the validated current-state report from the real-corpus gate:
   `python3 scripts/report_validated_current_state.py`
+- Add a real-question-pack manifest as supplemental context:
+  `python3 scripts/report_validated_current_state.py --real-question-pack-manifest artifacts/real_question_pack_runs/<run-id>/pack_run_manifest.json`
 - Run the Scenario D closeout harness with a spawned validator:
   `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 - Run a direct question with reviewable artifacts:
@@ -42,7 +44,8 @@ This is a V2 research-version review target, not a production-readiness claim.
 By default, fixture eval writes to `artifacts/eval_runs` and real-corpus eval writes to `artifacts/eval_runs_real_corpus`.
 The real-corpus gate also reuses the cached normalized bundle under `artifacts/real_corpus/cache/`, writes `corpus_coverage_report.json` into each scenario bundle, and writes a top-level `eval_run_manifest.json` plus top-level `corpus_coverage_report.json` / `corpus_coverage_summary.md` into the eval output directory.
 The real-question pack writes to `artifacts/real_question_pack_runs/<run-id>/...` and adds a top-level `pack_run_manifest.json` that records repo state, runtime contract, corpus state, and compact per-question review signals.
-The validated current-state report lives outside per-run bundles under `artifacts/current_state/`; it treats the real-corpus eval manifest as the authoritative binding gate surface and only records real-question-pack evidence as supplemental context when a pack manifest is provided.
+The validated current-state report lives outside per-run bundles under `artifacts/current_state/`; it treats the real-corpus eval manifest from `run_eval.py --all` as the authoritative binding gate surface and only records real-question-pack evidence as supplemental context when a pack manifest is provided explicitly with `--real-question-pack-manifest`.
+Single-scenario eval runs are intentionally non-authoritative: they do not write a top-level eval manifest and they clear any stale top-level authoritative eval artifacts in the chosen output directory.
 
 ## What should be green
 

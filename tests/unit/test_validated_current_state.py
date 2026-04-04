@@ -42,12 +42,11 @@ class EvalRunManifestTests(unittest.TestCase):
             "eubw_researcher.evaluation.runner._utcnow",
             return_value=fixed_now,
         ), patch(
-            "eubw_researcher.evaluation.runner._git_metadata",
+            "eubw_researcher.evaluation.runner.collect_git_metadata",
             return_value={"commit": "abc123", "branch": "main", "dirty": False},
         ):
             manifest = build_eval_run_manifest(
                 repo_root,
-                output_dir=output_dir,
                 scenario_config_path=repo_root / "configs" / "evaluation_scenarios_real_corpus.yaml",
                 catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
                 corpus_state_id="state123",
@@ -70,13 +69,13 @@ class EvalRunManifestTests(unittest.TestCase):
             manifest_path = tmp_root / "eval_run_manifest.json"
             scenario_runs = [
                 EvalScenarioRunSummary(
-                    scenario_id="scenario_b",
-                    passed=False,
-                    require_manual_review_accept=True,
-                    manual_review_accept_satisfied=False,
-                    final_judgment="reject",
-                    output_dir=str(tmp_root / "scenario_b"),
-                    verdict_path=str(tmp_root / "scenario_b" / "verdict.json"),
+                scenario_id="scenario_b",
+                passed=False,
+                require_manual_review_accept=False,
+                manual_review_accept_satisfied=None,
+                final_judgment="reject",
+                output_dir=str(tmp_root / "scenario_b"),
+                verdict_path=str(tmp_root / "scenario_b" / "verdict.json"),
                     manual_review_report_path=str(
                         tmp_root / "scenario_b" / "manual_review_report.md"
                     ),
@@ -84,7 +83,6 @@ class EvalRunManifestTests(unittest.TestCase):
             ]
             manifest = build_eval_run_manifest(
                 tmp_root,
-                output_dir=tmp_root,
                 scenario_config_path=tmp_root / "synthetic_scenarios.json",
                 catalog_path=tmp_root / "artifacts" / "real_corpus" / "curated_catalog.json",
                 corpus_state_id="state456",
@@ -101,17 +99,17 @@ class EvalRunManifestTests(unittest.TestCase):
         self.assertEqual(loaded.corpus_state_id, "state456")
         self.assertFalse(loaded.overall_passed)
         self.assertEqual(loaded.scenario_runs[0].final_judgment, "reject")
+        self.assertIsNone(loaded.scenario_runs[0].manual_review_accept_satisfied)
 
 
 class ValidatedCurrentStateReportTests(unittest.TestCase):
     def _manifest(self):
         with patch(
-            "eubw_researcher.evaluation.runner._git_metadata",
+            "eubw_researcher.evaluation.runner.collect_git_metadata",
             return_value={"commit": "abc123", "branch": "main", "dirty": False},
         ):
             return build_eval_run_manifest(
                 Path("/tmp/repo"),
-                output_dir=Path("/tmp/repo/artifacts/eval_runs_real_corpus"),
                 scenario_config_path=Path("/tmp/repo/configs/evaluation_scenarios_real_corpus.yaml"),
                 catalog_path=Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json"),
                 corpus_state_id="state123",
@@ -136,7 +134,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
     def test_build_validated_current_state_report_accepts_matching_state(self) -> None:
         snapshot = {
             "corpus_state_id": "state123",
-            "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
+            "catalog_path": "/tmp/repo/artifacts/real_corpus/./curated_catalog.json",
             "total_sources": 7,
             "counts_by_kind": {"regulation": 2},
             "counts_by_role_level": {"high": 7},
@@ -167,6 +165,10 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         self.assertEqual(report.binding_gate_surface, "real_corpus_eval")
         self.assertTrue(report.supplemental_real_question_pack_matches_state)
         self.assertEqual(len(report.binding_review_samples), 1)
+        self.assertEqual(
+            report.catalog_path,
+            str(Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json").resolve()),
+        )
 
     def test_build_validated_current_state_report_flags_mismatched_state(self) -> None:
         snapshot = {
@@ -216,6 +218,33 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         self.assertIn("# Validated Current State", output)
         self.assertIn("primary_success_scenario", output)
         self.assertIn("real_corpus_eval", output)
+
+    def test_build_validated_current_state_report_preserves_unknown_coverage_state(self) -> None:
+        manifest = self._manifest()
+        manifest.coverage_gate_passed = None
+        snapshot = {
+            "corpus_state_id": "state123",
+            "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
+            "total_sources": 7,
+            "counts_by_kind": {"regulation": 2},
+            "counts_by_role_level": {"high": 7},
+            "source_ids": ["a"],
+        }
+
+        report = build_validated_current_state_report(
+            snapshot,
+            eval_manifest=manifest,
+            eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
+            runtime_contract_version="option_a_runtime.v1",
+            coverage_report_path=None,
+            coverage_summary_path=None,
+            corpus_selection_summary_path=None,
+            corpus_state_snapshot_path=Path("/tmp/repo/artifacts/current_state/corpus_state_snapshot.json"),
+        )
+
+        self.assertIsNone(report.coverage_gate_passed)
+        self.assertFalse(report.validated)
+        self.assertIn("Coverage gate passed: unknown", render_validated_current_state_report_md(report))
 
 
 if __name__ == "__main__":
