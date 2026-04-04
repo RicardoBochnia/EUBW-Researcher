@@ -523,6 +523,7 @@ def run_spawned_validator_gate(
     scenario_config_resolver: Optional[
         Callable[[Path, Optional[Path], Optional[Path]], Path]
     ] = None,
+    evaluate_scenario: Optional[Callable[[EvaluationScenario, Any], ScenarioVerdict]] = None,
     pipeline_runner: Optional[Callable[..., Tuple[Any, Any, str, Path]]] = None,
     bundle_writer: Optional[Callable[..., Any]] = None,
 ) -> Tuple[List[Tuple[str, ScenarioVerdict]], Path]:
@@ -530,6 +531,8 @@ def run_spawned_validator_gate(
         load_scenarios = load_evaluation_scenarios
     if scenario_config_resolver is None:
         scenario_config_resolver = _scenario_config_path
+    if evaluate_scenario is None:
+        evaluate_scenario = _evaluate_scenario
     if pipeline_runner is None:
         pipeline_runner = _run_pipeline
     if bundle_writer is None:
@@ -553,7 +556,7 @@ def run_spawned_validator_gate(
         result = pipeline.answer_question(scenario.question)
         result.corpus_coverage_report = coverage_report
         structural_verdict = _append_corpus_coverage_gate(
-            _evaluate_scenario(scenario, result),
+            evaluate_scenario(scenario, result),
             coverage_report,
         )
         if result.blind_validation_report is None:
