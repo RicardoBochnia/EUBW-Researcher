@@ -4,10 +4,44 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from eubw_researcher.models import ScenarioVerdict
+from eubw_researcher.trust import build_blind_validation_report, merge_spawned_validator_result
 
+from . import spawned_validator_gate as _spawned_validator_gate
 from .spawned_validator_gate import run_spawned_validator_gate
 
+_append_corpus_coverage_gate = _spawned_validator_gate._append_corpus_coverage_gate
+_build_spawned_validator_request = _spawned_validator_gate._build_spawned_validator_request
+_clear_closeout_sidecar_files = _spawned_validator_gate._clear_spawned_validator_sidecar_files
+_decode_process_output = _spawned_validator_gate._decode_process_output
+_parse_raw_document_reads = _spawned_validator_gate._parse_raw_document_reads
+_parse_spawned_validator_payload = _spawned_validator_gate._parse_spawned_validator_payload
+_require_bool_field = _spawned_validator_gate._require_bool_field
+_spawned_validator_error = _spawned_validator_gate._spawned_validator_error
+subprocess = _spawned_validator_gate.subprocess
+
 SCENARIO_D_ID = "scenario_d_certificate_topology_anchor"
+
+
+def _build_closeout_verdict(*args, **kwargs) -> ScenarioVerdict:
+    verdict = _spawned_validator_gate._build_spawned_validator_verdict(*args, **kwargs)
+    return ScenarioVerdict(
+        scenario_id=verdict.scenario_id,
+        passed=verdict.passed,
+        checks=[
+            check.replace(
+                "blind_validation_spawned_validator_gate:",
+                "blind_validation_closeout:",
+            )
+            for check in verdict.checks
+        ],
+    )
+
+
+def _invoke_spawned_validator(*args, **kwargs):
+    result = _spawned_validator_gate._invoke_spawned_validator(*args, **kwargs)
+    if result.error is not None:
+        result.error = result.error.replace("gate failure", "closeout failure")
+    return result
 
 
 def default_closeout_output_dir(repo_root: Path) -> Path:
