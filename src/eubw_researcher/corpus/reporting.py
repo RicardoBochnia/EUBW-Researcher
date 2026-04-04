@@ -22,6 +22,7 @@ _ROLE_LEVEL_ORDER: List[SourceRoleLevel] = [
 ]
 
 _KIND_ORDER: List[SourceKind] = list(SourceKind)
+_RELEASE_GATE_TARGET = "release_gate"
 
 
 def render_corpus_selection_summary_md(catalog: SourceCatalog) -> str:
@@ -193,7 +194,7 @@ def build_validated_current_state_report(
         )
         spawned_validator_gate_passed = spawned_validator_gate_manifest.overall_passed
         spawned_validator_gate_is_release_gate = (
-            spawned_validator_gate_manifest.gate_target == "release_gate"
+            spawned_validator_gate_manifest.gate_target == _RELEASE_GATE_TARGET
         )
         if promote_spawned_validator_gate:
             release_validation_mode = "deterministic_eval_plus_binding_spawned_validator"

@@ -326,7 +326,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         )
         self.assertTrue(report.spawned_validator_gate_passed)
 
-    def test_build_validated_current_state_report_rejects_binding_named_scenario_manifest(self) -> None:
+    def test_build_validated_current_state_report_requires_release_gate_for_binding(self) -> None:
         snapshot = {
             "corpus_state_id": "state123",
             "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
