@@ -39,7 +39,6 @@ NON_REAL_CORPUS_BUNDLE_ARTIFACTS = [
     if artifact_name != "corpus_coverage_report.json"
 ]
 
-
 def _fake_review_artifact(_result, *, scenario_id=None):
     return ManualReviewArtifact(
         question="Synthetic question?",
