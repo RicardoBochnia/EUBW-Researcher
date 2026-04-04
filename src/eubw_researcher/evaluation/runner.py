@@ -4,7 +4,7 @@ import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from eubw_researcher.answering import TOPOLOGY_FACET_IDS
 from eubw_researcher.config import (
@@ -19,8 +19,14 @@ from eubw_researcher.corpus import (
     render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
-from eubw_researcher.models import ManualReviewReport, ScenarioVerdict, dataclass_to_dict
-from eubw_researcher.models import EvalRunManifest, EvalScenarioRunSummary
+from eubw_researcher.models import (
+    EvalRunManifest,
+    EvalScenarioRunSummary,
+    EvaluationScenario,
+    ManualReviewReport,
+    ScenarioVerdict,
+    dataclass_to_dict,
+)
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
@@ -79,8 +85,8 @@ def _git_metadata(repo_root: Path) -> dict[str, Optional[object]]:
 
 
 def _evaluate_scenario_with_review_report(
-    scenario,
-    result,
+    scenario: EvaluationScenario,
+    result: Any,
 ) -> Tuple[ScenarioVerdict, ManualReviewReport]:
     checks = []
     passed = True
@@ -460,7 +466,10 @@ def _evaluate_scenario_with_review_report(
     )
 
 
-def _evaluate_scenario(scenario, result) -> ScenarioVerdict:
+def _evaluate_scenario(
+    scenario: EvaluationScenario,
+    result: Any,
+) -> ScenarioVerdict:
     verdict, _review_report = _evaluate_scenario_with_review_report(scenario, result)
     return verdict
 

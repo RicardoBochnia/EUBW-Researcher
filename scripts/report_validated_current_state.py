@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
