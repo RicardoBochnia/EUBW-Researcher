@@ -15,8 +15,8 @@ def _intent(*, labels: List[Optional[str]]) -> QueryIntent:
         eu_first=True,
         claim_targets=[
             ClaimTarget(
-                target_id="claim_{0}".format(index),
-                claim_text="Synthetic claim {0}".format(index),
+                target_id=f"claim_{index}",
+                claim_text=f"Synthetic claim {index}",
                 claim_type=ClaimType.SYNTHESIS,
                 required_source_role_level=SourceRoleLevel.HIGH,
                 preferred_kinds=[SourceKind.REGULATION],
