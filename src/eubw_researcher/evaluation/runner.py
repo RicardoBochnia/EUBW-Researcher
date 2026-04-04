@@ -60,6 +60,11 @@ def _utcnow() -> datetime:
 
 
 def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
+    """Run a fixed git metadata command for local reporting.
+
+    This helper is only used with static literal git subcommands defined in
+    this module; it must not be called with user-provided command fragments.
+    """
     completed = subprocess.run(
         ["git", *args],
         cwd=repo_root,
@@ -80,7 +85,7 @@ def _git_metadata(repo_root: Path) -> dict[str, Optional[object]]:
     return {
         "branch": branch,
         "commit": commit,
-        "dirty": True if status is None else bool(status),
+        "dirty": bool(status) if status is not None else True,
     }
 
 
