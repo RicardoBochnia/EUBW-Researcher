@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from eubw_researcher.answering import TOPOLOGY_FACET_IDS
 from eubw_researcher.config import (
@@ -17,7 +18,16 @@ from eubw_researcher.corpus import (
     render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
-from eubw_researcher.models import ManualReviewArtifact, ManualReviewReport, ScenarioVerdict, dataclass_to_dict
+from eubw_researcher.evaluation.git_metadata import collect_git_metadata
+from eubw_researcher.models import (
+    EvalRunManifest,
+    EvalScenarioRunSummary,
+    EvaluationScenario,
+    ManualReviewArtifact,
+    ManualReviewReport,
+    ScenarioVerdict,
+    dataclass_to_dict,
+)
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
@@ -46,7 +56,14 @@ def _scenario_config_path(
     return default_path
 
 
-def _evaluate_scenario(scenario, result) -> ScenarioVerdict:
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _evaluate_scenario_with_review_report(
+    scenario: EvaluationScenario,
+    result: Any,
+) -> Tuple[ScenarioVerdict, ManualReviewReport]:
     checks = []
     passed = True
 
@@ -415,11 +432,22 @@ def _evaluate_scenario(scenario, result) -> ScenarioVerdict:
             checks.append("manual_review_accept:fail")
             passed = False
 
-    return ScenarioVerdict(
-        scenario_id=scenario.scenario_id,
-        passed=passed,
-        checks=checks,
+    return (
+        ScenarioVerdict(
+            scenario_id=scenario.scenario_id,
+            passed=passed,
+            checks=checks,
+        ),
+        review_report,
     )
+
+
+def _evaluate_scenario(
+    scenario: EvaluationScenario,
+    result: Any,
+) -> ScenarioVerdict:
+    verdict, _ = _evaluate_scenario_with_review_report(scenario, result)
+    return verdict
 
 
 def _run_pipeline(repo_root: Path, catalog_path: Optional[Path] = None):
@@ -571,6 +599,95 @@ def write_artifact_bundle(
     return resolved_report
 
 
+def build_eval_run_manifest(
+    repo_root: Path,
+    *,
+    scenario_config_path: Path,
+    catalog_path: Path,
+    corpus_state_id: str,
+    runtime_contract_version: str,
+    scenario_runs: List[EvalScenarioRunSummary],
+    coverage_gate_passed: Optional[bool],
+    coverage_report_path: Optional[Path],
+    coverage_summary_path: Optional[Path],
+) -> EvalRunManifest:
+    git_metadata = collect_git_metadata(repo_root)
+    return EvalRunManifest(
+        run_timestamp=_utcnow().isoformat(),
+        scenario_config_path=str(scenario_config_path.resolve()),
+        catalog_path=str(catalog_path.resolve()),
+        corpus_state_id=corpus_state_id,
+        runtime_contract_version=runtime_contract_version,
+        binding_gate_surface=(
+            "real_corpus_eval" if is_real_corpus_catalog(catalog_path) else "fixture_eval"
+        ),
+        coverage_gate_passed=coverage_gate_passed,
+        overall_passed=bool(scenario_runs) and all(item.passed for item in scenario_runs),
+        coverage_report_path=(
+            str(coverage_report_path.resolve())
+            if coverage_report_path is not None
+            else None
+        ),
+        coverage_summary_path=(
+            str(coverage_summary_path.resolve())
+            if coverage_summary_path is not None
+            else None
+        ),
+        git_commit=git_metadata.get("commit"),
+        git_branch=git_metadata.get("branch"),
+        git_dirty=git_metadata.get("dirty", True),
+        scenario_runs=scenario_runs,
+    )
+
+
+def write_eval_run_manifest(manifest: EvalRunManifest, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(dataclass_to_dict(manifest), indent=2), encoding="utf-8")
+
+
+def load_eval_run_manifest(path: Path) -> EvalRunManifest:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return EvalRunManifest(
+        run_timestamp=payload["run_timestamp"],
+        scenario_config_path=payload["scenario_config_path"],
+        catalog_path=payload["catalog_path"],
+        corpus_state_id=payload["corpus_state_id"],
+        runtime_contract_version=payload["runtime_contract_version"],
+        binding_gate_surface=payload["binding_gate_surface"],
+        coverage_gate_passed=payload.get("coverage_gate_passed"),
+        overall_passed=payload["overall_passed"],
+        coverage_report_path=payload.get("coverage_report_path"),
+        coverage_summary_path=payload.get("coverage_summary_path"),
+        git_commit=payload.get("git_commit"),
+        git_branch=payload.get("git_branch"),
+        git_dirty=payload.get("git_dirty", True),
+        scenario_runs=[
+            EvalScenarioRunSummary(
+                scenario_id=item["scenario_id"],
+                passed=item["passed"],
+                require_manual_review_accept=item["require_manual_review_accept"],
+                manual_review_accept_satisfied=item["manual_review_accept_satisfied"],
+                final_judgment=item["final_judgment"],
+                output_dir=item["output_dir"],
+                verdict_path=item["verdict_path"],
+                manual_review_report_path=item["manual_review_report_path"],
+            )
+            for item in payload.get("scenario_runs", [])
+        ],
+    )
+
+
+def _clear_authoritative_eval_artifacts(output_dir: Path) -> None:
+    for artifact_name in (
+        "eval_run_manifest.json",
+        "corpus_coverage_report.json",
+        "corpus_coverage_summary.md",
+    ):
+        artifact_path = output_dir / artifact_name
+        if artifact_path.exists():
+            artifact_path.unlink()
+
+
 def run_named_scenario(
     repo_root: Path,
     scenario_id: str,
@@ -580,6 +697,7 @@ def run_named_scenario(
 ) -> Tuple[Path, ScenarioVerdict]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
+    _clear_authoritative_eval_artifacts(output_dir)
     pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,
@@ -588,7 +706,7 @@ def run_named_scenario(
     scenario = next(item for item in scenarios if item.scenario_id == scenario_id)
     result = pipeline.answer_question(scenario.question)
     result.corpus_coverage_report = coverage_report
-    verdict = _evaluate_scenario(scenario, result)
+    verdict, _ = _evaluate_scenario_with_review_report(scenario, result)
     if coverage_report is not None:
         if coverage_report.passed:
             verdict.checks.append("corpus_coverage_gate:ok")
@@ -616,15 +734,19 @@ def run_all_scenarios(
 ) -> List[Tuple[str, ScenarioVerdict]]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
+    _clear_authoritative_eval_artifacts(output_dir)
     pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,
     )
+    from eubw_researcher.runtime_facade import ResearchRuntimeFacade
+
     results: List[Tuple[str, ScenarioVerdict]] = []
+    scenario_runs: List[EvalScenarioRunSummary] = []
     for scenario in scenarios:
         result = pipeline.answer_question(scenario.question)
         result.corpus_coverage_report = coverage_report
-        verdict = _evaluate_scenario(scenario, result)
+        verdict, _ = _evaluate_scenario_with_review_report(scenario, result)
         if coverage_report is not None:
             if coverage_report.passed:
                 verdict.checks.append("corpus_coverage_gate:ok")
@@ -632,7 +754,7 @@ def run_all_scenarios(
                 verdict.checks.append("corpus_coverage_gate:fail")
                 verdict.passed = False
         scenario_dir = output_dir / scenario.scenario_id
-        write_artifact_bundle(
+        resolved_review_report = write_artifact_bundle(
             scenario_dir,
             result,
             verdict=verdict,
@@ -640,5 +762,45 @@ def run_all_scenarios(
             catalog_path=resolved_catalog_path,
             corpus_state_id=corpus_state_id,
         )
+        scenario_runs.append(
+            EvalScenarioRunSummary(
+                scenario_id=scenario.scenario_id,
+                passed=verdict.passed,
+                require_manual_review_accept=scenario.require_manual_review_accept,
+                manual_review_accept_satisfied=(
+                    resolved_review_report.final_judgment == "accept"
+                    if scenario.require_manual_review_accept
+                    else None
+                ),
+                final_judgment=resolved_review_report.final_judgment,
+                output_dir=str(scenario_dir.resolve()),
+                verdict_path=str((scenario_dir / "verdict.json").resolve()),
+                manual_review_report_path=str(
+                    (scenario_dir / "manual_review_report.md").resolve()
+                ),
+            )
+        )
         results.append((scenario.scenario_id, verdict))
+    coverage_report_path = None
+    coverage_summary_path = None
+    if coverage_report is not None:
+        coverage_report_path = output_dir / "corpus_coverage_report.json"
+        coverage_summary_path = output_dir / "corpus_coverage_summary.md"
+        write_corpus_coverage_report(coverage_report, coverage_report_path)
+        coverage_summary_path.write_text(
+            render_corpus_coverage_summary_md(coverage_report),
+            encoding="utf-8",
+        )
+    manifest = build_eval_run_manifest(
+        repo_root,
+        scenario_config_path=resolved_scenarios_path,
+        catalog_path=resolved_catalog_path,
+        corpus_state_id=corpus_state_id,
+        runtime_contract_version=ResearchRuntimeFacade.CONTRACT_VERSION,
+        scenario_runs=scenario_runs,
+        coverage_gate_passed=coverage_report.passed if coverage_report is not None else None,
+        coverage_report_path=coverage_report_path,
+        coverage_summary_path=coverage_summary_path,
+    )
+    write_eval_run_manifest(manifest, output_dir / "eval_run_manifest.json")
     return results

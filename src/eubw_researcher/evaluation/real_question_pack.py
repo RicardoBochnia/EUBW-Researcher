@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
@@ -15,6 +14,7 @@ from eubw_researcher.evaluation.review import (
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
+from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
     ManualReviewArtifact,
@@ -402,25 +402,4 @@ def _stable_value(current, candidate, label: str):
 
 
 def _git_metadata(repo_root: Path) -> dict[str, Optional[Union[str, bool]]]:
-    branch = _run_git_command(repo_root, "branch", "--show-current")
-    commit = _run_git_command(repo_root, "rev-parse", "HEAD")
-    status = _run_git_command(repo_root, "status", "--short")
-    return {
-        "branch": branch,
-        "commit": commit,
-        "dirty": True if status is None else bool(status),
-    }
-
-
-def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return None
-    output = completed.stdout.strip()
-    return output or None
+    return collect_git_metadata(repo_root)

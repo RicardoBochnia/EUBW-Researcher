@@ -22,6 +22,8 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - Run the full configured evaluation set: `python3 scripts/run_eval.py --all`
 - Run eval against a non-fixture catalog: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Run the real-corpus review gate: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- Generate the validated current-state report from the real-corpus eval gate: `python3 scripts/report_validated_current_state.py`
+- Add a real-question-pack manifest as supplemental evidence for that report: `python3 scripts/report_validated_current_state.py --real-question-pack-manifest artifacts/real_question_pack_runs/<run-id>/pack_run_manifest.json`
 - Run the separate Scenario D closeout harness with a spawned validator: `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 
 Validator contract for the closeout harness:
@@ -38,6 +40,9 @@ Validator contract for the closeout harness:
 - A compact reviewer entrypoint lives in `docs/architecture/options/option-a/REVIEW_GUIDE.md`.
 - Known V2 residual limits and their mitigation/acceptance are recorded in `docs/architecture/options/option-a/HARDENING_NOTES.md`.
 - Default eval outputs are split by corpus: `artifacts/eval_runs` for fixtures and `artifacts/eval_runs_real_corpus` for the real archive catalog.
+- Top-level eval output directories now include `eval_run_manifest.json`; for real-corpus eval they also include top-level `corpus_coverage_report.json` and `corpus_coverage_summary.md` as the compact validated-gate surface.
+- `eval_run_manifest.json` is only authoritative when produced by `python3 scripts/run_eval.py --all`; single-scenario eval runs do not write or preserve the top-level authoritative manifest/coverage artifacts in the target output directory.
+- `scripts/report_validated_current_state.py` writes a compact validated-state bundle under `artifacts/current_state`, including `validated_current_state_report.json` and `validated_current_state_report.md`; it consumes the real-corpus `eval_run_manifest.json` from `run_eval.py --all`, and real-question-pack evidence is supplemental only when passed explicitly with `--real-question-pack-manifest`.
 - Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, `manual_review_report.md`, `pinpoint_evidence.json`, `answer_alignment.json`, and `blind_validation_report.json`; grouping-capable runs additionally emit `provisional_grouping.json`.
 - Corpus-backed bundles additionally emit `corpus_coverage_report.json`, and the real-corpus ingestion bundle is cached under `artifacts/real_corpus/cache/` so repeated review runs do not re-normalize the full archive.
 - `manual_review.json` is an automated prefill artifact; `manual_review_report.md` is the primary human-readable review surface.

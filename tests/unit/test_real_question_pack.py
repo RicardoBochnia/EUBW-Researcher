@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.evaluation.real_question_pack import (
     _build_question_verdict,
     default_real_question_pack_output_dir,
@@ -665,10 +666,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
     def test_git_metadata_treats_unknown_status_as_dirty(self) -> None:
         with patch(
-            "eubw_researcher.evaluation.real_question_pack._run_git_command",
+            "eubw_researcher.evaluation.git_metadata._run_git_command",
             side_effect=["branch-name", "commit-sha", None],
         ):
-            metadata = _git_metadata(Path("/tmp/repo"))
+            metadata = collect_git_metadata(Path("/tmp/repo"))
 
         self.assertEqual(metadata["branch"], "branch-name")
         self.assertEqual(metadata["commit"], "commit-sha")
