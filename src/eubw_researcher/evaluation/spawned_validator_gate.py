@@ -528,6 +528,9 @@ def run_spawned_validator_gate(
     blind_validation_merger: Optional[
         Callable[[Any, Any], BlindValidationReport]
     ] = None,
+    final_verdict_builder: Optional[
+        Callable[[ScenarioVerdict, BlindValidationReport, SpawnedValidatorResult], ScenarioVerdict]
+    ] = None,
     pipeline_runner: Optional[Callable[..., Tuple[Any, Any, str, Path]]] = None,
     bundle_writer: Optional[Callable[..., Any]] = None,
 ) -> Tuple[List[Tuple[str, ScenarioVerdict]], Path]:
@@ -541,6 +544,8 @@ def run_spawned_validator_gate(
         blind_validation_report_builder = build_blind_validation_report
     if blind_validation_merger is None:
         blind_validation_merger = merge_spawned_validator_result
+    if final_verdict_builder is None:
+        final_verdict_builder = _build_spawned_validator_verdict
     if pipeline_runner is None:
         pipeline_runner = _run_pipeline
     if bundle_writer is None:
@@ -634,7 +639,7 @@ def run_spawned_validator_gate(
             result.blind_validation_report,
             spawned_validator,
         )
-        final_verdict = _build_spawned_validator_verdict(
+        final_verdict = final_verdict_builder(
             structural_verdict,
             result.blind_validation_report,
             spawned_validator,
