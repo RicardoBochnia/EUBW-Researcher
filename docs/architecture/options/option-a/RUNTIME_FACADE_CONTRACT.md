@@ -5,11 +5,26 @@ The stable agent-facing package-root surface for the current Option A runtime is
 - `ResearchRuntimeFacade`
 - `AgentRuntimeRequest`
 - `AgentRuntimeResponse`
+- `AgentRuntimeResult`
 - `AgentRuntimeMode`
 
 ## Contract version
 
-- contract id: `option_a_runtime.v1`
+- runtime contract id: `option_a_runtime.v2`
+- result schema id: `agent_runtime_result.v1`
+
+The runtime contract version covers the facade entrypoints and response envelope.
+The result schema version covers the narrowed `AgentRuntimeResult` payload carried in `AgentRuntimeResponse.result`.
+
+## Breaking change from v1
+
+`option_a_runtime.v2` is a breaking contract change relative to `option_a_runtime.v1`.
+
+Migration notes:
+
+- callers that gated on `response.contract_version == "option_a_runtime.v1"` must now accept `option_a_runtime.v2`
+- callers that relied on the public response being the internal `AnswerResult` should type against `AgentRuntimeResult` instead
+- `response.result` remains the stable access point, but only the fields documented below are part of the public agent contract
 
 ## Public surface
 
@@ -23,14 +38,15 @@ The facade accepts one question per request and resolves config, corpus loading,
 ## Supported modes
 
 - `answer_question`
-  - returns the full `AnswerResult`
+  - returns `AgentRuntimeResponse` with a narrowed `AgentRuntimeResult`
   - does not write artifacts
 - `evidence_only`
-  - returns the same `AnswerResult` contract
-  - intended for agents that want the ledger, gap records, and reviewable evidence structures without using the artifact-writer route
+  - returns the same narrowed `AgentRuntimeResult`
+  - intended for agents that need the stable review/evidence payload without using the artifact-writer route
 - `write_reviewable_artifact_bundle`
   - runs the same deterministic question path
   - writes the standard review bundle to `output_dir`
+  - still returns the narrowed `AgentRuntimeResult`
 
 ## Deterministic routing rules
 
@@ -40,33 +56,44 @@ The facade accepts one question per request and resolves config, corpus loading,
 - `write_reviewable_artifact_bundle` requires `output_dir`
 - blank questions are rejected
 
-## Response contract
+## Response envelope
 
 Each facade call returns `AgentRuntimeResponse` with:
 
 - `contract_version`
+- `result_schema_version`
 - `mode`
 - `catalog_path`
 - `corpus_state_id`
 - `output_dir`
 - `result`
 
-`result` is the existing `AnswerResult`, including the review artifacts that are already part of the runtime contract such as:
+## Stable result payload
 
+`result` is `AgentRuntimeResult`, a facade-owned payload that exposes only the supported stable fields for agent use:
+
+- `question`
+- `query_intent`
 - `retrieval_plan`
 - `gap_records`
 - `web_fetch_records`
+- `ingestion_report`
 - `ledger_entries`
 - `approved_entries`
 - `rendered_answer`
 - `provisional_grouping`
+- `facet_coverage_report`
 - `pinpoint_evidence_report`
 - `answer_alignment_report`
 - `blind_validation_report`
 - `corpus_coverage_report`
 
+These fields are returned as stable plain-data structures suitable for agent consumption.
+
 ## Stability boundary
 
 Agents should treat this package-root facade contract as the stable programmatic surface.
 
-Internal modules and types such as direct pipeline wiring, `ResearchPipeline`, config loading helpers, retrieval internals, and artifact-writing internals are implementation details and may change without notice.
+Internal modules and types such as direct pipeline wiring, `ResearchPipeline`, config loading helpers, retrieval internals, artifact-writing internals, and the internal `eubw_researcher.models.AnswerResult` are implementation details and may change without notice.
+
+The facade still uses the internal `AnswerResult` for pipeline execution and artifact writing, but that internal model is no longer part of the package-root public response contract.
