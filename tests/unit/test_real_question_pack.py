@@ -97,6 +97,8 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         web_fetch_records=None,
         catalog_path: Path = None,
     ) -> SimpleNamespace:
+        if catalog_path is None and repo_root is None:
+            raise ValueError("repo_root is required when catalog_path is not provided.")
         resolved_catalog_path = (
             catalog_path.resolve()
             if catalog_path is not None
