@@ -446,7 +446,7 @@ def _evaluate_scenario(
     scenario: EvaluationScenario,
     result: Any,
 ) -> ScenarioVerdict:
-    verdict, _review_report = _evaluate_scenario_with_review_report(scenario, result)
+    verdict, _ = _evaluate_scenario_with_review_report(scenario, result)
     return verdict
 
 
@@ -746,7 +746,7 @@ def run_all_scenarios(
     for scenario in scenarios:
         result = pipeline.answer_question(scenario.question)
         result.corpus_coverage_report = coverage_report
-        verdict, _review_report = _evaluate_scenario_with_review_report(scenario, result)
+        verdict, _ = _evaluate_scenario_with_review_report(scenario, result)
         if coverage_report is not None:
             if coverage_report.passed:
                 verdict.checks.append("corpus_coverage_gate:ok")
