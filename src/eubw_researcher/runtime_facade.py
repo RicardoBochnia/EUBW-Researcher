@@ -250,6 +250,8 @@ class ResearchRuntimeFacade:
 
     @staticmethod
     def _to_public_result(result: AnswerResult) -> AgentRuntimeResult:
+        # NOTE: add new AnswerResult fields here when they should be part of the
+        # public runtime contract.
         return AgentRuntimeResult(
             question=result.question,
             query_intent=result.query_intent,

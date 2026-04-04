@@ -16,6 +16,16 @@ The stable agent-facing package-root surface for the current Option A runtime is
 The runtime contract version covers the facade entrypoints and response envelope.
 The result schema version covers the narrowed `AgentRuntimeResult` payload carried in `AgentRuntimeResponse.result`.
 
+## Breaking change from v1
+
+`option_a_runtime.v2` is a breaking contract change relative to `option_a_runtime.v1`.
+
+Migration notes:
+
+- callers that gated on `response.contract_version == "option_a_runtime.v1"` must now accept `option_a_runtime.v2`
+- callers that relied on the public response being the internal `AnswerResult` should type against `AgentRuntimeResult` instead
+- `response.result` remains the stable access point, but only the fields documented below are part of the public agent contract
+
 ## Public surface
 
 - `ResearchRuntimeFacade.answer_question(question, catalog_path=None)`
