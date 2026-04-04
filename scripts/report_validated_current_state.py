@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 from _catalog_path import resolve_catalog_path
 
@@ -35,32 +33,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
-def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return None
-    output = completed.stdout.strip()
-    return output or None
-
-
-def _git_metadata(repo_root: Path) -> dict[str, Optional[object]]:
-    branch = _run_git_command(repo_root, "branch", "--show-current")
-    commit = _run_git_command(repo_root, "rev-parse", "HEAD")
-    status = _run_git_command(repo_root, "status", "--short")
-    return {
-        "branch": branch,
-        "commit": commit,
-        "dirty": True if status is None else bool(status),
-    }
-
-
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -77,6 +49,7 @@ def main() -> int:
         write_corpus_state_snapshot,
     )
     from eubw_researcher.evaluation import load_eval_run_manifest
+    from eubw_researcher.evaluation.runner import _git_metadata
     from eubw_researcher.models import dataclass_to_dict
     from eubw_researcher.runtime_facade import ResearchRuntimeFacade
 
