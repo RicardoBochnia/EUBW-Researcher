@@ -5,18 +5,19 @@ from typing import Optional, Tuple
 
 from eubw_researcher.config import load_evaluation_scenarios
 from eubw_researcher.models import ScenarioVerdict
+from eubw_researcher.trust import build_blind_validation_report, merge_spawned_validator_result
 
 from .runner import _evaluate_scenario, _run_pipeline, _scenario_config_path, write_artifact_bundle
 from . import spawned_validator_gate as _spawned_validator_gate
 
 _ORIGINAL_BUILD_SPAWNED_VALIDATOR_VERDICT = _spawned_validator_gate._build_spawned_validator_verdict
+_ORIGINAL_INVOKE_SPAWNED_VALIDATOR = _spawned_validator_gate._invoke_spawned_validator
 
 SCENARIO_D_ID = "scenario_d_certificate_topology_anchor"
 _append_corpus_coverage_gate = _spawned_validator_gate._append_corpus_coverage_gate
 _build_spawned_validator_request = _spawned_validator_gate._build_spawned_validator_request
 _clear_closeout_sidecar_files = _spawned_validator_gate._clear_spawned_validator_sidecar_files
 _decode_process_output = _spawned_validator_gate._decode_process_output
-_invoke_spawned_validator = _spawned_validator_gate._invoke_spawned_validator
 _parse_raw_document_reads = _spawned_validator_gate._parse_raw_document_reads
 _parse_spawned_validator_payload = _spawned_validator_gate._parse_spawned_validator_payload
 _require_bool_field = _spawned_validator_gate._require_bool_field
@@ -39,6 +40,13 @@ def _build_closeout_verdict(*args, **kwargs) -> ScenarioVerdict:
         passed=verdict.passed,
         checks=checks,
     )
+
+
+def _invoke_spawned_validator(*args, **kwargs):
+    result = _ORIGINAL_INVOKE_SPAWNED_VALIDATOR(*args, **kwargs)
+    if result.error is not None:
+        result.error = result.error.replace("gate failure", "closeout failure")
+    return result
 
 
 def default_closeout_output_dir(repo_root: Path) -> Path:
@@ -67,6 +75,8 @@ def run_scenario_d_closeout(
         "_parse_spawned_validator_payload": _parse_spawned_validator_payload,
         "_require_bool_field": _require_bool_field,
         "_spawned_validator_error": _spawned_validator_error,
+        "build_blind_validation_report": build_blind_validation_report,
+        "merge_spawned_validator_result": merge_spawned_validator_result,
         "subprocess": subprocess,
     }
     original_values = {
