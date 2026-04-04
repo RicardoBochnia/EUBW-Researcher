@@ -675,6 +675,17 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         self.assertEqual(metadata["commit"], "commit-sha")
         self.assertTrue(metadata["dirty"])
 
+    def test_git_metadata_treats_empty_status_as_clean(self) -> None:
+        with patch(
+            "eubw_researcher.evaluation.git_metadata._run_git_command",
+            side_effect=["branch-name", "commit-sha", ""],
+        ):
+            metadata = collect_git_metadata(Path("/tmp/repo"))
+
+        self.assertEqual(metadata["branch"], "branch-name")
+        self.assertEqual(metadata["commit"], "commit-sha")
+        self.assertFalse(metadata["dirty"])
+
     def test_question_verdict_does_not_encode_artifact_checks(self) -> None:
         question = SimpleNamespace(
             question_id="synthetic_question",
