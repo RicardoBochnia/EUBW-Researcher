@@ -285,12 +285,13 @@ def _build_question_verdict(
     passed = True
 
     if question.expected_intent_type:
-        if result.query_intent.intent_type == question.expected_intent_type:
+        actual_intent_type = result.query_intent.intent_type
+        if actual_intent_type == question.expected_intent_type:
             checks.append(f"intent_type:{question.expected_intent_type}:ok")
         else:
             checks.append(
                 "intent_type:"
-                f"{question.expected_intent_type}:fail:{result.query_intent.intent_type}"
+                f"{question.expected_intent_type}:fail:{actual_intent_type}"
             )
             passed = False
     else:

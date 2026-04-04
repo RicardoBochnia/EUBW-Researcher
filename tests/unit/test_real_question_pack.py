@@ -68,12 +68,13 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             query_intent=SimpleNamespace(intent_type=intent_type),
             approved_entries=[object(), object()],
             gap_records=[object()],
-            web_fetch_records=[object(), object()],
+            web_fetch_records=[SimpleNamespace(record_type="fetch"), SimpleNamespace(record_type="fetch")],
             provisional_grouping=[],
             corpus_coverage_report=object(),
         )
         return SimpleNamespace(
-            contract_version="option_a_runtime.v1",
+            contract_version="option_a_runtime.v2",
+            result_schema_version="agent_runtime_result.v1",
             catalog_path=(output_dir.parents[3] / "artifacts" / "real_corpus" / "curated_catalog.json").resolve(),
             corpus_state_id="synthetic-state",
             output_dir=output_dir.resolve(),
@@ -177,7 +178,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             self.assertEqual(run_root, output_dir.resolve())
             self.assertEqual(manifest.run_id, "synthetic-run")
             self.assertEqual(payload["selected_question_ids"], ["synthetic_question"])
-            self.assertEqual(payload["runtime_contract_version"], "option_a_runtime.v1")
+            self.assertEqual(payload["runtime_contract_version"], "option_a_runtime.v2")
             self.assertEqual(payload["git_branch"], "codex/issue-8-real-question-pack")
             self.assertFalse(payload["git_dirty"])
             self.assertEqual(len(payload["question_runs"]), 1)
