@@ -82,7 +82,7 @@ def run_real_question_pack(
     pack = load_real_question_pack(resolved_pack_path)
     selected_questions = _select_questions(pack, question_id)
     # Capture baseline provenance before default run output creation or cache writes can
-    # dirty an otherwise clean repository.
+    # dirty an otherwise clean repository and falsely report the run as starting dirty.
     git_metadata = _git_metadata(resolved_repo_root)
 
     run_root = (
@@ -306,7 +306,7 @@ def _validate_run_root(repo_root: Path, run_root: Path) -> None:
 
 
 def _run_writes_repo_local_artifacts(run_root: Path, catalog_path: Path, repo_root: Path) -> bool:
-    """Return whether a pack run writes any artifacts inside the repository."""
+    """Return whether a pack run writes repo-local output directories or real-corpus cache files."""
     return _is_within_root(run_root, repo_root) or _writes_repo_local_real_corpus_cache(
         catalog_path,
         repo_root,

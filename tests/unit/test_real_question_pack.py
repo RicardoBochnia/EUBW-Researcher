@@ -16,6 +16,29 @@ from eubw_researcher.evaluation.real_question_pack import (
 )
 from eubw_researcher.models import ManualReviewArtifact, ManualReviewCheck
 
+REAL_CORPUS_BUNDLE_ARTIFACTS = [
+    "retrieval_plan.json",
+    "gap_records.json",
+    "web_fetch_records.json",
+    "ingestion_report.json",
+    "ledger_entries.json",
+    "approved_ledger.json",
+    "final_answer.txt",
+    "pinpoint_evidence.json",
+    "answer_alignment.json",
+    "blind_validation_report.json",
+    "manual_review.json",
+    "manual_review_report.md",
+    "corpus_coverage_report.json",
+    "verdict.json",
+]
+
+NON_REAL_CORPUS_BUNDLE_ARTIFACTS = [
+    artifact_name
+    for artifact_name in REAL_CORPUS_BUNDLE_ARTIFACTS
+    if artifact_name != "corpus_coverage_report.json"
+]
+
 
 def _fake_review_artifact(_result, *, scenario_id=None):
     return ManualReviewArtifact(
@@ -35,6 +58,12 @@ def _fake_review_artifact(_result, *, scenario_id=None):
 
 
 class RealQuestionPackRunnerTests(unittest.TestCase):
+    @staticmethod
+    def _write_bundle_artifacts(bundle_dir: Path, artifact_names) -> None:
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        for artifact_name in artifact_names:
+            (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
     def _write_pack_config(self, root: Path) -> Path:
         pack_path = root / "pack.json"
         pack_path.write_text(
@@ -63,6 +92,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         self,
         output_dir: Path,
         *,
+        repo_root: Path = None,
         intent_type: str = "synthetic_intent",
         web_fetch_records=None,
         catalog_path: Path = None,
@@ -70,7 +100,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         resolved_catalog_path = (
             catalog_path.resolve()
             if catalog_path is not None
-            else (output_dir.parents[3] / "artifacts" / "real_corpus" / "curated_catalog.json").resolve()
+            else (repo_root / "artifacts" / "real_corpus" / "curated_catalog.json").resolve()
         )
         result = SimpleNamespace(
             query_intent=SimpleNamespace(intent_type=intent_type),
@@ -120,24 +150,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             question_dir = expected_run_root / "synthetic_question"
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "corpus_coverage_report.json",
-                    "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -172,6 +185,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ):
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
                     question_dir,
+                    repo_root=repo_root,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
                 )
 
@@ -194,24 +208,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             question_dir = output_dir / "synthetic_question"
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "corpus_coverage_report.json",
-                    "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -239,7 +236,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ):
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
                     question_dir,
-                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    repo_root=repo_root,
                 )
 
                 _run_root, manifest = run_real_question_pack(
@@ -265,23 +262,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             external_catalog_path.write_text("{}", encoding="utf-8")
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, NON_REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -334,24 +315,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, manual_review_report=None, **_kwargs):
                 captured_report["value"] = manual_review_report
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "corpus_coverage_report.json",
-                    "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 report = SimpleNamespace(
@@ -387,7 +351,8 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 side_effect=_rewrite_bundle,
             ):
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
-                    question_dir
+                    question_dir,
+                    repo_root=repo_root,
                 )
 
                 run_root, manifest = run_real_question_pack(
@@ -461,24 +426,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             question_dir = output_dir / "synthetic_question"
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "corpus_coverage_report.json",
-                    "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -506,6 +454,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ):
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
                     question_dir,
+                    repo_root=repo_root,
                     intent_type="wrong_intent",
                 )
 
@@ -538,24 +487,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
                 self.assertFalse((bundle_dir / "facet_coverage.json").exists())
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "corpus_coverage_report.json",
-                    "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -581,7 +513,11 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
                 side_effect=_rewrite_bundle,
             ):
-                response = self._fake_response(question_dir, intent_type="synthetic_intent")
+                response = self._fake_response(
+                    question_dir,
+                    repo_root=repo_root,
+                    intent_type="synthetic_intent",
+                )
                 response.result.web_fetch_records = []
                 facade_cls.return_value.run_evidence_only.return_value = response
 
@@ -611,26 +547,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             question_dir = output_dir / "synthetic_question"
 
             def _rewrite_bundle_missing_facet(bundle_dir, result, *, verdict=None, **_kwargs):
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json",
-                    "gap_records.json",
-                    "web_fetch_records.json",
-                    "ingestion_report.json",
-                    "ledger_entries.json",
-                    "approved_ledger.json",
-                    "final_answer.txt",
-                    "pinpoint_evidence.json",
-                    "answer_alignment.json",
-                    "blind_validation_report.json",
-                    "manual_review.json",
-                    "manual_review_report.md",
-                    "corpus_coverage_report.json",
-                    "verdict.json",
-                    # facet_coverage.json intentionally omitted;
-                    # the runner cannot synthesise it, so it stays missing after recompute
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             def _build_report(_result, verdict, **_kwargs):
                 return SimpleNamespace(
@@ -662,6 +579,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 # Use topology intent so facet_coverage.json is expected
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
                     question_dir,
+                    repo_root=repo_root,
                     intent_type="certificate_topology_analysis",
                 )
 
@@ -778,15 +696,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
             def _rewrite_bundle(bundle_dir, result, *, verdict=None, manual_review_report=None, **kwargs):
                 captured_bundle_kwargs.update(kwargs)
-                bundle_dir.mkdir(parents=True, exist_ok=True)
-                for artifact_name in [
-                    "retrieval_plan.json", "gap_records.json", "web_fetch_records.json",
-                    "ingestion_report.json", "ledger_entries.json", "approved_ledger.json",
-                    "final_answer.txt", "pinpoint_evidence.json", "answer_alignment.json",
-                    "blind_validation_report.json", "manual_review.json",
-                    "manual_review_report.md", "corpus_coverage_report.json", "verdict.json",
-                ]:
-                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+                self._write_bundle_artifacts(bundle_dir, REAL_CORPUS_BUNDLE_ARTIFACTS)
 
             built_artifacts: list = []
 
@@ -820,7 +730,8 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 side_effect=_rewrite_bundle,
             ):
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
-                    question_dir
+                    question_dir,
+                    repo_root=repo_root,
                 )
                 run_real_question_pack(
                     repo_root,
