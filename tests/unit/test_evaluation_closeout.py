@@ -205,29 +205,29 @@ class CloseoutTests(unittest.TestCase):
             request_path = Path(temp_dir) / "request.json"
             result_path = Path(temp_dir) / "result.json"
             request_path.write_text("{}", encoding="utf-8")
-            result_path.write_text(
-                json.dumps(
-                    {
-                        "passed": True,
-                        "context_inherited": False,
-                        "artifacts_used": ["final_answer.txt"],
-                        "raw_document_dependency": "none",
-                        "product_output_self_sufficient": True,
-                        "summary": "Synthetic summary.",
-                        "validator_answer": "Synthetic answer.",
-                    }
-                ),
-                encoding="utf-8",
-            )
+            payload = {
+                "passed": True,
+                "context_inherited": False,
+                "artifacts_used": ["final_answer.txt"],
+                "raw_document_dependency": "none",
+                "product_output_self_sufficient": True,
+                "summary": "Synthetic summary.",
+                "validator_answer": "Synthetic answer.",
+            }
             completed = subprocess.CompletedProcess(
                 args=["python", "validator.py"],
                 returncode=2,
                 stdout=b"",
                 stderr=b"validator stderr",
             )
+
+            def _mock_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+                result_path.write_text(json.dumps(payload), encoding="utf-8")
+                return completed
+
             with patch(
                 "eubw_researcher.evaluation.closeout.subprocess.run",
-                return_value=completed,
+                side_effect=_mock_run,
             ):
                 result = _invoke_spawned_validator(
                     repo_root=Path(temp_dir),
