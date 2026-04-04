@@ -4,7 +4,7 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 
 ## Local commands
 
-- Programmatic agent use should use the facade contract exported from `eubw_researcher` (`ResearchRuntimeFacade`, `AgentRuntimeRequest`, `AgentRuntimeResponse`, `AgentRuntimeMode`); see `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
+- Programmatic agent use should use the facade contract exported from `eubw_researcher` (`ResearchRuntimeFacade`, `AgentRuntimeRequest`, `AgentRuntimeResponse`, `AgentRuntimeResult`, `AgentRuntimeMode`); see `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
 - Run the full local test suite, including Scenario D closeout coverage: `python3 scripts/run_tests.py`
 - Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
@@ -46,6 +46,7 @@ Validator contract for the closeout harness:
 - Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, `manual_review_report.md`, `pinpoint_evidence.json`, `answer_alignment.json`, and `blind_validation_report.json`; grouping-capable runs additionally emit `provisional_grouping.json`.
 - Corpus-backed bundles additionally emit `corpus_coverage_report.json`, and the real-corpus ingestion bundle is cached under `artifacts/real_corpus/cache/` so repeated review runs do not re-normalize the full archive.
 - `manual_review.json` is an automated prefill artifact; `manual_review_report.md` is the primary human-readable review surface.
+- The real-question pack `pack_run_manifest.json` captures baseline git attribution before in-repo output creation, whether the run wrote repo-local artifacts, and compact reviewer-oriented per-question triage fields.
 - The real-question pack writes one standard reviewable bundle per configured question under `artifacts/real_question_pack_runs/<run-id>/...` plus a top-level `pack_run_manifest.json` with run attribution and compact review signals; it is a regression-review surface, not a benchmark scorecard.
 - `pinpoint_evidence.json` maps answer claims to reviewer-usable local source locators and records any precision limits explicitly.
 - `answer_alignment.json` records the structural answer-to-evidence alignment check used by the V2.2 topology gate.

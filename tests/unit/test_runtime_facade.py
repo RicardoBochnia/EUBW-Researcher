@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import re
 import tempfile
+import typing
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,8 +12,10 @@ from unittest.mock import patch
 from eubw_researcher import (
     AgentRuntimeMode,
     AgentRuntimeRequest,
+    AgentRuntimeResult,
     ResearchRuntimeFacade,
 )
+from eubw_researcher.models import CorpusCoverageFamily, CorpusCoverageReport
 
 
 class RuntimeFacadeTests(unittest.TestCase):
@@ -24,11 +27,17 @@ class RuntimeFacadeTests(unittest.TestCase):
             [
                 "AgentRuntimeMode",
                 "AgentRuntimeRequest",
+                "AgentRuntimeResult",
                 "AgentRuntimeResponse",
                 "ResearchRuntimeFacade",
             ],
         )
         self.assertFalse(hasattr(package, "ResearchPipeline"))
+
+    def test_public_response_annotation_uses_stable_runtime_result_type(self) -> None:
+        response_hints = typing.get_type_hints(importlib.import_module("eubw_researcher.runtime_facade").AgentRuntimeResponse)
+
+        self.assertIs(response_hints["result"], AgentRuntimeResult)
 
     def _write_default_catalog(self, repo_root: Path) -> Path:
         catalog_path = repo_root / "artifacts" / "real_corpus" / "curated_catalog.json"
@@ -38,15 +47,46 @@ class RuntimeFacadeTests(unittest.TestCase):
 
     def _patched_result(self) -> SimpleNamespace:
         return SimpleNamespace(
+            question="Synthetic question?",
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            retrieval_plan=SimpleNamespace(steps=[]),
+            gap_records=[],
+            web_fetch_records=[],
+            ingestion_report=[],
+            ledger_entries=[],
+            approved_entries=[],
             rendered_answer="Confirmed:\nSynthetic answer.",
+            provisional_grouping=[],
+            facet_coverage_report=None,
+            pinpoint_evidence_report=None,
+            answer_alignment_report=None,
+            blind_validation_report=None,
             corpus_coverage_report=None,
+        )
+
+    def _coverage_report(self) -> CorpusCoverageReport:
+        return CorpusCoverageReport(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id="state-from-report",
+            generation_timestamp="2026-04-04T14:00:00+00:00",
+            admitted_source_counts_by_kind={"specification": 1},
+            families=[
+                CorpusCoverageFamily(
+                    family_id="wallet_requirements",
+                    minimum_count=1,
+                    admitted_count=1,
+                    admitted_source_ids=["source-1"],
+                    missing=False,
+                )
+            ],
+            passed=True,
         )
 
     def test_answer_question_route_returns_contract_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_root = Path(tmp_dir)
             catalog_path = self._write_default_catalog(repo_root)
-            coverage_report = SimpleNamespace(passed=True)
+            coverage_report = self._coverage_report()
             result = self._patched_result()
 
             with patch("eubw_researcher.runtime_facade.load_runtime_config", return_value="runtime"), patch(
@@ -70,13 +110,18 @@ class RuntimeFacadeTests(unittest.TestCase):
             )
             pipeline_cls.return_value.answer_question.assert_called_once_with("Synthetic question?")
             write_bundle.assert_not_called()
-            self.assertEqual(response.contract_version, "option_a_runtime.v1")
+            self.assertEqual(response.contract_version, "option_a_runtime.v2")
+            self.assertEqual(response.result_schema_version, "agent_runtime_result.v1")
             self.assertEqual(response.mode, AgentRuntimeMode.ANSWER_QUESTION)
             self.assertEqual(response.catalog_path, catalog_path.resolve())
             self.assertIsNone(response.output_dir)
             self.assertEqual(response.corpus_state_id, "state-123")
-            self.assertIs(response.result, result)
-            self.assertIs(response.result.corpus_coverage_report, coverage_report)
+            self.assertIsInstance(response.result, AgentRuntimeResult)
+            self.assertEqual(response.result.question, "Synthetic question?")
+            self.assertEqual(response.result.query_intent.intent_type, "synthetic_intent")
+            self.assertEqual(response.result.rendered_answer, "Confirmed:\nSynthetic answer.")
+            self.assertIsInstance(response.result.corpus_coverage_report, CorpusCoverageReport)
+            self.assertTrue(response.result.corpus_coverage_report.passed)
 
     def test_write_reviewable_artifact_bundle_route_writes_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -116,7 +161,7 @@ class RuntimeFacadeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_root = Path(tmp_dir)
             catalog_path = self._write_default_catalog(repo_root)
-            coverage_report = SimpleNamespace(passed=True)
+            coverage_report = self._coverage_report()
             result = self._patched_result()
 
             with patch("eubw_researcher.runtime_facade.load_runtime_config", return_value="runtime"), patch(
@@ -143,7 +188,9 @@ class RuntimeFacadeTests(unittest.TestCase):
             self.assertEqual(response.catalog_path, catalog_path.resolve())
             self.assertIsNone(response.output_dir)
             self.assertEqual(response.corpus_state_id, "state-789")
-            self.assertIs(response.result.corpus_coverage_report, coverage_report)
+            self.assertIsInstance(response.result, AgentRuntimeResult)
+            self.assertIsInstance(response.result.corpus_coverage_report, CorpusCoverageReport)
+            self.assertTrue(response.result.corpus_coverage_report.passed)
 
     def test_write_route_requires_output_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

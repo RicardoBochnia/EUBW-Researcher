@@ -3,6 +3,7 @@
 from .runtime_facade import (
     AgentRuntimeMode,
     AgentRuntimeRequest,
+    AgentRuntimeResult,
     AgentRuntimeResponse,
     ResearchRuntimeFacade,
 )
@@ -10,6 +11,7 @@ from .runtime_facade import (
 __all__ = [
     "AgentRuntimeMode",
     "AgentRuntimeRequest",
+    "AgentRuntimeResult",
     "AgentRuntimeResponse",
     "ResearchRuntimeFacade",
 ]

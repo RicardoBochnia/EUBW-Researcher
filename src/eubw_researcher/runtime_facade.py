@@ -11,7 +11,21 @@ from eubw_researcher.config import (
     load_web_allowlist,
 )
 from eubw_researcher.corpus import load_or_build_ingestion_bundle
-from eubw_researcher.models import AnswerResult
+from eubw_researcher.models import (
+    AnswerAlignmentReport,
+    AnswerResult,
+    BlindValidationReport,
+    CorpusCoverageReport,
+    FacetCoverageReport,
+    GapRecord,
+    IngestionReportEntry,
+    LedgerEntry,
+    PinpointEvidenceReport,
+    ProvisionalGroup,
+    QueryIntent,
+    RetrievalPlan,
+    WebFetchRecord,
+)
 from eubw_researcher.pipeline import ResearchPipeline
 
 RuntimePath = Union[str, Path]
@@ -40,17 +54,38 @@ class AgentRuntimeRequest:
 @dataclass(frozen=True)
 class AgentRuntimeResponse:
     contract_version: str
+    result_schema_version: str
     mode: AgentRuntimeMode
     catalog_path: Path
     corpus_state_id: str
     output_dir: Optional[Path]
-    result: AnswerResult
+    result: AgentRuntimeResult
+
+
+@dataclass(frozen=True)
+class AgentRuntimeResult:
+    question: str
+    query_intent: QueryIntent
+    retrieval_plan: RetrievalPlan
+    gap_records: list[GapRecord]
+    web_fetch_records: list[WebFetchRecord]
+    ingestion_report: list[IngestionReportEntry]
+    ledger_entries: list[LedgerEntry]
+    approved_entries: list[LedgerEntry]
+    rendered_answer: str
+    provisional_grouping: list[ProvisionalGroup]
+    facet_coverage_report: Optional[FacetCoverageReport] = None
+    pinpoint_evidence_report: Optional[PinpointEvidenceReport] = None
+    answer_alignment_report: Optional[AnswerAlignmentReport] = None
+    blind_validation_report: Optional[BlindValidationReport] = None
+    corpus_coverage_report: Optional[CorpusCoverageReport] = None
 
 
 class ResearchRuntimeFacade:
     """Stable agent-facing runtime facade for Option A."""
 
-    CONTRACT_VERSION = "option_a_runtime.v1"
+    CONTRACT_VERSION = "option_a_runtime.v2"
+    RESULT_SCHEMA_VERSION = "agent_runtime_result.v1"
     DEFAULT_CATALOG_PATH = Path("artifacts/real_corpus/curated_catalog.json")
 
     def __init__(self, repo_root: RuntimePath) -> None:
@@ -104,7 +139,7 @@ class ResearchRuntimeFacade:
         mode = self._coerce_mode(request.mode)
         normalized_question = self._normalize_question(request.question)
         output_dir = self._resolve_output_dir(mode, request.output_dir)
-        result, resolved_catalog_path, corpus_state_id = self._execute_question(
+        internal_result, resolved_catalog_path, corpus_state_id = self._execute_question(
             normalized_question,
             request.catalog_path,
         )
@@ -112,17 +147,18 @@ class ResearchRuntimeFacade:
             assert output_dir is not None
             self._write_artifact_bundle(
                 output_dir,
-                result,
+                internal_result,
                 catalog_path=resolved_catalog_path,
                 corpus_state_id=corpus_state_id,
             )
         return AgentRuntimeResponse(
             contract_version=self.CONTRACT_VERSION,
+            result_schema_version=self.RESULT_SCHEMA_VERSION,
             mode=mode,
             catalog_path=resolved_catalog_path,
             corpus_state_id=corpus_state_id,
             output_dir=output_dir,
-            result=result,
+            result=self._to_public_result(internal_result),
         )
 
     def _execute_question(
@@ -211,6 +247,28 @@ class ResearchRuntimeFacade:
         if isinstance(mode, AgentRuntimeMode):
             return mode
         return AgentRuntimeMode(mode)
+
+    @staticmethod
+    def _to_public_result(result: AnswerResult) -> AgentRuntimeResult:
+        # NOTE: add new AnswerResult fields here when they should be part of the
+        # public runtime contract.
+        return AgentRuntimeResult(
+            question=result.question,
+            query_intent=result.query_intent,
+            retrieval_plan=result.retrieval_plan,
+            gap_records=result.gap_records,
+            web_fetch_records=result.web_fetch_records,
+            ingestion_report=result.ingestion_report,
+            ledger_entries=result.ledger_entries,
+            approved_entries=result.approved_entries,
+            rendered_answer=result.rendered_answer,
+            provisional_grouping=result.provisional_grouping,
+            facet_coverage_report=result.facet_coverage_report,
+            pinpoint_evidence_report=result.pinpoint_evidence_report,
+            answer_alignment_report=result.answer_alignment_report,
+            blind_validation_report=result.blind_validation_report,
+            corpus_coverage_report=result.corpus_coverage_report,
+        )
 
     @staticmethod
     def _normalize_question(question: str) -> str:

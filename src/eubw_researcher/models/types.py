@@ -732,20 +732,37 @@ class ScenarioVerdict:
 class RealQuestionPackQuestionRunSummary:
     question_id: str
     title: str
+    review_focus: str
     expected_intent_type: Optional[str]
+    linked_scenario_id: Optional[str]
+    tags: List[str]
     output_dir: str
     artifacts_present: List[str]
     missing_artifacts: List[str]
+    has_missing_artifacts: bool
     intent_type: str
     approved_entry_count: int
     gap_record_count: int
+    discovery_record_count: int
     web_fetch_count: int
+    used_official_web_discovery: bool
+    local_corpus_only: bool
     final_judgment: str
     usefulness_verdict: str
     source_bound_verdict: str
     pinpoint_traceability_verdict: str
     product_output_self_sufficiency_verdict: str
     review_complete: bool = False
+
+
+@dataclass
+class RealQuestionPackRunTriageSummary:
+    total_questions: int
+    accepted_question_ids: List[str] = field(default_factory=list)
+    rejected_question_ids: List[str] = field(default_factory=list)
+    question_ids_with_discovery: List[str] = field(default_factory=list)
+    question_ids_with_fetch: List[str] = field(default_factory=list)
+    question_ids_with_missing_artifacts: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -762,6 +779,8 @@ class RealQuestionPackRunManifest:
     git_commit: Optional[str]
     git_branch: Optional[str]
     git_dirty: bool
+    repo_local_artifacts_written: bool
+    run_triage_summary: RealQuestionPackRunTriageSummary
     question_runs: List[RealQuestionPackQuestionRunSummary] = field(default_factory=list)
 
 

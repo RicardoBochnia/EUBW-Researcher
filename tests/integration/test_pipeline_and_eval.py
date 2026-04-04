@@ -148,10 +148,12 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                             "question": "What does the regulation say about the Business Wallet compliance record?",
                             "review_focus": "Catch usefulness regressions on the synthetic bounded corpus.",
                             "expected_intent_type": "wallet_requirements_summary",
+                            "tags": ["synthetic", "bounded"],
                             "review_prompts": [
                                 "Is the answer bundle usable?",
                                 "Does the bundle keep uncertainty visible?"
-                            ]
+                            ],
+                            "seed_from_scenario_id": "scenario.synthetic_a",
                         },
                         {
                             "question_id": "synthetic_question_b",
@@ -159,9 +161,11 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                             "question": "Summarize the Business Wallet compliance record requirement.",
                             "review_focus": "Catch reuse regressions on a second phrasing of the same bounded question.",
                             "expected_intent_type": "wallet_requirements_summary",
+                            "tags": ["synthetic"],
                             "review_prompts": [
                                 "Is the answer still reviewable under a wording variant?"
-                            ]
+                            ],
+                            "seed_from_scenario_id": "scenario.synthetic_b",
                         }
                     ]
                 },
@@ -1403,6 +1407,16 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 manifest["selected_question_ids"],
                 ["synthetic_question_a", "synthetic_question_b"],
             )
+            self.assertIn("repo_local_artifacts_written", manifest)
+            self.assertIn("run_triage_summary", manifest)
+            self.assertEqual(manifest["run_triage_summary"]["total_questions"], 2)
+            self.assertEqual(
+                sorted(
+                    manifest["run_triage_summary"]["accepted_question_ids"]
+                    + manifest["run_triage_summary"]["rejected_question_ids"]
+                ),
+                ["synthetic_question_a", "synthetic_question_b"],
+            )
             self.assertNotIn("score", manifest)
             self.assertNotIn("pass_rate", manifest)
             for question_id in manifest["selected_question_ids"]:
@@ -1410,6 +1424,13 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 self.assertTrue((question_dir / "final_answer.txt").is_file())
                 self.assertTrue((question_dir / "manual_review_report.md").is_file())
                 self.assertTrue((question_dir / "approved_ledger.json").is_file())
+            first_run = manifest["question_runs"][0]
+            self.assertIn("review_focus", first_run)
+            self.assertIn("linked_scenario_id", first_run)
+            self.assertIn("tags", first_run)
+            self.assertIn("discovery_record_count", first_run)
+            self.assertIn("used_official_web_discovery", first_run)
+            self.assertIn("local_corpus_only", first_run)
 
     def test_run_real_question_pack_cli_can_select_single_question(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
