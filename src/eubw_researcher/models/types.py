@@ -764,6 +764,74 @@ class RealQuestionPackRunManifest:
     question_runs: List[RealQuestionPackQuestionRunSummary] = field(default_factory=list)
 
 
+@dataclass
+class EvalScenarioRunSummary:
+    scenario_id: str
+    passed: bool
+    require_manual_review_accept: bool
+    manual_review_accept_satisfied: bool
+    final_judgment: str
+    output_dir: str
+    verdict_path: str
+    manual_review_report_path: str
+
+
+@dataclass
+class EvalRunManifest:
+    run_timestamp: str
+    scenario_config_path: str
+    catalog_path: str
+    corpus_state_id: str
+    runtime_contract_version: str
+    binding_gate_surface: str
+    coverage_gate_passed: Optional[bool]
+    overall_passed: bool
+    coverage_report_path: Optional[str]
+    coverage_summary_path: Optional[str]
+    git_commit: Optional[str]
+    git_branch: Optional[str]
+    git_dirty: bool
+    scenario_runs: List[EvalScenarioRunSummary] = field(default_factory=list)
+
+
+@dataclass
+class ValidatedBindingReviewSample:
+    scenario_id: str
+    manual_review_accept_required: bool
+    manual_review_accept_satisfied: bool
+    verdict_path: str
+    manual_review_report_path: str
+
+
+@dataclass
+class ValidatedCurrentStateReport:
+    report_version: str
+    binding_gate_surface: str
+    validated: bool
+    catalog_path: str
+    corpus_state_id: str
+    runtime_contract_version: str
+    git_commit: Optional[str]
+    git_branch: Optional[str]
+    git_dirty: Optional[bool]
+    total_sources: int
+    counts_by_kind: Dict[str, int]
+    counts_by_role_level: Dict[str, int]
+    coverage_gate_passed: bool
+    eval_gate_passed: bool
+    current_catalog_matches_eval_gate: bool
+    current_runtime_matches_eval_gate: bool
+    eval_manifest_path: str
+    corpus_state_snapshot_path: str
+    corpus_coverage_report_path: Optional[str]
+    corpus_coverage_summary_path: Optional[str]
+    corpus_selection_summary_path: Optional[str]
+    binding_review_samples: List[ValidatedBindingReviewSample] = field(default_factory=list)
+    supplemental_real_question_pack_manifest_path: Optional[str] = None
+    supplemental_real_question_pack_matches_state: Optional[bool] = None
+    supplemental_real_question_pack_run_id: Optional[str] = None
+
+
 def dataclass_to_dict(value: Any) -> Any:
     if is_dataclass(value):
         return {

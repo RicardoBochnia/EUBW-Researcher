@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Mapping, Optional
 
 from eubw_researcher.models import (
     CorpusCoverageReport,
+    EvalRunManifest,
     SourceCatalog,
     SourceKind,
     SourceRoleLevel,
+    ValidatedBindingReviewSample,
+    ValidatedCurrentStateReport,
 )
 
 _ROLE_LEVEL_ORDER: List[SourceRoleLevel] = [
@@ -132,3 +135,182 @@ def build_corpus_state_snapshot(
         "counts_by_role_level": counts_by_role_level,
         "source_ids": sorted(e.source_id for e in catalog.entries),
     }
+
+
+def build_validated_current_state_report(
+    snapshot: Mapping[str, Any],
+    *,
+    eval_manifest: EvalRunManifest,
+    eval_manifest_path: Path,
+    runtime_contract_version: str,
+    coverage_report_path: Optional[Path],
+    coverage_summary_path: Optional[Path],
+    corpus_selection_summary_path: Optional[Path],
+    corpus_state_snapshot_path: Path,
+    real_question_pack_manifest: Optional[Mapping[str, Any]] = None,
+    real_question_pack_manifest_path: Optional[Path] = None,
+    git_metadata: Optional[Mapping[str, Any]] = None,
+) -> ValidatedCurrentStateReport:
+    binding_review_samples = [
+        ValidatedBindingReviewSample(
+            scenario_id=item.scenario_id,
+            manual_review_accept_required=item.require_manual_review_accept,
+            manual_review_accept_satisfied=item.manual_review_accept_satisfied,
+            verdict_path=item.verdict_path,
+            manual_review_report_path=item.manual_review_report_path,
+        )
+        for item in eval_manifest.scenario_runs
+        if item.require_manual_review_accept
+    ]
+    current_catalog_matches_eval_gate = (
+        snapshot["catalog_path"] == eval_manifest.catalog_path
+        and snapshot["corpus_state_id"] == eval_manifest.corpus_state_id
+    )
+    current_runtime_matches_eval_gate = (
+        runtime_contract_version == eval_manifest.runtime_contract_version
+    )
+    coverage_gate_passed = bool(eval_manifest.coverage_gate_passed)
+    eval_gate_passed = eval_manifest.overall_passed
+    validated = (
+        coverage_gate_passed
+        and eval_gate_passed
+        and current_catalog_matches_eval_gate
+        and current_runtime_matches_eval_gate
+    )
+    supplemental_matches_state = None
+    supplemental_run_id = None
+    if real_question_pack_manifest is not None:
+        supplemental_matches_state = (
+            real_question_pack_manifest.get("catalog_path") == snapshot["catalog_path"]
+            and real_question_pack_manifest.get("corpus_state_id") == snapshot["corpus_state_id"]
+            and real_question_pack_manifest.get("runtime_contract_version")
+            == runtime_contract_version
+        )
+        supplemental_run_id = real_question_pack_manifest.get("run_id")
+    return ValidatedCurrentStateReport(
+        report_version="validated_current_state.v1",
+        binding_gate_surface=eval_manifest.binding_gate_surface,
+        validated=validated,
+        catalog_path=snapshot["catalog_path"],
+        corpus_state_id=snapshot["corpus_state_id"],
+        runtime_contract_version=runtime_contract_version,
+        git_commit=(git_metadata or {}).get("commit"),
+        git_branch=(git_metadata or {}).get("branch"),
+        git_dirty=(git_metadata or {}).get("dirty"),
+        total_sources=int(snapshot["total_sources"]),
+        counts_by_kind=dict(snapshot["counts_by_kind"]),
+        counts_by_role_level=dict(snapshot["counts_by_role_level"]),
+        coverage_gate_passed=coverage_gate_passed,
+        eval_gate_passed=eval_gate_passed,
+        current_catalog_matches_eval_gate=current_catalog_matches_eval_gate,
+        current_runtime_matches_eval_gate=current_runtime_matches_eval_gate,
+        eval_manifest_path=str(eval_manifest_path.resolve()),
+        corpus_state_snapshot_path=str(corpus_state_snapshot_path.resolve()),
+        corpus_coverage_report_path=(
+            str(coverage_report_path.resolve()) if coverage_report_path is not None else None
+        ),
+        corpus_coverage_summary_path=(
+            str(coverage_summary_path.resolve()) if coverage_summary_path is not None else None
+        ),
+        corpus_selection_summary_path=(
+            str(corpus_selection_summary_path.resolve())
+            if corpus_selection_summary_path is not None
+            else None
+        ),
+        binding_review_samples=binding_review_samples,
+        supplemental_real_question_pack_manifest_path=(
+            str(real_question_pack_manifest_path.resolve())
+            if real_question_pack_manifest_path is not None
+            else None
+        ),
+        supplemental_real_question_pack_matches_state=supplemental_matches_state,
+        supplemental_real_question_pack_run_id=supplemental_run_id,
+    )
+
+
+def render_validated_current_state_report_md(
+    report: ValidatedCurrentStateReport,
+) -> str:
+    overall = "VALIDATED" if report.validated else "NOT VALIDATED"
+    lines: List[str] = []
+    lines.append("# Validated Current State")
+    lines.append("")
+    lines.append(f"**Overall:** {overall}")
+    lines.append(f"**Binding gate surface:** `{report.binding_gate_surface}`")
+    lines.append(f"**Corpus state:** `{report.corpus_state_id}`")
+    lines.append(f"**Runtime contract:** `{report.runtime_contract_version}`")
+    lines.append("")
+    lines.append("## Current state")
+    lines.append("")
+    lines.append(f"- Catalog path: `{report.catalog_path}`")
+    lines.append(f"- Total sources: {report.total_sources}")
+    lines.append(
+        "- Counts by role level: "
+        + ", ".join(
+            f"{role}={count}" for role, count in report.counts_by_role_level.items()
+        )
+    )
+    lines.append(
+        "- Counts by kind: "
+        + ", ".join(
+            f"{kind}={count}" for kind, count in report.counts_by_kind.items()
+        )
+    )
+    lines.append("")
+    lines.append("## Gate checks")
+    lines.append("")
+    lines.append(
+        f"- Coverage gate passed: {'yes' if report.coverage_gate_passed else 'no'}"
+    )
+    lines.append(
+        f"- Eval gate passed: {'yes' if report.eval_gate_passed else 'no'}"
+    )
+    lines.append(
+        "- Current catalog matches eval gate: "
+        + ("yes" if report.current_catalog_matches_eval_gate else "no")
+    )
+    lines.append(
+        "- Current runtime matches eval gate: "
+        + ("yes" if report.current_runtime_matches_eval_gate else "no")
+    )
+    if report.binding_review_samples:
+        lines.append("")
+        lines.append("## Binding review samples")
+        lines.append("")
+        lines.append("| Scenario | Manual review accept | Verdict | Review report |")
+        lines.append("|----------|----------------------|---------|---------------|")
+        for sample in report.binding_review_samples:
+            lines.append(
+                f"| {sample.scenario_id} | "
+                f"{'yes' if sample.manual_review_accept_satisfied else 'no'} | "
+                f"`{sample.verdict_path}` | "
+                f"`{sample.manual_review_report_path}` |"
+            )
+    lines.append("")
+    lines.append("## Artifact references")
+    lines.append("")
+    lines.append(f"- Eval manifest: `{report.eval_manifest_path}`")
+    lines.append(f"- Corpus snapshot: `{report.corpus_state_snapshot_path}`")
+    if report.corpus_coverage_report_path:
+        lines.append(f"- Corpus coverage report: `{report.corpus_coverage_report_path}`")
+    if report.corpus_coverage_summary_path:
+        lines.append(f"- Corpus coverage summary: `{report.corpus_coverage_summary_path}`")
+    if report.corpus_selection_summary_path:
+        lines.append(f"- Corpus selection summary: `{report.corpus_selection_summary_path}`")
+    if report.supplemental_real_question_pack_manifest_path:
+        lines.append("")
+        lines.append("## Supplemental evidence")
+        lines.append("")
+        lines.append(
+            f"- Real-question pack manifest: `{report.supplemental_real_question_pack_manifest_path}`"
+        )
+        lines.append(
+            "- Matches current state: "
+            + (
+                "yes"
+                if report.supplemental_real_question_pack_matches_state
+                else "no"
+            )
+        )
+    lines.append("")
+    return "\n".join(lines)

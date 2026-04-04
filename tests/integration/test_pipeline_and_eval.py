@@ -1233,6 +1233,97 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             self.assertIn("corpus_coverage_gate:fail", verdict["checks"])
             self.assertFalse(coverage["passed"])
 
+    def test_validated_current_state_cli_writes_report_from_eval_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            catalog_path = self._build_bounded_test_catalog(tmp_root)
+            scenarios_path = tmp_root / "synthetic_scenarios.json"
+            scenarios_path.write_text(
+                json.dumps(
+                    {
+                        "scenarios": [
+                            {
+                                "scenario_id": "synthetic_real_corpus_backstop",
+                                "question": "What does the regulation say about the Business Wallet compliance record?",
+                                "expectation": "Synthetic bounded real-corpus coverage gate backstop."
+                            }
+                        ]
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            eval_output_dir = tmp_root / "eval_runs_real_corpus"
+            current_state_output_dir = tmp_root / "current_state"
+
+            eval_completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_eval.py"),
+                    "--all",
+                    "--catalog",
+                    str(catalog_path),
+                    "--scenarios-config",
+                    str(scenarios_path),
+                    "--output-dir",
+                    str(eval_output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertNotEqual(eval_completed.returncode, 0)
+            manifest_path = eval_output_dir / "eval_run_manifest.json"
+            self.assertTrue(
+                manifest_path.is_file(),
+                msg=(
+                    f"Expected eval manifest not found: {manifest_path}\n"
+                    f"stdout:\n{eval_completed.stdout}\n"
+                    f"stderr:\n{eval_completed.stderr}"
+                ),
+            )
+
+            report_completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "report_validated_current_state.py"),
+                    "--catalog",
+                    str(catalog_path),
+                    "--eval-manifest",
+                    str(manifest_path),
+                    "--output-dir",
+                    str(current_state_output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                report_completed.returncode,
+                0,
+                msg=(
+                    f"stdout:\n{report_completed.stdout}\n\n"
+                    f"stderr:\n{report_completed.stderr}"
+                ),
+            )
+            report_path = current_state_output_dir / "validated_current_state_report.json"
+            markdown_path = current_state_output_dir / "validated_current_state_report.md"
+            self.assertTrue(report_path.is_file())
+            self.assertTrue(markdown_path.is_file())
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["binding_gate_surface"], "real_corpus_eval")
+            self.assertFalse(payload["validated"])
+            self.assertTrue(payload["current_catalog_matches_eval_gate"])
+            self.assertFalse(payload["coverage_gate_passed"])
+            self.assertEqual(payload["eval_manifest_path"], str(manifest_path.resolve()))
+            self.assertTrue(
+                (current_state_output_dir / "corpus_selection_summary.md").is_file()
+            )
+
     def test_run_real_question_pack_cli_writes_manifest_and_question_bundles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)

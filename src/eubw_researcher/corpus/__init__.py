@@ -10,8 +10,10 @@ from .refresh import (
 )
 from .reporting import (
     build_corpus_state_snapshot,
+    build_validated_current_state_report,
     render_corpus_coverage_summary_md,
     render_corpus_selection_summary_md,
+    render_validated_current_state_report_md,
 )
 from .runtime import (
     build_corpus_coverage_report,
@@ -25,6 +27,7 @@ __all__ = [
     "build_catalog_from_archive",
     "build_corpus_coverage_report",
     "build_corpus_state_snapshot",
+    "build_validated_current_state_report",
     "load_source_catalog",
     "is_real_corpus_catalog",
     "load_or_build_ingestion_bundle",
@@ -32,6 +35,7 @@ __all__ = [
     "render_archive_refresh_report_markdown",
     "render_corpus_coverage_summary_md",
     "render_corpus_selection_summary_md",
+    "render_validated_current_state_report_md",
     "write_source_catalog",
     "write_archive_refresh_report",
     "write_corpus_coverage_report",
