@@ -4,13 +4,19 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
-from eubw_researcher.evaluation.runner import _evaluate_scenario, write_artifact_bundle
+from eubw_researcher.evaluation.runner import (
+    _evaluate_scenario,
+    run_all_scenarios,
+    run_named_scenario,
+    write_artifact_bundle,
+)
 from eubw_researcher.models import (
     CorpusCoverageFamily,
     CorpusCoverageReport,
@@ -675,6 +681,145 @@ class WriteArtifactBundleCoverageTests(unittest.TestCase):
             output_dir = Path(tmp)
             write_artifact_bundle(output_dir, result)
             self.assertFalse((output_dir / "corpus_coverage_summary.md").exists())
+
+
+class ScenarioRunnerArtifactTests(unittest.TestCase):
+    def _make_coverage_report(self, *, passed: bool) -> CorpusCoverageReport:
+        return CorpusCoverageReport(
+            catalog_path="/tmp/catalog.json",
+            corpus_state_id="teststate01",
+            generation_timestamp="2026-01-01T00:00:00+00:00",
+            admitted_source_counts_by_kind={"regulation": 1},
+            families=[
+                CorpusCoverageFamily(
+                    family_id="governing_eu_regulation",
+                    minimum_count=1,
+                    admitted_count=1,
+                    admitted_source_ids=["reg_a"],
+                    missing=False,
+                )
+            ],
+            passed=passed,
+        )
+
+    def test_run_named_scenario_writes_artifacts_from_final_verdict_and_metadata(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_scenario",
+            question="Synthetic question?",
+            expectation="Synthetic expectation",
+        )
+        result = _minimal_result("fetch")
+        coverage_report = self._make_coverage_report(passed=False)
+        captured = {}
+
+        def _write_artifact_bundle(bundle_dir, bundled_result, **kwargs):
+            captured["bundle_dir"] = bundle_dir
+            captured["result"] = bundled_result
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(final_judgment="reject")
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch(
+            "eubw_researcher.evaluation.runner.load_evaluation_scenarios",
+            return_value=[scenario],
+        ), patch(
+            "eubw_researcher.evaluation.runner._run_pipeline",
+            return_value=(
+                SimpleNamespace(answer_question=lambda _question: result),
+                coverage_report,
+                "state-123",
+                Path("/tmp/catalog.json"),
+            ),
+        ), patch(
+            "eubw_researcher.evaluation.runner._evaluate_scenario_with_review_report",
+            return_value=(
+                ScenarioVerdict(
+                    scenario_id=scenario.scenario_id,
+                    passed=True,
+                    checks=[],
+                ),
+                SimpleNamespace(final_judgment="accept"),
+            ),
+        ), patch(
+            "eubw_researcher.evaluation.runner.write_artifact_bundle",
+            side_effect=_write_artifact_bundle,
+        ):
+            scenario_dir, verdict = run_named_scenario(
+                Path("/tmp/repo"),
+                scenario.scenario_id,
+                Path(tmp_dir),
+            )
+
+        self.assertEqual(scenario_dir, Path(tmp_dir) / scenario.scenario_id)
+        self.assertFalse(verdict.passed)
+        self.assertIn("corpus_coverage_gate:fail", verdict.checks)
+        self.assertEqual(captured["bundle_dir"], scenario_dir)
+        self.assertIs(captured["result"], result)
+        self.assertEqual(captured["kwargs"]["catalog_path"], Path("/tmp/catalog.json"))
+        self.assertEqual(captured["kwargs"]["corpus_state_id"], "state-123")
+        self.assertFalse(captured["kwargs"]["verdict"].passed)
+        self.assertNotIn("manual_review_report", captured["kwargs"])
+
+    def test_run_all_scenarios_uses_persisted_manual_review_report_for_manifest(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_scenario",
+            question="Synthetic question?",
+            expectation="Synthetic expectation",
+            require_manual_review_accept=True,
+        )
+        result = _minimal_result("fetch")
+        coverage_report = self._make_coverage_report(passed=False)
+        captured = {}
+
+        def _write_artifact_bundle(_bundle_dir, _bundled_result, **kwargs):
+            captured["write_kwargs"] = kwargs
+            return SimpleNamespace(final_judgment="reject")
+
+        def _build_eval_run_manifest(_repo_root, **kwargs):
+            captured["scenario_runs"] = kwargs["scenario_runs"]
+            return SimpleNamespace()
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch(
+            "eubw_researcher.evaluation.runner.load_evaluation_scenarios",
+            return_value=[scenario],
+        ), patch(
+            "eubw_researcher.evaluation.runner._run_pipeline",
+            return_value=(
+                SimpleNamespace(answer_question=lambda _question: result),
+                coverage_report,
+                "state-123",
+                Path("/tmp/catalog.json"),
+            ),
+        ), patch(
+            "eubw_researcher.evaluation.runner._evaluate_scenario_with_review_report",
+            return_value=(
+                ScenarioVerdict(
+                    scenario_id=scenario.scenario_id,
+                    passed=True,
+                    checks=[],
+                ),
+                SimpleNamespace(final_judgment="accept"),
+            ),
+        ), patch(
+            "eubw_researcher.evaluation.runner.write_artifact_bundle",
+            side_effect=_write_artifact_bundle,
+        ), patch(
+            "eubw_researcher.evaluation.runner.build_eval_run_manifest",
+            side_effect=_build_eval_run_manifest,
+        ), patch(
+            "eubw_researcher.evaluation.runner.write_eval_run_manifest",
+        ):
+            results = run_all_scenarios(
+                Path("/tmp/repo"),
+                Path(tmp_dir),
+            )
+
+        self.assertEqual(results[0][0], scenario.scenario_id)
+        self.assertFalse(results[0][1].passed)
+        self.assertIn("corpus_coverage_gate:fail", results[0][1].checks)
+        self.assertFalse(captured["write_kwargs"]["verdict"].passed)
+        self.assertNotIn("manual_review_report", captured["write_kwargs"])
+        self.assertEqual(captured["scenario_runs"][0].final_judgment, "reject")
+        self.assertFalse(captured["scenario_runs"][0].manual_review_accept_satisfied)
 
 
 if __name__ == "__main__":

@@ -706,7 +706,7 @@ def run_named_scenario(
     scenario = next(item for item in scenarios if item.scenario_id == scenario_id)
     result = pipeline.answer_question(scenario.question)
     result.corpus_coverage_report = coverage_report
-    verdict, review_report = _evaluate_scenario_with_review_report(scenario, result)
+    verdict, _review_report = _evaluate_scenario_with_review_report(scenario, result)
     if coverage_report is not None:
         if coverage_report.passed:
             verdict.checks.append("corpus_coverage_gate:ok")
@@ -722,7 +722,6 @@ def run_named_scenario(
         scenario_id=scenario_id,
         catalog_path=resolved_catalog_path,
         corpus_state_id=corpus_state_id,
-        manual_review_report=review_report,
     )
     return scenario_dir, verdict
 
@@ -747,7 +746,7 @@ def run_all_scenarios(
     for scenario in scenarios:
         result = pipeline.answer_question(scenario.question)
         result.corpus_coverage_report = coverage_report
-        verdict, review_report = _evaluate_scenario_with_review_report(scenario, result)
+        verdict, _review_report = _evaluate_scenario_with_review_report(scenario, result)
         if coverage_report is not None:
             if coverage_report.passed:
                 verdict.checks.append("corpus_coverage_gate:ok")
@@ -755,14 +754,13 @@ def run_all_scenarios(
                 verdict.checks.append("corpus_coverage_gate:fail")
                 verdict.passed = False
         scenario_dir = output_dir / scenario.scenario_id
-        write_artifact_bundle(
+        resolved_review_report = write_artifact_bundle(
             scenario_dir,
             result,
             verdict=verdict,
             scenario_id=scenario.scenario_id,
             catalog_path=resolved_catalog_path,
             corpus_state_id=corpus_state_id,
-            manual_review_report=review_report,
         )
         scenario_runs.append(
             EvalScenarioRunSummary(
@@ -770,11 +768,11 @@ def run_all_scenarios(
                 passed=verdict.passed,
                 require_manual_review_accept=scenario.require_manual_review_accept,
                 manual_review_accept_satisfied=(
-                    review_report.final_judgment == "accept"
+                    resolved_review_report.final_judgment == "accept"
                     if scenario.require_manual_review_accept
                     else None
                 ),
-                final_judgment=review_report.final_judgment,
+                final_judgment=resolved_review_report.final_judgment,
                 output_dir=str(scenario_dir.resolve()),
                 verdict_path=str((scenario_dir / "verdict.json").resolve()),
                 manual_review_report_path=str(
