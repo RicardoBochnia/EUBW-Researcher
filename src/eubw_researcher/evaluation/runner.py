@@ -65,6 +65,13 @@ def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
     This helper is only used with static literal git subcommands defined in
     this module; it must not be called with user-provided command fragments.
     """
+    allowed_commands = {
+        ("branch", "--show-current"),
+        ("rev-parse", "HEAD"),
+        ("status", "--short"),
+    }
+    if args not in allowed_commands:
+        raise ValueError(f"Unsupported git metadata command: {args}")
     completed = subprocess.run(
         ["git", *args],
         cwd=repo_root,
@@ -78,7 +85,7 @@ def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
     return output or None
 
 
-def _git_metadata(repo_root: Path) -> dict[str, Optional[object]]:
+def _git_metadata(repo_root: Path) -> dict[str, Any]:
     branch = _run_git_command(repo_root, "branch", "--show-current")
     commit = _run_git_command(repo_root, "rev-parse", "HEAD")
     status = _run_git_command(repo_root, "status", "--short")
