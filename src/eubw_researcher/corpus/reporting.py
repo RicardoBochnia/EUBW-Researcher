@@ -192,10 +192,15 @@ def build_validated_current_state_report(
             == runtime_contract_version
         )
         spawned_validator_gate_passed = spawned_validator_gate_manifest.overall_passed
+        spawned_validator_gate_is_release_gate = (
+            spawned_validator_gate_manifest.gate_target == "release_gate"
+        )
         if promote_spawned_validator_gate:
             release_validation_mode = "deterministic_eval_plus_binding_spawned_validator"
             binding_spawned_validator_gate_ok = bool(
-                spawned_validator_gate_matches_state and spawned_validator_gate_passed
+                spawned_validator_gate_matches_state
+                and spawned_validator_gate_passed
+                and spawned_validator_gate_is_release_gate
             )
         else:
             release_validation_mode = "deterministic_eval_plus_supplemental_spawned_validator"

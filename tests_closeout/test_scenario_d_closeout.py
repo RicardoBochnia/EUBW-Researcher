@@ -614,11 +614,11 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
-            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+            with patch("eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[scenario],
             ), patch(
-                "eubw_researcher.evaluation.closeout._run_pipeline",
+                "eubw_researcher.evaluation.spawned_validator_gate._run_pipeline",
                 return_value=(
                     _DummyPipeline(failing_result),
                     None,
@@ -626,7 +626,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     Path("/tmp/synthetic_catalog.json"),
                 ),
             ), patch(
-                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
                 side_effect=_fake_write_artifact_bundle,
             ):
                 scenario_dir, verdict = run_scenario_d_closeout(
@@ -652,10 +652,10 @@ class ScenarioDCloseoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
             with patch(
-                "eubw_researcher.evaluation.closeout._scenario_config_path",
+                "eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path",
                 return_value=Path("/tmp/custom_scenarios.json"),
             ), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[other_scenario],
             ):
                 with self.assertRaisesRegex(
@@ -697,11 +697,11 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
-            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+            with patch("eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[scenario],
             ), patch(
-                "eubw_researcher.evaluation.closeout._run_pipeline",
+                "eubw_researcher.evaluation.spawned_validator_gate._run_pipeline",
                 return_value=(
                     _DummyPipeline(passing_result),
                     None,
@@ -709,7 +709,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     Path("/tmp/synthetic_catalog.json"),
                 ),
             ), patch(
-                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
                 side_effect=_fake_write_artifact_bundle,
             ):
                 scenario_dir, verdict = run_scenario_d_closeout(
@@ -745,11 +745,11 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
-            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+            with patch("eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[scenario],
             ), patch(
-                "eubw_researcher.evaluation.closeout._run_pipeline",
+                "eubw_researcher.evaluation.spawned_validator_gate._run_pipeline",
                 return_value=(
                     _DummyPipeline(passing_result),
                     None,
@@ -757,7 +757,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     Path("/tmp/synthetic_catalog.json"),
                 ),
             ), patch(
-                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
                 side_effect=_fake_write_artifact_bundle,
             ):
                 scenario_dir, verdict = run_scenario_d_closeout(
@@ -787,11 +787,11 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
-            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+            with patch("eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[scenario],
             ), patch(
-                "eubw_researcher.evaluation.closeout._run_pipeline",
+                "eubw_researcher.evaluation.spawned_validator_gate._run_pipeline",
                 return_value=(
                     _DummyPipeline(passing_result),
                     None,
@@ -799,7 +799,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     Path("/tmp/synthetic_catalog.json"),
                 ),
             ), patch(
-                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
                 side_effect=_fake_write_artifact_bundle,
             ):
                 scenario_dir, verdict = run_scenario_d_closeout(
@@ -835,11 +835,11 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
-            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+            with patch("eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[scenario],
             ), patch(
-                "eubw_researcher.evaluation.closeout._run_pipeline",
+                "eubw_researcher.evaluation.spawned_validator_gate._run_pipeline",
                 return_value=(
                     _DummyPipeline(passing_result),
                     None,
@@ -847,7 +847,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     Path("/tmp/synthetic_catalog.json"),
                 ),
             ), patch(
-                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
                 side_effect=_fake_write_artifact_bundle,
             ):
                 _, verdict = run_scenario_d_closeout(
@@ -875,11 +875,11 @@ class ScenarioDCloseoutTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_root = Path(tmp_dir)
-            with patch("eubw_researcher.evaluation.closeout._scenario_config_path", return_value=Path("synthetic.json")), patch(
-                "eubw_researcher.evaluation.closeout.load_evaluation_scenarios",
+            with patch("eubw_researcher.evaluation.spawned_validator_gate._scenario_config_path", return_value=Path("synthetic.json")), patch(
+                "eubw_researcher.evaluation.spawned_validator_gate.load_evaluation_scenarios",
                 return_value=[scenario],
             ), patch(
-                "eubw_researcher.evaluation.closeout._run_pipeline",
+                "eubw_researcher.evaluation.spawned_validator_gate._run_pipeline",
                 return_value=(
                     _DummyPipeline(passing_result),
                     None,
@@ -887,7 +887,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     Path("/tmp/synthetic_catalog.json"),
                 ),
             ), patch(
-                "eubw_researcher.evaluation.closeout.write_artifact_bundle",
+                "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
                 side_effect=_fake_write_artifact_bundle,
             ):
                 _, verdict = run_scenario_d_closeout(

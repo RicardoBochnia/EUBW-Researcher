@@ -519,11 +519,21 @@ def run_spawned_validator_gate(
     scenarios_path: Optional[Path] = None,
     reviewer_name: str = "Codex",
     require_eligibility: bool = True,
-    load_scenarios: Callable[[Path], List[EvaluationScenario]] = load_evaluation_scenarios,
-    scenario_config_resolver: Callable[[Path, Optional[Path], Optional[Path]], Path] = _scenario_config_path,
-    pipeline_runner: Callable[..., Tuple[Any, Any, str, Path]] = _run_pipeline,
-    bundle_writer: Callable[..., Any] = write_artifact_bundle,
+    load_scenarios: Optional[Callable[[Path], List[EvaluationScenario]]] = None,
+    scenario_config_resolver: Optional[
+        Callable[[Path, Optional[Path], Optional[Path]], Path]
+    ] = None,
+    pipeline_runner: Optional[Callable[..., Tuple[Any, Any, str, Path]]] = None,
+    bundle_writer: Optional[Callable[..., Any]] = None,
 ) -> Tuple[List[Tuple[str, ScenarioVerdict]], Path]:
+    if load_scenarios is None:
+        load_scenarios = load_evaluation_scenarios
+    if scenario_config_resolver is None:
+        scenario_config_resolver = _scenario_config_path
+    if pipeline_runner is None:
+        pipeline_runner = _run_pipeline
+    if bundle_writer is None:
+        bundle_writer = write_artifact_bundle
     resolved_scenarios_path = scenario_config_resolver(repo_root, catalog_path, scenarios_path)
     scenarios = load_scenarios(resolved_scenarios_path)
     selected_scenarios = _resolve_selected_scenarios(

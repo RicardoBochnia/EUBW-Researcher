@@ -184,13 +184,13 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
                 coverage_summary_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/corpus_coverage_summary.md"),
             )
 
-    def _spawned_validator_manifest(self):
+    def _spawned_validator_manifest(self, *, gate_target: str = "release_gate"):
         return build_spawned_validator_gate_manifest(
             scenario_config_path=Path("/tmp/repo/configs/evaluation_scenarios_real_corpus.yaml"),
             catalog_path=Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json"),
             corpus_state_id="state123",
             runtime_contract_version="option_a_runtime.v1",
-            gate_target="release_gate",
+            gate_target=gate_target,
             validator_command="python3 validator.py",
             scenario_runs=[
                 SpawnedValidatorGateScenarioRunSummary(
@@ -325,6 +325,42 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             "deterministic_eval_plus_binding_spawned_validator",
         )
         self.assertTrue(report.spawned_validator_gate_passed)
+
+    def test_build_validated_current_state_report_rejects_binding_named_scenario_manifest(self) -> None:
+        snapshot = {
+            "corpus_state_id": "state123",
+            "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
+            "total_sources": 7,
+            "counts_by_kind": {"regulation": 2},
+            "counts_by_role_level": {"high": 7},
+            "source_ids": ["a"],
+        }
+
+        report = build_validated_current_state_report(
+            snapshot,
+            eval_manifest=self._manifest(),
+            eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
+            runtime_contract_version="option_a_runtime.v1",
+            coverage_report_path=None,
+            coverage_summary_path=None,
+            corpus_selection_summary_path=None,
+            corpus_state_snapshot_path=Path("/tmp/repo/artifacts/current_state/corpus_state_snapshot.json"),
+            spawned_validator_gate_manifest=self._spawned_validator_manifest(
+                gate_target="named_scenarios"
+            ),
+            spawned_validator_gate_manifest_path=Path(
+                "/tmp/repo/artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json"
+            ),
+            promote_spawned_validator_gate=True,
+        )
+
+        self.assertFalse(report.validated)
+        self.assertEqual(
+            report.release_validation_mode,
+            "deterministic_eval_plus_binding_spawned_validator",
+        )
+        self.assertTrue(report.spawned_validator_gate_passed)
+        self.assertTrue(report.spawned_validator_gate_matches_state)
 
     def test_render_validated_current_state_report_markdown_lists_binding_sample(self) -> None:
         snapshot = {
