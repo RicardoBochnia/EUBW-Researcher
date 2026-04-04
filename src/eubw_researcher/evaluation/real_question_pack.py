@@ -20,6 +20,7 @@ from eubw_researcher.models import (
     RealQuestionPackQuestion,
     RealQuestionPackQuestionRunSummary,
     RealQuestionPackRunManifest,
+    RealQuestionPackRunTriageSummary,
     ScenarioVerdict,
     dataclass_to_dict,
 )
@@ -78,6 +79,7 @@ def run_real_question_pack(
     )
     pack = load_real_question_pack(resolved_pack_path)
     selected_questions = _select_questions(pack, question_id)
+    git_metadata = _git_metadata(resolved_repo_root)
 
     run_root = (
         _resolve_path(resolved_repo_root, output_dir)
@@ -88,8 +90,8 @@ def run_real_question_pack(
     run_root.mkdir(parents=True, exist_ok=True)
 
     facade = ResearchRuntimeFacade(resolved_repo_root)
-    git_metadata = _git_metadata(resolved_repo_root)
     pack_digest = hashlib.sha256(resolved_pack_path.read_bytes()).hexdigest()
+    repo_local_artifacts_written = _is_within_root(run_root, resolved_repo_root)
 
     question_runs = []
     runtime_contract_version: Optional[str] = None
@@ -160,22 +162,35 @@ def run_real_question_pack(
         missing_artifacts = [
             artifact for artifact in expected_artifacts if artifact not in actual_artifacts
         ]
+        discovery_record_count = sum(
+            1
+            for record in response.result.web_fetch_records
+            if getattr(record, "record_type", None) == "discovery"
+        )
+        fetch_record_count = sum(
+            1
+            for record in response.result.web_fetch_records
+            if getattr(record, "record_type", None) == "fetch"
+        )
         question_runs.append(
             RealQuestionPackQuestionRunSummary(
                 question_id=question.question_id,
                 title=question.title,
+                review_focus=question.review_focus,
                 expected_intent_type=question.expected_intent_type,
+                linked_scenario_id=question.seed_from_scenario_id,
+                tags=list(question.tags),
                 output_dir=str(question_output_dir.resolve()),
                 artifacts_present=actual_artifacts,
                 missing_artifacts=missing_artifacts,
+                has_missing_artifacts=bool(missing_artifacts),
                 intent_type=response.result.query_intent.intent_type,
                 approved_entry_count=len(response.result.approved_entries),
                 gap_record_count=len(response.result.gap_records),
-                web_fetch_count=sum(
-                    1
-                    for record in response.result.web_fetch_records
-                    if getattr(record, "record_type", None) == "fetch"
-                ),
+                discovery_record_count=discovery_record_count,
+                web_fetch_count=fetch_record_count,
+                used_official_web_discovery=bool(discovery_record_count),
+                local_corpus_only=not discovery_record_count and not fetch_record_count,
                 final_judgment=report.final_judgment,
                 usefulness_verdict=report.usefulness_verdict,
                 source_bound_verdict=report.source_bound_verdict,
@@ -205,6 +220,25 @@ def run_real_question_pack(
     assert resolved_catalog_path is not None
     assert corpus_state_id is not None
 
+    run_triage_summary = RealQuestionPackRunTriageSummary(
+        total_questions=len(question_runs),
+        accepted_question_ids=[
+            run.question_id for run in question_runs if run.final_judgment == "accept"
+        ],
+        rejected_question_ids=[
+            run.question_id for run in question_runs if run.final_judgment != "accept"
+        ],
+        question_ids_with_discovery=[
+            run.question_id for run in question_runs if run.used_official_web_discovery
+        ],
+        question_ids_with_fetch=[
+            run.question_id for run in question_runs if run.web_fetch_count
+        ],
+        question_ids_with_missing_artifacts=[
+            run.question_id for run in question_runs if run.has_missing_artifacts
+        ],
+    )
+
     manifest = RealQuestionPackRunManifest(
         run_id=run_root.name,
         run_timestamp=_utcnow().isoformat(),
@@ -218,6 +252,8 @@ def run_real_question_pack(
         git_commit=git_metadata["commit"],
         git_branch=git_metadata["branch"],
         git_dirty=git_metadata["dirty"],
+        repo_local_artifacts_written=repo_local_artifacts_written,
+        run_triage_summary=run_triage_summary,
         question_runs=question_runs,
     )
     (run_root / "pack_run_manifest.json").write_text(
@@ -251,6 +287,14 @@ def _validate_run_root(repo_root: Path, run_root: Path) -> None:
         raise ValueError("Real-question pack output_dir must not resolve to the repository root")
     if run_root.exists() and not run_root.is_dir():
         raise ValueError(f"Real-question pack output_dir must be a directory path: {run_root}")
+
+
+def _is_within_root(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 def _prepare_question_output_dir(question_output_dir: Path) -> None:

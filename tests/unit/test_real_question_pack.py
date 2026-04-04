@@ -31,6 +31,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                             "expected_intent_type": "synthetic_intent",
                             "tags": ["synthetic"],
                             "review_prompts": ["Is the bundle usable?"],
+                            "seed_from_scenario_id": "scenario.synthetic",
                         }
                     ]
                 },
@@ -45,12 +46,19 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         output_dir: Path,
         *,
         intent_type: str = "synthetic_intent",
+        web_fetch_records=None,
     ) -> SimpleNamespace:
         result = SimpleNamespace(
             query_intent=SimpleNamespace(intent_type=intent_type),
             approved_entries=[object(), object()],
             gap_records=[object()],
-            web_fetch_records=[object(), object()],
+            web_fetch_records=web_fetch_records
+            if web_fetch_records is not None
+            else [
+                SimpleNamespace(record_type="discovery"),
+                SimpleNamespace(record_type="fetch"),
+                SimpleNamespace(record_type="fetch"),
+            ],
             provisional_grouping=[],
             corpus_coverage_report=object(),
         )
@@ -76,6 +84,79 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             output_dir,
             Path("/tmp/repo/artifacts/real_question_pack_runs/20260403T101530Z"),
         )
+
+    def test_runner_captures_git_metadata_before_default_run_dir_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            pack_path = self._write_pack_config(repo_root)
+            fixed_now = datetime(2026, 4, 3, 10, 15, 30, tzinfo=timezone.utc)
+            expected_run_root = (
+                repo_root / "artifacts" / "real_question_pack_runs" / "20260403T101530Z"
+            )
+            question_dir = expected_run_root / "synthetic_question"
+
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+                bundle_dir.mkdir(parents=True, exist_ok=True)
+                for artifact_name in [
+                    "retrieval_plan.json",
+                    "gap_records.json",
+                    "web_fetch_records.json",
+                    "ingestion_report.json",
+                    "ledger_entries.json",
+                    "approved_ledger.json",
+                    "final_answer.txt",
+                    "pinpoint_evidence.json",
+                    "answer_alignment.json",
+                    "blind_validation_report.json",
+                    "manual_review.json",
+                    "manual_review_report.md",
+                    "corpus_coverage_report.json",
+                    "verdict.json",
+                ]:
+                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+            def _build_report(_result, verdict, **_kwargs):
+                return SimpleNamespace(
+                    final_judgment="accept" if verdict.passed else "reject",
+                    usefulness_verdict="accept",
+                    source_bound_verdict="accept",
+                    pinpoint_traceability_verdict="accept",
+                    product_output_self_sufficiency_verdict="accept",
+                )
+
+            def _git_metadata(_repo_root):
+                self.assertFalse(expected_run_root.exists())
+                return {"commit": "abc123", "branch": "branch", "dirty": False}
+
+            with patch(
+                "eubw_researcher.evaluation.real_question_pack._utcnow",
+                return_value=fixed_now,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack._git_metadata",
+                side_effect=_git_metadata,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
+            ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
+                side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
+            ):
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir
+                )
+
+                run_root, manifest = run_real_question_pack(
+                    repo_root,
+                    pack_path=pack_path,
+                    question_id="synthetic_question",
+                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                )
+
+            self.assertEqual(run_root, expected_run_root.resolve())
+            self.assertFalse(manifest.git_dirty)
+            self.assertTrue(manifest.repo_local_artifacts_written)
 
     def test_runner_writes_manifest_with_review_signals_and_no_benchmark_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -159,7 +240,40 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             self.assertEqual(payload["runtime_contract_version"], "option_a_runtime.v1")
             self.assertEqual(payload["git_branch"], "codex/issue-8-real-question-pack")
             self.assertFalse(payload["git_dirty"])
+            self.assertTrue(payload["repo_local_artifacts_written"])
+            self.assertEqual(payload["run_triage_summary"]["total_questions"], 1)
+            self.assertEqual(
+                payload["run_triage_summary"]["accepted_question_ids"],
+                ["synthetic_question"],
+            )
+            self.assertEqual(payload["run_triage_summary"]["rejected_question_ids"], [])
+            self.assertEqual(
+                payload["run_triage_summary"]["question_ids_with_discovery"],
+                ["synthetic_question"],
+            )
+            self.assertEqual(
+                payload["run_triage_summary"]["question_ids_with_fetch"],
+                ["synthetic_question"],
+            )
+            self.assertEqual(
+                payload["run_triage_summary"]["question_ids_with_missing_artifacts"],
+                [],
+            )
             self.assertEqual(len(payload["question_runs"]), 1)
+            self.assertEqual(
+                payload["question_runs"][0]["review_focus"],
+                "Synthetic review focus.",
+            )
+            self.assertEqual(
+                payload["question_runs"][0]["linked_scenario_id"],
+                "scenario.synthetic",
+            )
+            self.assertEqual(payload["question_runs"][0]["tags"], ["synthetic"])
+            self.assertEqual(payload["question_runs"][0]["discovery_record_count"], 1)
+            self.assertEqual(payload["question_runs"][0]["web_fetch_count"], 2)
+            self.assertTrue(payload["question_runs"][0]["used_official_web_discovery"])
+            self.assertFalse(payload["question_runs"][0]["local_corpus_only"])
+            self.assertFalse(payload["question_runs"][0]["has_missing_artifacts"])
             self.assertEqual(payload["question_runs"][0]["final_judgment"], "accept")
             self.assertEqual(
                 payload["question_runs"][0]["product_output_self_sufficiency_verdict"],
@@ -237,6 +351,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             )
             self.assertEqual(payload["question_runs"][0]["intent_type"], "wrong_intent")
             self.assertEqual(payload["question_runs"][0]["final_judgment"], "reject")
+            self.assertEqual(
+                payload["run_triage_summary"]["rejected_question_ids"],
+                ["synthetic_question"],
+            )
 
     def test_runner_clears_stale_question_artifacts_before_writing_new_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -306,6 +424,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             )
             self.assertNotIn("facet_coverage.json", payload["question_runs"][0]["artifacts_present"])
             self.assertIn("verdict.json", payload["question_runs"][0]["artifacts_present"])
+            self.assertTrue(payload["question_runs"][0]["local_corpus_only"])
+            self.assertFalse(payload["question_runs"][0]["used_official_web_discovery"])
+            self.assertEqual(payload["run_triage_summary"]["question_ids_with_discovery"], [])
+            self.assertEqual(payload["run_triage_summary"]["question_ids_with_fetch"], [])
 
     def test_runner_records_missing_artifacts_in_manifest_without_raising(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -381,9 +503,14 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             # facet_coverage.json is expected for topology but was never written; it remains
             # missing even after the runner's rewrite of verdict.json / manual_review_report.md
             self.assertEqual(run_summary["missing_artifacts"], ["facet_coverage.json"])
+            self.assertTrue(run_summary["has_missing_artifacts"])
             # artifacts_present and missing_artifacts are consistent: facet_coverage.json is absent
             self.assertNotIn("facet_coverage.json", run_summary["artifacts_present"])
             self.assertEqual(run_summary["final_judgment"], "reject")
+            self.assertEqual(
+                payload["run_triage_summary"]["question_ids_with_missing_artifacts"],
+                ["synthetic_question"],
+            )
 
     def test_question_verdict_encodes_missing_artifacts(self) -> None:
         question = SimpleNamespace(
