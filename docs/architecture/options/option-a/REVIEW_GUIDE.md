@@ -39,7 +39,7 @@ This is a V2 research-version review target, not a production-readiness claim.
 
 By default, fixture eval writes to `artifacts/eval_runs` and real-corpus eval writes to `artifacts/eval_runs_real_corpus`.
 The real-corpus gate also reuses the cached normalized bundle under `artifacts/real_corpus/cache/` and writes `corpus_coverage_report.json` into each scenario bundle.
-The real-question pack writes to `artifacts/real_question_pack_runs/<run-id>/...` and adds a top-level `pack_run_manifest.json` that records repo state, runtime contract, corpus state, and compact per-question review signals.
+The real-question pack writes to `artifacts/real_question_pack_runs/<run-id>/...` and adds a top-level `pack_run_manifest.json` that records baseline repo state, whether the run wrote repo-local artifacts, runtime contract, corpus state, and compact per-question review signals.
 
 ## What should be green
 
@@ -71,6 +71,13 @@ Every reviewable run should include:
 For the real-question pack, the top-level run directory additionally includes:
 
 - `pack_run_manifest.json`
+
+The manifest is reviewer-oriented rather than benchmark-oriented. It should stay compact, but it should let a reviewer quickly see:
+
+- baseline git attribution (`git_commit`, `git_branch`, `git_dirty`) captured before the run creates in-repo output
+- whether the run wrote artifacts inside the repository (`repo_local_artifacts_written`)
+- aggregate triage at pack level (`run_triage_summary`) such as accepted/rejected questions, discovery activity, fetch activity, and missing-artifact follow-up
+- per-question review context such as `review_focus`, `linked_scenario_id`, `tags`, discovery counts, fetch counts, and whether the run stayed local-corpus-only
 
 Scenario D closeout runs additionally include:
 
@@ -116,7 +123,7 @@ The V2 release gate treats the real-corpus `primary_success_scenario` and `scena
 Scenario D is the maintained closeout proof case; run its separate harness when a fresh no-context validator proof is needed without destabilizing the deterministic eval gate.
 
 If the real-corpus eval directory is regenerated under a different output path, inspect the latest scenario directory with the same scenario id.
-For the real-question pack, use `pack_run_manifest.json` to see which question bundles were produced and which review-signal verdicts changed, without treating the pack as a benchmark percentage gate.
+For the real-question pack, use `pack_run_manifest.json` to see which question bundles were produced, which questions required follow-up, which ones triggered discovery or fetch activity, and what review focus each question is meant to cover, without treating the pack as a benchmark percentage gate.
 
 ## Current V2 boundary
 
