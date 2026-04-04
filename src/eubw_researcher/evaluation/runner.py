@@ -635,7 +635,7 @@ def build_eval_run_manifest(
         ),
         git_commit=git_metadata.get("commit"),
         git_branch=git_metadata.get("branch"),
-        git_dirty=bool(git_metadata.get("dirty")),
+        git_dirty=git_metadata.get("dirty", True),
         scenario_runs=scenario_runs,
     )
 
@@ -660,7 +660,7 @@ def load_eval_run_manifest(path: Path) -> EvalRunManifest:
         coverage_summary_path=payload.get("coverage_summary_path"),
         git_commit=payload.get("git_commit"),
         git_branch=payload.get("git_branch"),
-        git_dirty=payload.get("git_dirty", False),
+        git_dirty=payload.get("git_dirty", True),
         scenario_runs=[
             EvalScenarioRunSummary(
                 scenario_id=item["scenario_id"],

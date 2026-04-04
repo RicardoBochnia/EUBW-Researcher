@@ -799,7 +799,7 @@ class EvalRunManifest:
 class ValidatedBindingReviewSample:
     scenario_id: str
     manual_review_accept_required: bool
-    manual_review_accept_satisfied: bool
+    manual_review_accept_satisfied: Optional[bool]
     verdict_path: str
     manual_review_report_path: str
 

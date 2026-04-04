@@ -291,9 +291,16 @@ def render_validated_current_state_report_md(
         lines.append("| Scenario | Manual review accept | Verdict | Review report |")
         lines.append("|----------|----------------------|---------|---------------|")
         for sample in report.binding_review_samples:
+            manual_review_accept_text = (
+                "unknown"
+                if sample.manual_review_accept_satisfied is None
+                else "yes"
+                if sample.manual_review_accept_satisfied
+                else "no"
+            )
             lines.append(
                 f"| {sample.scenario_id} | "
-                f"{'yes' if sample.manual_review_accept_satisfied else 'no'} | "
+                f"{manual_review_accept_text} | "
                 f"`{sample.verdict_path}` | "
                 f"`{sample.manual_review_report_path}` |"
             )
