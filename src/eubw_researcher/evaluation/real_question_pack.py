@@ -133,6 +133,7 @@ def run_real_question_pack(
             catalog_path=response.catalog_path,
             corpus_state_id=response.corpus_state_id,
             manual_review_report=report,
+            manual_review_artifact=review_artifact,
         )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()

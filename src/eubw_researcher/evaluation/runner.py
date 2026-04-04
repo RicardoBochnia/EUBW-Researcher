@@ -17,7 +17,7 @@ from eubw_researcher.corpus import (
     render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
-from eubw_researcher.models import ManualReviewReport, ScenarioVerdict, dataclass_to_dict
+from eubw_researcher.models import ManualReviewArtifact, ManualReviewReport, ScenarioVerdict, dataclass_to_dict
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
@@ -448,8 +448,13 @@ def _build_manual_review_outputs(
     corpus_state_id: Optional[str],
     reviewer_name: str,
     manual_review_report: Optional[ManualReviewReport] = None,
+    manual_review_artifact: Optional[ManualReviewArtifact] = None,
 ) -> tuple[object, ManualReviewReport, str]:
-    manual_review = build_manual_review_artifact(result, scenario_id=scenario_id)
+    manual_review = (
+        manual_review_artifact
+        if manual_review_artifact is not None
+        else build_manual_review_artifact(result, scenario_id=scenario_id)
+    )
     resolved_report = manual_review_report or build_manual_review_report(
         result,
         verdict or ScenarioVerdict(scenario_id=scenario_id or "direct_run", passed=True, checks=[]),
@@ -474,6 +479,7 @@ def write_artifact_bundle(
     corpus_state_id: Optional[str] = None,
     reviewer_name: str = "Codex",
     manual_review_report: Optional[ManualReviewReport] = None,
+    manual_review_artifact: Optional[ManualReviewArtifact] = None,
 ) -> ManualReviewReport:
     output_dir.mkdir(parents=True, exist_ok=True)
     manual_review, resolved_report, manual_review_report_markdown = _build_manual_review_outputs(
@@ -484,6 +490,7 @@ def write_artifact_bundle(
         corpus_state_id=corpus_state_id,
         reviewer_name=reviewer_name,
         manual_review_report=manual_review_report,
+        manual_review_artifact=manual_review_artifact,
     )
 
     (output_dir / "retrieval_plan.json").write_text(
