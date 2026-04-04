@@ -329,7 +329,7 @@ class ScenarioDCloseoutTests(unittest.TestCase):
             )
 
             with patch(
-                "eubw_researcher.evaluation.closeout.subprocess.run",
+                "eubw_researcher.evaluation.spawned_validator_gate.subprocess.run",
                 side_effect=subprocess.TimeoutExpired(
                     cmd=["validator"],
                     timeout=0.01,

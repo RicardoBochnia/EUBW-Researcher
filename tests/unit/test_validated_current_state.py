@@ -15,7 +15,12 @@ from eubw_researcher.evaluation.runner import (
     load_eval_run_manifest,
     write_eval_run_manifest,
 )
-from eubw_researcher.models import EvalScenarioRunSummary
+from eubw_researcher.evaluation.spawned_validator_gate import (
+    build_spawned_validator_gate_manifest,
+    load_spawned_validator_gate_manifest,
+    write_spawned_validator_gate_manifest,
+)
+from eubw_researcher.models import EvalScenarioRunSummary, SpawnedValidatorGateScenarioRunSummary
 
 
 class EvalRunManifestTests(unittest.TestCase):
@@ -179,6 +184,43 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
                 coverage_summary_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/corpus_coverage_summary.md"),
             )
 
+    def _spawned_validator_manifest(self):
+        return build_spawned_validator_gate_manifest(
+            scenario_config_path=Path("/tmp/repo/configs/evaluation_scenarios_real_corpus.yaml"),
+            catalog_path=Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json"),
+            corpus_state_id="state123",
+            runtime_contract_version="option_a_runtime.v1",
+            gate_target="release_gate",
+            validator_command="python3 validator.py",
+            scenario_runs=[
+                SpawnedValidatorGateScenarioRunSummary(
+                    scenario_id="scenario_d_certificate_topology_anchor",
+                    deterministic_passed=True,
+                    spawned_validator_invoked=True,
+                    spawned_validator_contract_passed=True,
+                    spawned_validator_passed=True,
+                    final_passed=True,
+                    output_dir="/tmp/repo/artifacts/spawned_validator_gate_runs/scenario_d_certificate_topology_anchor",
+                    verdict_path="/tmp/repo/artifacts/spawned_validator_gate_runs/scenario_d_certificate_topology_anchor/verdict.json",
+                    blind_validation_report_path="/tmp/repo/artifacts/spawned_validator_gate_runs/scenario_d_certificate_topology_anchor/blind_validation_report.json",
+                    spawned_validator_request_path="/tmp/repo/artifacts/spawned_validator_gate_runs/scenario_d_certificate_topology_anchor/spawned_validator_request.json",
+                    spawned_validator_result_path="/tmp/repo/artifacts/spawned_validator_gate_runs/scenario_d_certificate_topology_anchor/spawned_validator_result.json",
+                )
+            ],
+        )
+
+    def test_spawned_validator_manifest_round_trips_through_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            manifest_path = Path(tmp_dir) / "spawned_validator_gate_manifest.json"
+            manifest = self._spawned_validator_manifest()
+            write_spawned_validator_gate_manifest(manifest, manifest_path)
+
+            loaded = load_spawned_validator_gate_manifest(manifest_path)
+
+        self.assertTrue(loaded.overall_passed)
+        self.assertEqual(loaded.gate_target, "release_gate")
+        self.assertEqual(loaded.scenario_runs[0].scenario_id, "scenario_d_certificate_topology_anchor")
+
     def test_build_validated_current_state_report_accepts_matching_state(self) -> None:
         snapshot = {
             "corpus_state_id": "state123",
@@ -206,11 +248,21 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             real_question_pack_manifest_path=Path(
                 "/tmp/repo/artifacts/real_question_pack_runs/pack123/pack_run_manifest.json"
             ),
+            spawned_validator_gate_manifest=self._spawned_validator_manifest(),
+            spawned_validator_gate_manifest_path=Path(
+                "/tmp/repo/artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json"
+            ),
             git_metadata={"commit": "abc123", "branch": "main", "dirty": False},
         )
 
         self.assertTrue(report.validated)
         self.assertEqual(report.binding_gate_surface, "real_corpus_eval")
+        self.assertEqual(
+            report.release_validation_mode,
+            "deterministic_eval_plus_supplemental_spawned_validator",
+        )
+        self.assertTrue(report.spawned_validator_gate_passed)
+        self.assertTrue(report.spawned_validator_gate_matches_state)
         self.assertTrue(report.supplemental_real_question_pack_matches_state)
         self.assertEqual(len(report.binding_review_samples), 1)
         self.assertEqual(
@@ -241,6 +293,39 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         self.assertFalse(report.validated)
         self.assertFalse(report.current_catalog_matches_eval_gate)
 
+    def test_build_validated_current_state_report_can_bind_spawned_validator_gate(self) -> None:
+        snapshot = {
+            "corpus_state_id": "state123",
+            "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
+            "total_sources": 7,
+            "counts_by_kind": {"regulation": 2},
+            "counts_by_role_level": {"high": 7},
+            "source_ids": ["a"],
+        }
+
+        report = build_validated_current_state_report(
+            snapshot,
+            eval_manifest=self._manifest(),
+            eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
+            runtime_contract_version="option_a_runtime.v1",
+            coverage_report_path=None,
+            coverage_summary_path=None,
+            corpus_selection_summary_path=None,
+            corpus_state_snapshot_path=Path("/tmp/repo/artifacts/current_state/corpus_state_snapshot.json"),
+            spawned_validator_gate_manifest=self._spawned_validator_manifest(),
+            spawned_validator_gate_manifest_path=Path(
+                "/tmp/repo/artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json"
+            ),
+            promote_spawned_validator_gate=True,
+        )
+
+        self.assertTrue(report.validated)
+        self.assertEqual(
+            report.release_validation_mode,
+            "deterministic_eval_plus_binding_spawned_validator",
+        )
+        self.assertTrue(report.spawned_validator_gate_passed)
+
     def test_render_validated_current_state_report_markdown_lists_binding_sample(self) -> None:
         snapshot = {
             "corpus_state_id": "state123",
@@ -266,6 +351,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         self.assertIn("# Validated Current State", output)
         self.assertIn("primary_success_scenario", output)
         self.assertIn("real_corpus_eval", output)
+        self.assertIn("deterministic_eval_only", output)
 
     def test_build_validated_current_state_report_preserves_unknown_coverage_state(self) -> None:
         manifest = self._manifest()
@@ -318,6 +404,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         )
 
         self.assertIsNone(report.binding_review_samples[0].manual_review_accept_satisfied)
+        self.assertIn("unknown", render_validated_current_state_report_md(report))
         self.assertIn("| primary_success_scenario | unknown |", render_validated_current_state_report_md(report))
 
 

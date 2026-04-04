@@ -92,6 +92,30 @@ class ConfigLoadingTests(unittest.TestCase):
                 "scenario_d_certificate_topology_anchor",
             },
         )
+        spawned_validator_eligible_ids = {
+            scenario.scenario_id
+            for scenario in real_scenarios
+            if scenario.spawned_validator_gate_eligible
+        }
+        self.assertEqual(
+            spawned_validator_eligible_ids,
+            {
+                "scenario_d_certificate_topology_anchor",
+                "high_risk_failure_pattern",
+            },
+        )
+        spawned_validator_release_ids = {
+            scenario.scenario_id
+            for scenario in real_scenarios
+            if scenario.spawned_validator_release_gate
+        }
+        self.assertEqual(
+            spawned_validator_release_ids,
+            {
+                "scenario_d_certificate_topology_anchor",
+                "high_risk_failure_pattern",
+            },
+        )
         self.assertEqual(
             [question.question_id for question in real_question_pack.questions],
             [

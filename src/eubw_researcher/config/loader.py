@@ -151,6 +151,12 @@ def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
             required_web_fetch_count=int(item.get("required_web_fetch_count", 0)),
             require_provisional_grouping=bool(item.get("require_provisional_grouping", False)),
             require_manual_review_accept=bool(item.get("require_manual_review_accept", False)),
+            spawned_validator_gate_eligible=bool(
+                item.get("spawned_validator_gate_eligible", False)
+            ),
+            spawned_validator_release_gate=bool(
+                item.get("spawned_validator_release_gate", False)
+            ),
             min_gap_records=int(item.get("min_gap_records", 0)),
             min_ledger_entries=int(item.get("min_ledger_entries", 1)),
         )
