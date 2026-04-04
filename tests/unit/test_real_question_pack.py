@@ -47,13 +47,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         intent_type: str = "synthetic_intent",
     ) -> SimpleNamespace:
         result = SimpleNamespace(
-            query_intent={"intent_type": intent_type},
+            query_intent=SimpleNamespace(intent_type=intent_type),
             approved_entries=[object(), object()],
             gap_records=[object()],
-            web_fetch_records=[
-                {"record_type": "fetch"},
-                {"record_type": "fetch"},
-            ],
+            web_fetch_records=[SimpleNamespace(record_type="fetch"), SimpleNamespace(record_type="fetch")],
             provisional_grouping=[],
             corpus_coverage_report=object(),
         )
@@ -395,7 +392,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             expected_intent_type="synthetic_intent",
         )
         result = SimpleNamespace(
-            query_intent={"intent_type": "synthetic_intent"},
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
         )
 
         verdict = _build_question_verdict(
@@ -460,7 +457,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             expected_intent_type="synthetic_intent",
         )
         result = SimpleNamespace(
-            query_intent={"intent_type": "synthetic_intent"},
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
         )
 
         verdict = _build_question_verdict(question, result)

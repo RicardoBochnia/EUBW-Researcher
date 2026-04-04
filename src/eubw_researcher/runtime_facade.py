@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Optional, Union
 
 from eubw_researcher.config import (
     load_runtime_config,
@@ -11,7 +11,21 @@ from eubw_researcher.config import (
     load_web_allowlist,
 )
 from eubw_researcher.corpus import load_or_build_ingestion_bundle
-from eubw_researcher.models import AnswerResult, dataclass_to_dict
+from eubw_researcher.models import (
+    AnswerAlignmentReport,
+    AnswerResult,
+    BlindValidationReport,
+    CorpusCoverageReport,
+    FacetCoverageReport,
+    GapRecord,
+    IngestionReportEntry,
+    LedgerEntry,
+    PinpointEvidenceReport,
+    ProvisionalGroup,
+    QueryIntent,
+    RetrievalPlan,
+    WebFetchRecord,
+)
 from eubw_researcher.pipeline import ResearchPipeline
 
 RuntimePath = Union[str, Path]
@@ -51,20 +65,20 @@ class AgentRuntimeResponse:
 @dataclass(frozen=True)
 class AgentRuntimeResult:
     question: str
-    query_intent: Dict[str, Any]
-    retrieval_plan: Dict[str, Any]
-    gap_records: List[Dict[str, Any]]
-    web_fetch_records: List[Dict[str, Any]]
-    ingestion_report: List[Dict[str, Any]]
-    ledger_entries: List[Dict[str, Any]]
-    approved_entries: List[Dict[str, Any]]
+    query_intent: QueryIntent
+    retrieval_plan: RetrievalPlan
+    gap_records: list[GapRecord]
+    web_fetch_records: list[WebFetchRecord]
+    ingestion_report: list[IngestionReportEntry]
+    ledger_entries: list[LedgerEntry]
+    approved_entries: list[LedgerEntry]
     rendered_answer: str
-    provisional_grouping: List[Dict[str, Any]]
-    facet_coverage_report: Optional[Dict[str, Any]] = None
-    pinpoint_evidence_report: Optional[Dict[str, Any]] = None
-    answer_alignment_report: Optional[Dict[str, Any]] = None
-    blind_validation_report: Optional[Dict[str, Any]] = None
-    corpus_coverage_report: Optional[Dict[str, Any]] = None
+    provisional_grouping: list[ProvisionalGroup]
+    facet_coverage_report: Optional[FacetCoverageReport] = None
+    pinpoint_evidence_report: Optional[PinpointEvidenceReport] = None
+    answer_alignment_report: Optional[AnswerAlignmentReport] = None
+    blind_validation_report: Optional[BlindValidationReport] = None
+    corpus_coverage_report: Optional[CorpusCoverageReport] = None
 
 
 class ResearchRuntimeFacade:
@@ -238,20 +252,20 @@ class ResearchRuntimeFacade:
     def _to_public_result(result: AnswerResult) -> AgentRuntimeResult:
         return AgentRuntimeResult(
             question=result.question,
-            query_intent=dataclass_to_dict(result.query_intent),
-            retrieval_plan=dataclass_to_dict(result.retrieval_plan),
-            gap_records=dataclass_to_dict(result.gap_records),
-            web_fetch_records=dataclass_to_dict(result.web_fetch_records),
-            ingestion_report=dataclass_to_dict(result.ingestion_report),
-            ledger_entries=dataclass_to_dict(result.ledger_entries),
-            approved_entries=dataclass_to_dict(result.approved_entries),
+            query_intent=result.query_intent,
+            retrieval_plan=result.retrieval_plan,
+            gap_records=result.gap_records,
+            web_fetch_records=result.web_fetch_records,
+            ingestion_report=result.ingestion_report,
+            ledger_entries=result.ledger_entries,
+            approved_entries=result.approved_entries,
             rendered_answer=result.rendered_answer,
-            provisional_grouping=dataclass_to_dict(result.provisional_grouping),
-            facet_coverage_report=dataclass_to_dict(result.facet_coverage_report),
-            pinpoint_evidence_report=dataclass_to_dict(result.pinpoint_evidence_report),
-            answer_alignment_report=dataclass_to_dict(result.answer_alignment_report),
-            blind_validation_report=dataclass_to_dict(result.blind_validation_report),
-            corpus_coverage_report=dataclass_to_dict(result.corpus_coverage_report),
+            provisional_grouping=result.provisional_grouping,
+            facet_coverage_report=result.facet_coverage_report,
+            pinpoint_evidence_report=result.pinpoint_evidence_report,
+            answer_alignment_report=result.answer_alignment_report,
+            blind_validation_report=result.blind_validation_report,
+            corpus_coverage_report=result.corpus_coverage_report,
         )
 
     @staticmethod

@@ -47,8 +47,8 @@ class RuntimeFacadeTests(unittest.TestCase):
     def _patched_result(self) -> SimpleNamespace:
         return SimpleNamespace(
             question="Synthetic question?",
-            query_intent={"intent_type": "synthetic_intent"},
-            retrieval_plan={"steps": []},
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            retrieval_plan=SimpleNamespace(steps=[]),
             gap_records=[],
             web_fetch_records=[],
             ingestion_report=[],
@@ -99,7 +99,7 @@ class RuntimeFacadeTests(unittest.TestCase):
             self.assertEqual(response.corpus_state_id, "state-123")
             self.assertIsInstance(response.result, AgentRuntimeResult)
             self.assertEqual(response.result.question, "Synthetic question?")
-            self.assertEqual(response.result.query_intent["intent_type"], "synthetic_intent")
+            self.assertEqual(response.result.query_intent.intent_type, "synthetic_intent")
             self.assertEqual(response.result.rendered_answer, "Confirmed:\nSynthetic answer.")
             self.assertEqual(response.result.corpus_coverage_report, {"passed": True})
 

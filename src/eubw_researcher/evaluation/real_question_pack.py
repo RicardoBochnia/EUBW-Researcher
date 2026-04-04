@@ -54,10 +54,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _record_type(record: dict) -> Optional[str]:
-    return record.get("record_type")
-
-
 def default_real_question_pack_output_dir(
     repo_root: Path,
     *,
@@ -172,13 +168,13 @@ def run_real_question_pack(
                 output_dir=str(question_output_dir.resolve()),
                 artifacts_present=actual_artifacts,
                 missing_artifacts=missing_artifacts,
-                intent_type=response.result.query_intent["intent_type"],
+                intent_type=response.result.query_intent.intent_type,
                 approved_entry_count=len(response.result.approved_entries),
                 gap_record_count=len(response.result.gap_records),
                 web_fetch_count=sum(
                     1
                     for record in response.result.web_fetch_records
-                    if _record_type(record) == "fetch"
+                    if getattr(record, "record_type", None) == "fetch"
                 ),
                 final_judgment=report.final_judgment,
                 usefulness_verdict=report.usefulness_verdict,
@@ -278,7 +274,7 @@ def _build_question_verdict(
     passed = True
 
     if question.expected_intent_type:
-        actual_intent_type = result.query_intent["intent_type"]
+        actual_intent_type = result.query_intent.intent_type
         if actual_intent_type == question.expected_intent_type:
             checks.append(f"intent_type:{question.expected_intent_type}:ok")
         else:
@@ -305,7 +301,7 @@ def _build_question_verdict(
 
 def _expected_bundle_artifacts(result, catalog_path: Path) -> list[str]:
     expected = list(REQUIRED_BUNDLE_ARTIFACTS) + ["verdict.json"]
-    if result.query_intent["intent_type"] == "certificate_topology_analysis":
+    if result.query_intent.intent_type == "certificate_topology_analysis":
         expected.append("facet_coverage.json")
     if result.provisional_grouping:
         expected.append("provisional_grouping.json")
