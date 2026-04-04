@@ -706,7 +706,7 @@ def run_named_scenario(
     scenario = next(item for item in scenarios if item.scenario_id == scenario_id)
     result = pipeline.answer_question(scenario.question)
     result.corpus_coverage_report = coverage_report
-    verdict, _review_report = _evaluate_scenario_with_review_report(scenario, result)
+    verdict, _ = _evaluate_scenario_with_review_report(scenario, result)
     if coverage_report is not None:
         if coverage_report.passed:
             verdict.checks.append("corpus_coverage_gate:ok")
