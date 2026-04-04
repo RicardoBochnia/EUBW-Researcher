@@ -43,6 +43,7 @@ The facade is the stable runtime contract for:
 - writing the standard reviewable artifact bundle
 
 The contract is documented in `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
+The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`.
 
 Anything below that facade boundary should be treated as internal implementation detail.
 
