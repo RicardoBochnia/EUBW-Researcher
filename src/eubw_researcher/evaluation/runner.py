@@ -18,6 +18,7 @@ from eubw_researcher.corpus import (
     render_corpus_coverage_summary_md,
     write_corpus_coverage_report,
 )
+from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.models import (
     EvalRunManifest,
     EvalScenarioRunSummary,
@@ -27,7 +28,6 @@ from eubw_researcher.models import (
     ScenarioVerdict,
     dataclass_to_dict,
 )
-from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.pipeline import ResearchPipeline
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
