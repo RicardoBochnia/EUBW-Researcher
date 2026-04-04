@@ -290,8 +290,10 @@ def _validate_run_root(repo_root: Path, run_root: Path) -> None:
 
 
 def _is_within_root(path: Path, root: Path) -> bool:
+    resolved_path = path.resolve()
+    resolved_root = root.resolve()
     try:
-        path.relative_to(root)
+        resolved_path.relative_to(resolved_root)
         return True
     except ValueError:
         return False
