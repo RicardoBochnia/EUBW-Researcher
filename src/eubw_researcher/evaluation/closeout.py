@@ -92,6 +92,7 @@ def run_scenario_d_closeout(
         scenario_config_resolver=_scenario_config_path,
         evaluate_scenario=_evaluate_scenario,
         blind_validation_report_builder=build_blind_validation_report,
+        blind_validation_merger=merge_spawned_validator_result,
         pipeline_runner=_run_pipeline,
         bundle_writer=write_artifact_bundle,
     )

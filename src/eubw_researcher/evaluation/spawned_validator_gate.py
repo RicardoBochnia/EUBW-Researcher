@@ -525,6 +525,9 @@ def run_spawned_validator_gate(
     ] = None,
     evaluate_scenario: Optional[Callable[[EvaluationScenario, Any], ScenarioVerdict]] = None,
     blind_validation_report_builder: Optional[Callable[[Any], BlindValidationReport]] = None,
+    blind_validation_merger: Optional[
+        Callable[[Any, Any], BlindValidationReport]
+    ] = None,
     pipeline_runner: Optional[Callable[..., Tuple[Any, Any, str, Path]]] = None,
     bundle_writer: Optional[Callable[..., Any]] = None,
 ) -> Tuple[List[Tuple[str, ScenarioVerdict]], Path]:
@@ -536,6 +539,8 @@ def run_spawned_validator_gate(
         evaluate_scenario = _evaluate_scenario
     if blind_validation_report_builder is None:
         blind_validation_report_builder = build_blind_validation_report
+    if blind_validation_merger is None:
+        blind_validation_merger = merge_spawned_validator_result
     if pipeline_runner is None:
         pipeline_runner = _run_pipeline
     if bundle_writer is None:
@@ -625,7 +630,7 @@ def run_spawned_validator_gate(
             json.dumps(dataclass_to_dict(spawned_validator), indent=2),
             encoding="utf-8",
         )
-        result.blind_validation_report = merge_spawned_validator_result(
+        result.blind_validation_report = blind_validation_merger(
             result.blind_validation_report,
             spawned_validator,
         )
