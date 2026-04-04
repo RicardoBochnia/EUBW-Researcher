@@ -531,6 +531,9 @@ def run_spawned_validator_gate(
     final_verdict_builder: Optional[
         Callable[[ScenarioVerdict, BlindValidationReport, SpawnedValidatorResult], ScenarioVerdict]
     ] = None,
+    request_builder: Optional[Callable[[Path, str], dict[str, Any]]] = None,
+    validator_invoker: Optional[Callable[..., SpawnedValidatorResult]] = None,
+    sidecar_file_clearer: Optional[Callable[[Path], None]] = None,
     pipeline_runner: Optional[Callable[..., Tuple[Any, Any, str, Path]]] = None,
     bundle_writer: Optional[Callable[..., Any]] = None,
 ) -> Tuple[List[Tuple[str, ScenarioVerdict]], Path]:
@@ -546,6 +549,12 @@ def run_spawned_validator_gate(
         blind_validation_merger = merge_spawned_validator_result
     if final_verdict_builder is None:
         final_verdict_builder = _build_spawned_validator_verdict
+    if request_builder is None:
+        request_builder = _build_spawned_validator_request
+    if validator_invoker is None:
+        validator_invoker = _invoke_spawned_validator
+    if sidecar_file_clearer is None:
+        sidecar_file_clearer = _clear_spawned_validator_sidecar_files
     if pipeline_runner is None:
         pipeline_runner = _run_pipeline
     if bundle_writer is None:
@@ -576,7 +585,7 @@ def run_spawned_validator_gate(
             result.blind_validation_report = blind_validation_report_builder(result)
         scenario_dir = output_dir / scenario.scenario_id
         scenario_dir.mkdir(parents=True, exist_ok=True)
-        _clear_spawned_validator_sidecar_files(scenario_dir)
+        sidecar_file_clearer(scenario_dir)
         request_path = scenario_dir / SPAWNED_VALIDATOR_REQUEST_FILENAME
         spawned_result_path = scenario_dir / SPAWNED_VALIDATOR_RESULT_FILENAME
         if not structural_verdict.passed:
@@ -622,9 +631,9 @@ def run_spawned_validator_gate(
             corpus_state_id=corpus_state_id,
             reviewer_name=reviewer_name,
         )
-        request_payload = _build_spawned_validator_request(scenario_dir, scenario.question)
+        request_payload = request_builder(scenario_dir, scenario.question)
         request_path.write_text(json.dumps(request_payload, indent=2), encoding="utf-8")
-        spawned_validator = _invoke_spawned_validator(
+        spawned_validator = validator_invoker(
             repo_root=repo_root,
             validator_command=validator_command,
             request_path=request_path,

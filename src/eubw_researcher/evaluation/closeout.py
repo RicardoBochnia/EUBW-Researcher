@@ -94,6 +94,9 @@ def run_scenario_d_closeout(
         blind_validation_report_builder=build_blind_validation_report,
         blind_validation_merger=merge_spawned_validator_result,
         final_verdict_builder=_build_closeout_verdict,
+        request_builder=_build_spawned_validator_request,
+        validator_invoker=_invoke_spawned_validator,
+        sidecar_file_clearer=_clear_closeout_sidecar_files,
         pipeline_runner=_run_pipeline,
         bundle_writer=write_artifact_bundle,
     )
