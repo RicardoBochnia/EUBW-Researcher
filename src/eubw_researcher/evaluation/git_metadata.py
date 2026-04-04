@@ -8,7 +8,7 @@ from typing import Any, Optional
 def collect_git_metadata(repo_root: Path) -> dict[str, Any]:
     branch = _run_git_command(repo_root, "branch", "--show-current")
     commit = _run_git_command(repo_root, "rev-parse", "HEAD")
-    status = _run_git_command(repo_root, "status", "--short")
+    status = _run_git_command(repo_root, "status", "--short", allow_empty=True)
     return {
         "branch": branch,
         "commit": commit,
@@ -16,7 +16,7 @@ def collect_git_metadata(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
+def _run_git_command(repo_root: Path, *args: str, allow_empty: bool = False) -> Optional[str]:
     allowed_commands = {
         ("branch", "--show-current"),
         ("rev-parse", "HEAD"),
@@ -34,4 +34,8 @@ def _run_git_command(repo_root: Path, *args: str) -> Optional[str]:
     if completed.returncode != 0:
         return None
     output = completed.stdout.strip()
-    return output or None
+    if output:
+        return output
+    if allow_empty:
+        return ""
+    return None
