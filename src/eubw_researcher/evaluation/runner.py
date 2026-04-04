@@ -449,7 +449,7 @@ def _build_manual_review_outputs(
     reviewer_name: str,
     manual_review_report: Optional[ManualReviewReport] = None,
     manual_review_artifact: Optional[ManualReviewArtifact] = None,
-) -> tuple[object, ManualReviewReport, str]:
+) -> tuple[ManualReviewArtifact, ManualReviewReport, str]:
     manual_review = (
         manual_review_artifact
         if manual_review_artifact is not None
