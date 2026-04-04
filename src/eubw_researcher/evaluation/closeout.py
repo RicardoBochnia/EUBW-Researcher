@@ -3,12 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Tuple
 
-from eubw_researcher.config import load_evaluation_scenarios
 from eubw_researcher.models import ScenarioVerdict
 from eubw_researcher.trust import build_blind_validation_report, merge_spawned_validator_result
 
 from . import spawned_validator_gate as _spawned_validator_gate
-from .runner import _evaluate_scenario, _run_pipeline, _scenario_config_path, write_artifact_bundle
 from .spawned_validator_gate import run_spawned_validator_gate
 
 _append_corpus_coverage_gate = _spawned_validator_gate._append_corpus_coverage_gate
@@ -22,6 +20,26 @@ _spawned_validator_error = _spawned_validator_gate._spawned_validator_error
 subprocess = _spawned_validator_gate.subprocess
 
 SCENARIO_D_ID = "scenario_d_certificate_topology_anchor"
+
+
+def load_evaluation_scenarios(*args, **kwargs):
+    return _spawned_validator_gate.load_evaluation_scenarios(*args, **kwargs)
+
+
+def _run_pipeline(*args, **kwargs):
+    return _spawned_validator_gate._run_pipeline(*args, **kwargs)
+
+
+def _scenario_config_path(*args, **kwargs):
+    return _spawned_validator_gate._scenario_config_path(*args, **kwargs)
+
+
+def write_artifact_bundle(*args, **kwargs):
+    return _spawned_validator_gate.write_artifact_bundle(*args, **kwargs)
+
+
+def _evaluate_scenario(*args, **kwargs):
+    return _spawned_validator_gate._evaluate_scenario(*args, **kwargs)
 
 
 def _build_closeout_verdict(*args, **kwargs) -> ScenarioVerdict:
@@ -70,6 +88,10 @@ def run_scenario_d_closeout(
         scenarios_path=scenarios_path,
         reviewer_name=reviewer_name,
         require_eligibility=False,
+        load_scenarios=load_evaluation_scenarios,
+        scenario_config_resolver=_scenario_config_path,
+        pipeline_runner=_run_pipeline,
+        bundle_writer=write_artifact_bundle,
     )
     scenario_dir = output_dir / SCENARIO_D_ID
     return scenario_dir, results[0][1]
