@@ -7,16 +7,11 @@ from eubw_researcher.config import load_evaluation_scenarios
 from eubw_researcher.models import ScenarioVerdict
 
 from .runner import _run_pipeline, _scenario_config_path, write_artifact_bundle
-from .spawned_validator_gate import _append_corpus_coverage_gate, run_spawned_validator_gate
+from . import spawned_validator_gate as _spawned_validator_gate
 
 SCENARIO_D_ID = "scenario_d_certificate_topology_anchor"
-
-__all__ = [
-    "SCENARIO_D_ID",
-    "_append_corpus_coverage_gate",
-    "default_closeout_output_dir",
-    "run_scenario_d_closeout",
-]
+_append_corpus_coverage_gate = _spawned_validator_gate._append_corpus_coverage_gate
+run_spawned_validator_gate = _spawned_validator_gate.run_spawned_validator_gate
 
 
 def default_closeout_output_dir(repo_root: Path) -> Path:
