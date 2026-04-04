@@ -622,7 +622,7 @@ def build_eval_run_manifest(
             "real_corpus_eval" if is_real_corpus_catalog(catalog_path) else "fixture_eval"
         ),
         coverage_gate_passed=coverage_gate_passed,
-        overall_passed=all(item.passed for item in scenario_runs),
+        overall_passed=bool(scenario_runs) and all(item.passed for item in scenario_runs),
         coverage_report_path=(
             str(coverage_report_path.resolve())
             if coverage_report_path is not None
@@ -735,6 +735,7 @@ def run_all_scenarios(
 ) -> List[Tuple[str, ScenarioVerdict]]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
+    _clear_authoritative_eval_artifacts(output_dir)
     pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,

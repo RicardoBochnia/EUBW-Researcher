@@ -119,6 +119,7 @@ class EvalRunManifestTests(unittest.TestCase):
             )
 
         self.assertTrue(manifest.git_dirty)
+        self.assertFalse(manifest.overall_passed)
 
     def test_load_eval_run_manifest_defaults_missing_git_dirty_to_true(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

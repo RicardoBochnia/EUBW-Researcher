@@ -1370,6 +1370,40 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 ).is_file()
             )
 
+    def test_run_eval_cli_all_fixture_clears_stale_top_level_coverage_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir) / "eval_runs"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            for artifact_name in (
+                "eval_run_manifest.json",
+                "corpus_coverage_report.json",
+                "corpus_coverage_summary.md",
+            ):
+                (output_dir / artifact_name).write_text("stale", encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_eval.py"),
+                    "--all",
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+            )
+            self.assertTrue((output_dir / "eval_run_manifest.json").exists())
+            self.assertFalse((output_dir / "corpus_coverage_report.json").exists())
+            self.assertFalse((output_dir / "corpus_coverage_summary.md").exists())
+
     def test_run_real_question_pack_cli_writes_manifest_and_question_bundles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
