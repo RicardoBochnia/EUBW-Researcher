@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -8,11 +7,7 @@ from eubw_researcher.config import load_evaluation_scenarios
 from eubw_researcher.models import ScenarioVerdict
 
 from .runner import _run_pipeline, _scenario_config_path, write_artifact_bundle
-from .spawned_validator_gate import (
-    _build_spawned_validator_request,
-    _invoke_spawned_validator,
-    run_spawned_validator_gate,
-)
+from .spawned_validator_gate import run_spawned_validator_gate
 
 SCENARIO_D_ID = "scenario_d_certificate_topology_anchor"
 

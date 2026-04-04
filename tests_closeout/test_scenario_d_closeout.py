@@ -12,9 +12,11 @@ from unittest.mock import patch
 
 from eubw_researcher.evaluation.closeout import (
     SCENARIO_D_ID,
+    run_scenario_d_closeout,
+)
+from eubw_researcher.evaluation.spawned_validator_gate import (
     _build_spawned_validator_request,
     _invoke_spawned_validator,
-    run_scenario_d_closeout,
 )
 from eubw_researcher.models import (
     AnchorQuality,
