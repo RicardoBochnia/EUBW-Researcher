@@ -11,11 +11,13 @@ from eubw_researcher import ResearchRuntimeFacade
 from eubw_researcher.config import load_real_question_pack
 from eubw_researcher.corpus import is_real_corpus_catalog
 from eubw_researcher.evaluation.review import (
+    build_manual_review_artifact,
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
+    ManualReviewArtifact,
     RealQuestionPack,
     RealQuestionPackQuestion,
     RealQuestionPackQuestionRunSummary,
@@ -79,6 +81,8 @@ def run_real_question_pack(
     )
     pack = load_real_question_pack(resolved_pack_path)
     selected_questions = _select_questions(pack, question_id)
+    # Capture baseline provenance before default run output creation or cache writes can
+    # dirty an otherwise clean repository.
     git_metadata = _git_metadata(resolved_repo_root)
 
     run_root = (
@@ -91,7 +95,6 @@ def run_real_question_pack(
 
     facade = ResearchRuntimeFacade(resolved_repo_root)
     pack_digest = hashlib.sha256(resolved_pack_path.read_bytes()).hexdigest()
-    repo_local_artifacts_written = _is_within_root(run_root, resolved_repo_root)
 
     question_runs = []
     runtime_contract_version: Optional[str] = None
@@ -109,9 +112,14 @@ def run_real_question_pack(
             response.result,
             response.catalog_path,
         )
+        review_artifact = build_manual_review_artifact(
+            response.result,
+            scenario_id=question.question_id,
+        )
         verdict = _build_question_verdict(
             question,
             response.result,
+            review_artifact=review_artifact,
         )
         report = build_manual_review_report(
             response.result,
@@ -128,6 +136,7 @@ def run_real_question_pack(
             catalog_path=response.catalog_path,
             corpus_state_id=response.corpus_state_id,
             manual_review_report=report,
+            manual_review_artifact=review_artifact,
         )
         actual_artifacts = sorted(
             path.name for path in question_output_dir.iterdir() if path.is_file()
@@ -140,6 +149,7 @@ def run_real_question_pack(
                 question,
                 response.result,
                 missing_artifacts=missing_artifacts,
+                review_artifact=review_artifact,
             )
             report = build_manual_review_report(
                 response.result,
@@ -198,6 +208,7 @@ def run_real_question_pack(
                 product_output_self_sufficiency_verdict=(
                     report.product_output_self_sufficiency_verdict
                 ),
+                review_complete=False,
             )
         )
         runtime_contract_version = _stable_value(
@@ -219,6 +230,11 @@ def run_real_question_pack(
     assert runtime_contract_version is not None
     assert resolved_catalog_path is not None
     assert corpus_state_id is not None
+    repo_local_artifacts_written = _run_writes_repo_local_artifacts(
+        run_root,
+        resolved_catalog_path,
+        resolved_repo_root,
+    )
 
     run_triage_summary = RealQuestionPackRunTriageSummary(
         total_questions=len(question_runs),
@@ -289,6 +305,20 @@ def _validate_run_root(repo_root: Path, run_root: Path) -> None:
         raise ValueError(f"Real-question pack output_dir must be a directory path: {run_root}")
 
 
+def _run_writes_repo_local_artifacts(run_root: Path, catalog_path: Path, repo_root: Path) -> bool:
+    """Return whether a pack run writes any artifacts inside the repository."""
+    return _is_within_root(run_root, repo_root) or _writes_repo_local_real_corpus_cache(
+        catalog_path,
+        repo_root,
+    )
+
+
+def _writes_repo_local_real_corpus_cache(catalog_path: Path, repo_root: Path) -> bool:
+    if not is_real_corpus_catalog(catalog_path):
+        return False
+    return _is_within_root(catalog_path.parent / "cache", repo_root)
+
+
 def _is_within_root(path: Path, root: Path) -> bool:
     resolved_path = path.resolve()
     resolved_root = root.resolve()
@@ -315,6 +345,7 @@ def _build_question_verdict(
     question: RealQuestionPackQuestion,
     result,
     missing_artifacts: Optional[list[str]] = None,
+    review_artifact: Optional[ManualReviewArtifact] = None,
 ) -> ScenarioVerdict:
     checks: list[str] = []
     passed = True
@@ -336,6 +367,12 @@ def _build_question_verdict(
             "required_artifacts:missing:" + ",".join(sorted(missing_artifacts))
         )
         passed = False
+
+    if review_artifact is not None:
+        for check in review_artifact.checks:
+            if check.status != "pass":
+                checks.append(f"review_check:{check.check_id}:fail")
+                passed = False
 
     return ScenarioVerdict(
         scenario_id=question.question_id,

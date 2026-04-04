@@ -14,6 +14,24 @@ from eubw_researcher.evaluation.real_question_pack import (
     _git_metadata,
     run_real_question_pack,
 )
+from eubw_researcher.models import ManualReviewArtifact, ManualReviewCheck
+
+
+def _fake_review_artifact(_result, *, scenario_id=None):
+    return ManualReviewArtifact(
+        question="Synthetic question?",
+        scenario_id=scenario_id,
+        artifact_scope="synthetic_intent",
+        filled=False,
+        checks=[
+            ManualReviewCheck(
+                check_id="blocked_claims_hidden",
+                status="pass",
+                evidence="ok",
+            ),
+        ],
+        summary="1/1 checks passing.",
+    )
 
 
 class RealQuestionPackRunnerTests(unittest.TestCase):
@@ -47,7 +65,13 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         *,
         intent_type: str = "synthetic_intent",
         web_fetch_records=None,
+        catalog_path: Path = None,
     ) -> SimpleNamespace:
+        resolved_catalog_path = (
+            catalog_path.resolve()
+            if catalog_path is not None
+            else (output_dir.parents[3] / "artifacts" / "real_corpus" / "curated_catalog.json").resolve()
+        )
         result = SimpleNamespace(
             query_intent=SimpleNamespace(intent_type=intent_type),
             approved_entries=[object(), object()],
@@ -64,7 +88,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         )
         return SimpleNamespace(
             contract_version="option_a_runtime.v1",
-            catalog_path=(output_dir.parents[3] / "artifacts" / "real_corpus" / "curated_catalog.json").resolve(),
+            catalog_path=resolved_catalog_path,
             corpus_state_id="synthetic-state",
             output_dir=output_dir.resolve(),
             result=result,
@@ -137,6 +161,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -144,7 +171,8 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 side_effect=_rewrite_bundle,
             ):
                 facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
-                    question_dir
+                    question_dir,
+                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
                 )
 
                 run_root, manifest = run_real_question_pack(
@@ -157,6 +185,142 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             self.assertEqual(run_root, expected_run_root.resolve())
             self.assertFalse(manifest.git_dirty)
             self.assertTrue(manifest.repo_local_artifacts_written)
+
+    def test_runner_marks_repo_local_artifacts_written_for_repo_local_real_corpus_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            pack_path = self._write_pack_config(repo_root)
+            output_dir = Path(tmp_dir).parent / "external-real-question-pack-run"
+            question_dir = output_dir / "synthetic_question"
+
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+                bundle_dir.mkdir(parents=True, exist_ok=True)
+                for artifact_name in [
+                    "retrieval_plan.json",
+                    "gap_records.json",
+                    "web_fetch_records.json",
+                    "ingestion_report.json",
+                    "ledger_entries.json",
+                    "approved_ledger.json",
+                    "final_answer.txt",
+                    "pinpoint_evidence.json",
+                    "answer_alignment.json",
+                    "blind_validation_report.json",
+                    "manual_review.json",
+                    "manual_review_report.md",
+                    "corpus_coverage_report.json",
+                    "verdict.json",
+                ]:
+                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+            def _build_report(_result, verdict, **_kwargs):
+                return SimpleNamespace(
+                    final_judgment="accept" if verdict.passed else "reject",
+                    usefulness_verdict="accept",
+                    source_bound_verdict="accept",
+                    pinpoint_traceability_verdict="accept",
+                    product_output_self_sufficiency_verdict="accept",
+                )
+
+            with patch(
+                "eubw_researcher.evaluation.real_question_pack._git_metadata",
+                return_value={"commit": "abc123", "branch": "branch", "dirty": False},
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
+            ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
+                side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
+            ):
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir,
+                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                )
+
+                _run_root, manifest = run_real_question_pack(
+                    repo_root,
+                    pack_path=pack_path,
+                    question_id="synthetic_question",
+                    output_dir=output_dir,
+                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                )
+
+            self.assertTrue(manifest.repo_local_artifacts_written)
+
+    def test_runner_keeps_repo_local_artifacts_written_false_when_output_and_catalog_are_external(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, tempfile.TemporaryDirectory() as external_dir:
+            repo_root = Path(tmp_dir)
+            pack_path = self._write_pack_config(repo_root)
+            output_dir = Path(external_dir) / "real-question-pack-run"
+            question_dir = output_dir / "synthetic_question"
+            external_catalog_path = Path(external_dir) / "catalog" / "source_catalog.json"
+            external_catalog_path.parent.mkdir(parents=True, exist_ok=True)
+            external_catalog_path.write_text("{}", encoding="utf-8")
+
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, **_kwargs):
+                bundle_dir.mkdir(parents=True, exist_ok=True)
+                for artifact_name in [
+                    "retrieval_plan.json",
+                    "gap_records.json",
+                    "web_fetch_records.json",
+                    "ingestion_report.json",
+                    "ledger_entries.json",
+                    "approved_ledger.json",
+                    "final_answer.txt",
+                    "pinpoint_evidence.json",
+                    "answer_alignment.json",
+                    "blind_validation_report.json",
+                    "manual_review.json",
+                    "manual_review_report.md",
+                    "verdict.json",
+                ]:
+                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+            def _build_report(_result, verdict, **_kwargs):
+                return SimpleNamespace(
+                    final_judgment="accept" if verdict.passed else "reject",
+                    usefulness_verdict="accept",
+                    source_bound_verdict="accept",
+                    pinpoint_traceability_verdict="accept",
+                    product_output_self_sufficiency_verdict="accept",
+                )
+
+            with patch(
+                "eubw_researcher.evaluation.real_question_pack._git_metadata",
+                return_value={"commit": "abc123", "branch": "branch", "dirty": False},
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
+            ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
+                side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
+            ):
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir,
+                    catalog_path=external_catalog_path,
+                )
+
+                _run_root, manifest = run_real_question_pack(
+                    repo_root,
+                    pack_path=pack_path,
+                    question_id="synthetic_question",
+                    output_dir=output_dir,
+                    catalog_path=external_catalog_path,
+                )
+
+            self.assertFalse(manifest.repo_local_artifacts_written)
 
     def test_runner_writes_manifest_with_review_signals_and_no_benchmark_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -213,6 +377,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -280,6 +447,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "needs_follow_up",
             )
             self.assertEqual(payload["question_runs"][0]["missing_artifacts"], [])
+            self.assertFalse(payload["question_runs"][0]["review_complete"])
             self.assertNotIn("score", payload)
             self.assertNotIn("pass_rate", payload)
             self.assertEqual(len(built_reports), 1)
@@ -327,6 +495,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -401,6 +572,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -473,6 +647,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -590,6 +767,149 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
         self.assertTrue(verdict.passed)
         self.assertEqual(verdict.checks, ["intent_type:synthetic_intent:ok"])
+
+    def test_runner_passes_review_artifact_to_write_artifact_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            pack_path = self._write_pack_config(repo_root)
+            output_dir = repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run"
+            question_dir = output_dir / "synthetic_question"
+            captured_bundle_kwargs: dict = {}
+
+            def _rewrite_bundle(bundle_dir, result, *, verdict=None, manual_review_report=None, **kwargs):
+                captured_bundle_kwargs.update(kwargs)
+                bundle_dir.mkdir(parents=True, exist_ok=True)
+                for artifact_name in [
+                    "retrieval_plan.json", "gap_records.json", "web_fetch_records.json",
+                    "ingestion_report.json", "ledger_entries.json", "approved_ledger.json",
+                    "final_answer.txt", "pinpoint_evidence.json", "answer_alignment.json",
+                    "blind_validation_report.json", "manual_review.json",
+                    "manual_review_report.md", "corpus_coverage_report.json", "verdict.json",
+                ]:
+                    (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+            built_artifacts: list = []
+
+            def _build_artifact(result, *, scenario_id=None):
+                artifact = _fake_review_artifact(result, scenario_id=scenario_id)
+                built_artifacts.append(artifact)
+                return artifact
+
+            def _build_report(_result, verdict, **_kwargs):
+                return SimpleNamespace(
+                    final_judgment="accept" if verdict.passed else "reject",
+                    usefulness_verdict="accept",
+                    source_bound_verdict="accept",
+                    pinpoint_traceability_verdict="accept",
+                    product_output_self_sufficiency_verdict="accept",
+                )
+
+            with patch(
+                "eubw_researcher.evaluation.real_question_pack._git_metadata",
+                return_value={"commit": "abc123", "branch": "branch", "dirty": False},
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
+            ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_build_artifact,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
+                side_effect=_build_report,
+            ), patch(
+                "eubw_researcher.evaluation.real_question_pack.write_artifact_bundle",
+                side_effect=_rewrite_bundle,
+            ):
+                facade_cls.return_value.run_evidence_only.return_value = self._fake_response(
+                    question_dir
+                )
+                run_real_question_pack(
+                    repo_root,
+                    pack_path=pack_path,
+                    question_id="synthetic_question",
+                    output_dir=output_dir,
+                    catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                )
+
+            # The artifact built for verdict gating must be the same object passed to
+            # write_artifact_bundle, eliminating the double-build.
+            self.assertEqual(len(built_artifacts), 1)
+            self.assertIs(
+                captured_bundle_kwargs.get("manual_review_artifact"),
+                built_artifacts[0],
+            )
+
+    def test_question_verdict_encodes_failed_review_checks(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        )
+        artifact = ManualReviewArtifact(
+            question="Synthetic question?",
+            scenario_id="synthetic_question",
+            artifact_scope="synthetic_intent",
+            filled=False,
+            checks=[
+                ManualReviewCheck(
+                    check_id="blocked_claims_hidden",
+                    status="fail",
+                    evidence="Blocked content visible.",
+                ),
+                ManualReviewCheck(
+                    check_id="approved_entries_have_citations",
+                    status="pass",
+                    evidence="All entries cited.",
+                ),
+            ],
+            summary="1/2 checks passing.",
+        )
+
+        verdict = _build_question_verdict(question, result, review_artifact=artifact)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("review_check:blocked_claims_hidden:fail", verdict.checks)
+        self.assertFalse(
+            any("review_check:" in c and ":pass" in c for c in verdict.checks),
+            msg="Passing review checks must not be encoded in the verdict",
+        )
+
+    def test_question_verdict_with_all_passing_review_checks_remains_passed(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        )
+        artifact = ManualReviewArtifact(
+            question="Synthetic question?",
+            scenario_id="synthetic_question",
+            artifact_scope="synthetic_intent",
+            filled=False,
+            checks=[
+                ManualReviewCheck(
+                    check_id="blocked_claims_hidden",
+                    status="pass",
+                    evidence="ok",
+                ),
+                ManualReviewCheck(
+                    check_id="pinpoint_traceability",
+                    status="pass",
+                    evidence="ok",
+                ),
+            ],
+            summary="2/2 checks passing.",
+        )
+
+        verdict = _build_question_verdict(question, result, review_artifact=artifact)
+
+        self.assertTrue(verdict.passed)
+        self.assertFalse(
+            any("review_check:" in c for c in verdict.checks),
+            msg="No review_check entries expected when all checks pass",
+        )
 
 
 if __name__ == "__main__":
