@@ -364,7 +364,9 @@ def render_validated_current_state_report_md(
         lines.append(f"- Corpus coverage summary: `{report.corpus_coverage_summary_path}`")
     if report.corpus_selection_summary_path:
         lines.append(f"- Corpus selection summary: `{report.corpus_selection_summary_path}`")
-    if report.spawned_validator_gate_manifest_path:
+    if report.spawned_validator_gate_manifest_path and not report.release_validation_mode.endswith(
+        "supplemental_spawned_validator"
+    ):
         lines.append(
             "- Spawned-validator gate manifest: "
             f"`{report.spawned_validator_gate_manifest_path}`"

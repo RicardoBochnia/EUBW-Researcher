@@ -18,6 +18,7 @@ from eubw_researcher.models import (
     SpawnedValidatorResult,
     dataclass_to_dict,
 )
+from eubw_researcher.runtime_facade import ResearchRuntimeFacade
 from eubw_researcher.trust import build_blind_validation_report, merge_spawned_validator_result
 
 from .runner import (
@@ -74,9 +75,9 @@ def _build_spawned_validator_request(bundle_dir: Path, question: str) -> dict[st
             "manual_review_report.md",
         ],
         "instructions": (
-            "Derive your answer primarily from the generated review bundle. "
+            "Derive your answer primarily from the generated artifact bundle. "
             "You may read raw source documents only for minor confirmation of citations already discoverable "
-            "from the product artifacts."
+            "from that bundle."
         ),
         "prohibited": [
             "Do not use prior analysis or inherited thread context.",
@@ -535,8 +536,6 @@ def run_spawned_validator_gate(
         repo_root,
         catalog_path=catalog_path,
     )
-    from eubw_researcher.runtime_facade import ResearchRuntimeFacade
-
     output_dir.mkdir(parents=True, exist_ok=True)
     results: List[Tuple[str, ScenarioVerdict]] = []
     manifest_runs: List[SpawnedValidatorGateScenarioRunSummary] = []
