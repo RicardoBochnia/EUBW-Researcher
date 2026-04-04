@@ -745,6 +745,7 @@ class RealQuestionPackQuestionRunSummary:
     source_bound_verdict: str
     pinpoint_traceability_verdict: str
     product_output_self_sufficiency_verdict: str
+    review_complete: bool = False
 
 
 @dataclass

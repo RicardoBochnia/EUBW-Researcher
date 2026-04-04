@@ -14,6 +14,24 @@ from eubw_researcher.evaluation.real_question_pack import (
     _git_metadata,
     run_real_question_pack,
 )
+from eubw_researcher.models import ManualReviewArtifact, ManualReviewCheck
+
+
+def _fake_review_artifact(_result, *, scenario_id=None):
+    return ManualReviewArtifact(
+        question="Synthetic question?",
+        scenario_id=scenario_id,
+        artifact_scope="synthetic_intent",
+        filled=False,
+        checks=[
+            ManualReviewCheck(
+                check_id="blocked_claims_hidden",
+                status="pass",
+                evidence="ok",
+            ),
+        ],
+        summary="1/1 checks passing.",
+    )
 
 
 class RealQuestionPackRunnerTests(unittest.TestCase):
@@ -132,6 +150,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -166,6 +187,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                 "needs_follow_up",
             )
             self.assertEqual(payload["question_runs"][0]["missing_artifacts"], [])
+            self.assertFalse(payload["question_runs"][0]["review_complete"])
             self.assertNotIn("score", payload)
             self.assertNotIn("pass_rate", payload)
             self.assertEqual(len(built_reports), 1)
@@ -213,6 +235,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -283,6 +308,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -351,6 +379,9 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             ), patch(
                 "eubw_researcher.evaluation.real_question_pack.ResearchRuntimeFacade"
             ) as facade_cls, patch(
+                "eubw_researcher.evaluation.real_question_pack.build_manual_review_artifact",
+                side_effect=_fake_review_artifact,
+            ), patch(
                 "eubw_researcher.evaluation.real_question_pack.build_manual_review_report",
                 side_effect=_build_report,
             ), patch(
@@ -463,6 +494,79 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
         self.assertTrue(verdict.passed)
         self.assertEqual(verdict.checks, ["intent_type:synthetic_intent:ok"])
+
+    def test_question_verdict_encodes_failed_review_checks(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        )
+        artifact = ManualReviewArtifact(
+            question="Synthetic question?",
+            scenario_id="synthetic_question",
+            artifact_scope="synthetic_intent",
+            filled=False,
+            checks=[
+                ManualReviewCheck(
+                    check_id="blocked_claims_hidden",
+                    status="fail",
+                    evidence="Blocked content visible.",
+                ),
+                ManualReviewCheck(
+                    check_id="approved_entries_have_citations",
+                    status="pass",
+                    evidence="All entries cited.",
+                ),
+            ],
+            summary="1/2 checks passing.",
+        )
+
+        verdict = _build_question_verdict(question, result, review_artifact=artifact)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("review_check:blocked_claims_hidden:fail", verdict.checks)
+        self.assertFalse(
+            any("review_check:" in c and ":pass" in c for c in verdict.checks),
+            msg="Passing review checks must not be encoded in the verdict",
+        )
+
+    def test_question_verdict_with_all_passing_review_checks_remains_passed(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+        )
+        artifact = ManualReviewArtifact(
+            question="Synthetic question?",
+            scenario_id="synthetic_question",
+            artifact_scope="synthetic_intent",
+            filled=False,
+            checks=[
+                ManualReviewCheck(
+                    check_id="blocked_claims_hidden",
+                    status="pass",
+                    evidence="ok",
+                ),
+                ManualReviewCheck(
+                    check_id="pinpoint_traceability",
+                    status="pass",
+                    evidence="ok",
+                ),
+            ],
+            summary="2/2 checks passing.",
+        )
+
+        verdict = _build_question_verdict(question, result, review_artifact=artifact)
+
+        self.assertTrue(verdict.passed)
+        self.assertFalse(
+            any("review_check:" in c for c in verdict.checks),
+            msg="No review_check entries expected when all checks pass",
+        )
 
 
 if __name__ == "__main__":
