@@ -22,6 +22,10 @@ The primary usage pattern is:
   - add `--apply` only when you intentionally want to update the accepted local archive and archive-catalog metadata
 - Run the full testsuite, including Scenario D closeout coverage:
   `python3 scripts/run_tests.py`
+- Run only the unit tests used by the default pull-request CI path:
+  `python3 scripts/run_unit_tests.py`
+- Run only the integration-heavy pipeline/eval tests used by the conditional pull-request CI path:
+  `python3 scripts/run_integration_tests.py`
 - Run only the separate Scenario D closeout harness tests:
   `python3 scripts/run_closeout_tests.py`
 - Run fixture eval:

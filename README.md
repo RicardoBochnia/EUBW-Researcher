@@ -5,6 +5,8 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 ## Local commands
 
 - Programmatic agent use should use the facade contract exported from `eubw_researcher` (`ResearchRuntimeFacade`, `AgentRuntimeRequest`, `AgentRuntimeResponse`, `AgentRuntimeResult`, `AgentRuntimeMode`); see `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
+- Run the unit test suite used by the default pull-request CI path: `python3 scripts/run_unit_tests.py`
+- Run the integration-heavy pipeline/eval suite used by conditional pull-request CI jobs: `python3 scripts/run_integration_tests.py`
 - Run the full local test suite, including Scenario D closeout coverage: `python3 scripts/run_tests.py`
 - Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
@@ -33,6 +35,7 @@ Validator contract for the closeout harness:
 ## Notes
 
 - The repository is V2-backend-only by design: no UI, no persistent provenance graph, and no multi-agent orchestration.
+- Pull-request CI now runs unit tests by default, adds integration and closeout suites only when relevant files change, and reserves `python3 scripts/run_tests.py` for the full-confidence workflow on `main`, schedule, or manual dispatch.
 - Real-corpus refresh is user-triggered: `scripts/refresh_real_corpus.py` checks configured archive entries against their stored canonical source URLs, stages changed candidates under `artifacts/real_corpus/refresh_staging`, and only updates the accepted archive when run with `--apply`.
 - Refresh governance decision: refresh is intentionally not governed by the open-web discovery allowlist. Discovery stays allowlist-only and path-gated for finding new sources; refresh is limited to already accepted corpus entries and may only re-check the exact stored `canonical_url` for those entries. No discovery, link-following, alternate-source search, or silent source replacement is allowed in the refresh workflow.
 - Config files under `configs/` use YAML-compatible JSON so no separate YAML parser dependency is required; PDF extraction uses `pypdf`.
