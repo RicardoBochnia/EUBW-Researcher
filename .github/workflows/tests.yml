@@ -42,12 +42,12 @@ jobs:
           printf '%s\n' "$changed_files"
 
           run_integration=false
-          if printf '%s\n' "$changed_files" | grep -Eq '^(configs/|scripts/(answer_question\.py|build_real_corpus_catalog\.py|refresh_real_corpus\.py|report_validated_current_state\.py|run_eval\.py|run_integration_tests\.py|run_real_question_pack\.py|run_tests\.py)|src/eubw_researcher/(config\.py|corpus/|evaluation/|pipeline\.py|runtime_facade\.py)|tests/integration/)'; then
+          if printf '%s\n' "$changed_files" | grep -Eq '^(configs/|scripts/(_test_runner\.py|answer_question\.py|build_real_corpus_catalog\.py|refresh_real_corpus\.py|report_validated_current_state\.py|run_eval\.py|run_integration_tests\.py|run_real_question_pack\.py|run_tests\.py)|src/eubw_researcher/|tests/integration/)'; then
             run_integration=true
           fi
 
           run_closeout=false
-          if printf '%s\n' "$changed_files" | grep -Eq '^(scripts/(report_validated_current_state\.py|run_closeout_tests\.py|run_scenario_d_closeout\.py|run_spawned_validator_gate\.py|run_tests\.py)|src/eubw_researcher/(corpus/reporting\.py|evaluation/)|tests/unit/(test_evaluation_closeout\.py|test_validated_current_state\.py)|tests_closeout/)'; then
+          if printf '%s\n' "$changed_files" | grep -Eq '^(scripts/(_test_runner\.py|report_validated_current_state\.py|run_closeout_tests\.py|run_scenario_d_closeout\.py|run_spawned_validator_gate\.py|run_tests\.py)|src/eubw_researcher/(corpus/reporting\.py|evaluation/)|tests/unit/(test_evaluation_closeout\.py|test_validated_current_state\.py)|tests_closeout/)'; then
             run_closeout=true
           fi
 
