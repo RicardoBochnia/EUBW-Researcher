@@ -23,7 +23,6 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      run_unit: ${{ steps.detect.outputs.run_unit }}
       run_integration: ${{ steps.detect.outputs.run_integration }}
       run_closeout: ${{ steps.detect.outputs.run_closeout }}
 
@@ -54,7 +53,6 @@ jobs:
             run_closeout=true
           fi
 
-          echo "run_unit=true" >> "$GITHUB_OUTPUT"
           echo "run_integration=$run_integration" >> "$GITHUB_OUTPUT"
           echo "run_closeout=$run_closeout" >> "$GITHUB_OUTPUT"
 
@@ -62,7 +60,6 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.run_unit == 'true'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
