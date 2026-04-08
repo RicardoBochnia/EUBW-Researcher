@@ -9,12 +9,17 @@ from eubw_researcher.models import (
     QueryIntent,
     RetrievalPlan,
     RetrievalPlanStep,
+    RetrievalTargetQuery,
     RuntimeConfig,
     SourceHierarchyConfig,
     SourceKind,
     SourceRoleLevel,
+    TerminologyConfig,
 )
-from eubw_researcher.retrieval.terminology import normalize_query_terms
+from eubw_researcher.retrieval.terminology import (
+    normalize_query_terms,
+    normalize_query_terms_with_trace,
+)
 
 
 def _contains_any(text: str, terms: List[str]) -> bool:
@@ -537,12 +542,24 @@ def _is_relying_party_registration_information_question(lowered: str) -> bool:
     )
 
 
-def _is_relying_party_certificate_question(lowered: str) -> bool:
+def _is_relying_party_certificate_question(
+    lowered: str,
+    *,
+    original_lowered: str | None = None,
+) -> bool:
     tokens = _token_set(lowered)
+    original_tokens = _token_set(original_lowered) if original_lowered is not None else tokens
     return (
-        _has_business_wallet_subject(lowered, tokens)
-        and _contains_any(lowered, ["registration certificate", "access certificate"])
+        "registration certificate" in lowered
+        and "access certificate" in lowered
         and _is_comparison_request(lowered, tokens)
+        and (
+            _has_business_wallet_subject(lowered, tokens)
+            or (
+                original_lowered is not None
+                and _has_business_wallet_subject(original_lowered, original_tokens)
+            )
+        )
     )
 
 
@@ -668,8 +685,9 @@ def _arf_boundary_targets() -> List[ClaimTarget]:
     ]
 
 
-def analyze_query(question: str) -> QueryIntent:
-    lowered = normalize_query_terms(question).lower()
+def analyze_query(question: str, terminology: TerminologyConfig) -> QueryIntent:
+    lowered = normalize_query_terms(question, terminology).lower()
+    original_lowered = question.lower()
     tokens = _token_set(lowered)
     eu_first = True
 
@@ -736,7 +754,10 @@ def analyze_query(question: str) -> QueryIntent:
             ],
         )
 
-    if _is_relying_party_certificate_question(lowered):
+    if _is_relying_party_certificate_question(
+        lowered,
+        original_lowered=original_lowered,
+    ):
         return QueryIntent(
             question=question,
             intent_type="relying_party_certificate_requirements",
@@ -803,12 +824,45 @@ def analyze_query(question: str) -> QueryIntent:
     )
 
 
+def build_target_query_text(question: str, target: ClaimTarget) -> str:
+    support_terms = [" ".join(group) for group in target.support_groups]
+    return " ".join(
+        [
+            question,
+            target.claim_text,
+            " ".join(target.scope_terms),
+            " ".join(target.primary_terms),
+            " ".join(support_terms),
+        ]
+    )
+
+
 def build_retrieval_plan(
     query_intent: QueryIntent,
     hierarchy: SourceHierarchyConfig,
     runtime_config: RuntimeConfig,
+    terminology: TerminologyConfig,
 ) -> RetrievalPlan:
     hierarchy_kinds = [rule.source_kind for rule in sorted(hierarchy.rules, key=lambda item: item.rank)]
+    normalized_question, question_term_normalizations = normalize_query_terms_with_trace(
+        query_intent.question,
+        terminology,
+    )
+    target_queries: List[RetrievalTargetQuery] = []
+    for target in query_intent.claim_targets:
+        raw_query = build_target_query_text(query_intent.question, target)
+        normalized_target_query, applied_target_normalizations = normalize_query_terms_with_trace(
+            raw_query,
+            terminology,
+        )
+        target_queries.append(
+            RetrievalTargetQuery(
+                target_id=target.target_id,
+                raw_query=raw_query,
+                normalized_query=normalized_target_query,
+                applied_term_normalizations=applied_target_normalizations,
+            )
+        )
 
     if query_intent.eu_first:
         # In EU-first mode, query preferences must not pull lower-ranked material
@@ -832,4 +886,10 @@ def build_retrieval_plan(
         )
         for index, kind in enumerate(kinds)
     ]
-    return RetrievalPlan(question=query_intent.question, steps=steps)
+    return RetrievalPlan(
+        question=query_intent.question,
+        normalized_question=normalized_question,
+        question_term_normalizations=question_term_normalizations,
+        target_queries=target_queries,
+        steps=steps,
+    )

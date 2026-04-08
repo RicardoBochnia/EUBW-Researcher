@@ -16,6 +16,10 @@ The primary usage pattern is:
 
 - Build or refresh the real-corpus catalog:
   `python3 scripts/build_real_corpus_catalog.py`
+- Regenerate the generator-owned terminology config from the local archive:
+  `python3 scripts/update_terminology_from_corpus.py`
+- Verify that the committed terminology config still matches the current local archive:
+  `python3 scripts/update_terminology_from_corpus.py --check`
 - Run the user-triggered real-corpus refresh check against the stored canonical source URLs:
   `python3 scripts/refresh_real_corpus.py`
   - this stages changed or missing candidates under `artifacts/real_corpus/refresh_staging`
@@ -54,7 +58,7 @@ The facade is the stable runtime contract for:
 - writing the standard reviewable artifact bundle
 
 The contract is documented in `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
-The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`.
+The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`. The current result schema is `agent_runtime_result.v2`.
 
 Anything below that facade boundary should be treated as internal implementation detail.
 
@@ -69,6 +73,7 @@ Unless there is a strong reason otherwise, use the default real-corpus catalog a
 - prefer `ResearchRuntimeFacade` for programmatic agent-driven runs
 - use the documented CLI entrypoints when validating end-to-end behavior
 - default to the curated real-corpus catalog unless the task explicitly requires another input
+- treat `configs/terminology.yaml` as generated runtime input, not a hand-maintained config file
 - inspect the generated artifact bundle as the primary review surface, not answer text alone
 
 ## Refresh Governance Decision
@@ -131,5 +136,10 @@ Rebuild the real-corpus catalog when:
 - `artifacts/real_corpus/curated_catalog.json` is missing
 - `configs/real_corpus_selection.yaml` changed
 - the local archive under `artifacts/real_corpus/archive` changed
+
+Regenerate `configs/terminology.yaml` when:
+- the local archive under `artifacts/real_corpus/archive` changed
+- `artifacts/real_corpus/curated_catalog.json` changed
+- the terminology-generation policy in `scripts/update_terminology_from_corpus.py` or `src/eubw_researcher/config/terminology_generation.py` changed
 
 Otherwise prefer reusing the existing catalog and cached ingestion bundle.

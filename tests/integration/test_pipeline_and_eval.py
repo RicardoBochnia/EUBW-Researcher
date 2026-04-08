@@ -14,6 +14,7 @@ from eubw_researcher.config import (
     load_archive_corpus_config,
     load_runtime_config,
     load_source_hierarchy,
+    load_terminology_config,
     load_web_allowlist,
 )
 from eubw_researcher.corpus import (
@@ -66,6 +67,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml")
         hierarchy = load_source_hierarchy(REPO_ROOT / "configs" / "source_hierarchy.yaml")
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
         allowlist = load_web_allowlist(REPO_ROOT / "configs" / "web_allowlist.yaml")
         catalog = load_source_catalog(
             REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
@@ -76,10 +78,12 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             hierarchy=hierarchy,
             allowlist=allowlist,
             ingestion_bundle=bundle,
+            terminology=terminology,
         )
         self.catalog = catalog
         self.runtime = runtime
         self.hierarchy = hierarchy
+        self.terminology = terminology
         self.allowlist = allowlist
 
     def _build_real_corpus_pipeline(self) -> tuple[ResearchPipeline, object]:
@@ -93,6 +97,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             hierarchy=self.hierarchy,
             allowlist=self.allowlist,
             ingestion_bundle=real_bundle,
+            terminology=self.terminology,
         )
         return pipeline, real_catalog
 
@@ -226,6 +231,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             hierarchy=self.hierarchy,
             allowlist=self.allowlist,
             ingestion_bundle=filtered_bundle,
+            terminology=self.terminology,
         )
 
         result = filtered_pipeline.answer_question(
@@ -292,6 +298,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=self.allowlist,
                 ingestion_bundle=temp_bundle,
+                terminology=self.terminology,
             )
 
             result = temp_pipeline.answer_question(
@@ -387,6 +394,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=filtered_bundle,
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -494,6 +502,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -589,6 +598,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -650,6 +660,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -720,6 +731,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -791,6 +803,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -980,6 +993,47 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             self.assertTrue((Path(tmp_dir) / "pinpoint_evidence.json").exists())
             self.assertTrue((Path(tmp_dir) / "answer_alignment.json").exists())
             self.assertTrue((Path(tmp_dir) / "blind_validation_report.json").exists())
+
+    def test_retrieval_plan_bundle_records_normalized_question_and_target_queries(self) -> None:
+        question = "What requirements apply to the EUBW, and how can they be provisionally structured?"
+        result = self.pipeline.answer_question(question)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            write_artifact_bundle(
+                Path(tmp_dir),
+                result,
+                verdict=ScenarioVerdict(
+                    scenario_id="synthetic_alias_direct_run",
+                    passed=True,
+                    checks=[],
+                ),
+                scenario_id="synthetic_alias_direct_run",
+                catalog_path=REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml",
+                corpus_state_id="synthetic-state",
+            )
+            retrieval_plan = json.loads(
+                (Path(tmp_dir) / "retrieval_plan.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(retrieval_plan["question"], question)
+        self.assertEqual(
+            retrieval_plan["normalized_question"],
+            "What requirements apply to the business wallet, and how can they be provisionally structured?",
+        )
+        self.assertEqual(
+            retrieval_plan["question_term_normalizations"],
+            [{"source_term": "eubw", "canonical_term": "business wallet"}],
+        )
+        self.assertTrue(retrieval_plan["target_queries"])
+        self.assertTrue(
+            any("EUBW" in target_query["raw_query"] for target_query in retrieval_plan["target_queries"])
+        )
+        self.assertTrue(
+            all(
+                "business wallet" in target_query["normalized_query"].lower()
+                for target_query in retrieval_plan["target_queries"]
+            )
+        )
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
