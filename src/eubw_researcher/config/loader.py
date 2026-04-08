@@ -11,6 +11,7 @@ from eubw_researcher.models import (
     ArchiveSourceSelection,
     ClaimState,
     EvaluationScenario,
+    TerminologyAlias,
     RealQuestionPack,
     RealQuestionPackQuestion,
     HierarchyRule,
@@ -157,6 +158,26 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
     if not isinstance(raw_mappings, list):
         raise ValueError(f"Terminology config must define a list 'mappings': {path}")
 
+    generator_owned = payload.get("generator_owned", False)
+    if not isinstance(generator_owned, bool):
+        raise ValueError(f"Terminology config field 'generator_owned' must be a bool: {path}")
+
+    policy_version = payload.get("policy_version")
+    if policy_version is not None and not isinstance(policy_version, str):
+        raise ValueError(f"Terminology config field 'policy_version' must be a string: {path}")
+
+    archive_catalog_path = payload.get("archive_catalog_path")
+    if archive_catalog_path is not None and not isinstance(archive_catalog_path, str):
+        raise ValueError(
+            f"Terminology config field 'archive_catalog_path' must be a string: {path}"
+        )
+
+    curated_catalog_path = payload.get("curated_catalog_path")
+    if curated_catalog_path is not None and not isinstance(curated_catalog_path, str):
+        raise ValueError(
+            f"Terminology config field 'curated_catalog_path' must be a string: {path}"
+        )
+
     seen_canonical_terms: dict[str, str] = {}
     seen_trigger_terms: dict[str, str] = {}
     mappings: list[TerminologyMapping] = []
@@ -182,10 +203,23 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
             raise ValueError(
                 f"Terminology mapping '{canonical_term}' must define a list 'aliases': {path}"
             )
-        aliases: list[str] = []
+        alias_rules: list[TerminologyAlias] = []
         seen_mapping_aliases: set[str] = set()
         for raw_alias in raw_aliases:
-            alias = _optional_stripped(raw_alias)
+            if isinstance(raw_alias, dict):
+                alias = _optional_stripped(raw_alias.get("term"))
+                raw_alias_contexts = raw_alias.get("context_aliases", [])
+                if not isinstance(raw_alias_contexts, list):
+                    raise ValueError(
+                        f"Terminology alias object for '{canonical_term}' must define list context_aliases when present: {path}"
+                    )
+            elif isinstance(raw_alias, str):
+                alias = _optional_stripped(raw_alias)
+                raw_alias_contexts = []
+            else:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' aliases must be strings or alias objects: {path}"
+                )
             if alias is None:
                 raise ValueError(
                     f"Terminology mapping '{canonical_term}' contains a blank alias: {path}"
@@ -200,9 +234,33 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
                     f"Terminology mapping '{canonical_term}' contains duplicate alias '{alias}': {path}"
                 )
             seen_mapping_aliases.add(alias_key)
-            aliases.append(alias)
+            alias_context_aliases: list[str] = []
+            seen_alias_contexts: set[str] = set()
+            for raw_alias_context in raw_alias_contexts:
+                if not isinstance(raw_alias_context, str):
+                    raise ValueError(
+                        f"Terminology alias '{alias}' for '{canonical_term}' context aliases must be strings: {path}"
+                    )
+                alias_context = _optional_stripped(raw_alias_context)
+                if alias_context is None:
+                    raise ValueError(
+                        f"Terminology alias '{alias}' for '{canonical_term}' contains a blank context alias: {path}"
+                    )
+                alias_context_key = alias_context.casefold()
+                if alias_context_key in seen_alias_contexts:
+                    raise ValueError(
+                        f"Terminology alias '{alias}' for '{canonical_term}' contains duplicate context alias '{alias_context}': {path}"
+                    )
+                seen_alias_contexts.add(alias_context_key)
+                alias_context_aliases.append(alias_context)
+            alias_rules.append(
+                TerminologyAlias(
+                    term=alias,
+                    context_aliases=tuple(alias_context_aliases),
+                )
+            )
 
-        if not aliases:
+        if not alias_rules:
             raise ValueError(
                 f"Terminology mapping '{canonical_term}' must define at least one alias: {path}"
             )
@@ -215,6 +273,10 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
         context_aliases: list[str] = []
         seen_context_aliases: set[str] = set()
         for raw_context_alias in raw_context_aliases:
+            if not isinstance(raw_context_alias, str):
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' context_aliases must contain only strings: {path}"
+                )
             context_alias = _optional_stripped(raw_context_alias)
             if context_alias is None:
                 raise ValueError(
@@ -228,7 +290,7 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
             seen_context_aliases.add(context_key)
             context_aliases.append(context_alias)
 
-        for trigger_term in [canonical_term, *aliases]:
+        for trigger_term in [canonical_term, *(alias.term for alias in alias_rules)]:
             trigger_key = trigger_term.casefold()
             existing = seen_trigger_terms.get(trigger_key)
             if existing is not None and existing != canonical_term:
@@ -240,12 +302,18 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
         mappings.append(
             TerminologyMapping(
                 canonical_term=canonical_term,
-                aliases=tuple(aliases),
+                alias_rules=tuple(alias_rules),
                 context_aliases=tuple(context_aliases),
             )
         )
 
-    return TerminologyConfig(mappings=tuple(mappings))
+    return TerminologyConfig(
+        mappings=tuple(mappings),
+        generator_owned=generator_owned,
+        policy_version=policy_version,
+        archive_catalog_path=archive_catalog_path,
+        curated_catalog_path=curated_catalog_path,
+    )
 
 
 def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:

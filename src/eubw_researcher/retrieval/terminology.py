@@ -6,15 +6,16 @@ from dataclasses import dataclass
 
 from eubw_researcher.models import (
     AppliedTermNormalization,
+    TerminologyAlias,
     TerminologyConfig,
     TerminologyMapping,
 )
 
 
 @dataclass(frozen=True)
-class _CompiledTerminologyMapping:
-    canonical_term: str
-    patterns: tuple[re.Pattern[str], ...]
+class _CompiledTerminologyAlias:
+    term: str
+    pattern: re.Pattern[str]
     context_patterns: tuple[re.Pattern[str], ...]
 
 
@@ -22,11 +23,45 @@ def _alias_pattern(alias: str) -> re.Pattern[str]:
     return re.compile(rf"(?<!\w){re.escape(alias)}(?!\w)", re.IGNORECASE)
 
 
+def _combined_context_aliases(
+    mapping: TerminologyMapping,
+    alias: TerminologyAlias,
+) -> tuple[str, ...]:
+    combined: list[str] = []
+    seen: set[str] = set()
+    for context_alias in [*mapping.context_aliases, *alias.context_aliases]:
+        context_key = context_alias.casefold()
+        if context_key in seen:
+            continue
+        seen.add(context_key)
+        combined.append(context_alias)
+    return tuple(combined)
+
+
+@dataclass(frozen=True)
+class _CompiledTerminologyMapping:
+    canonical_term: str
+    aliases: tuple[_CompiledTerminologyAlias, ...]
+
+
 def _compile_mapping(mapping: TerminologyMapping) -> _CompiledTerminologyMapping:
+    sorted_aliases = sorted(
+        enumerate(mapping.alias_rules),
+        key=lambda item: (-len(item[1].term), item[0]),
+    )
     return _CompiledTerminologyMapping(
         canonical_term=mapping.canonical_term,
-        patterns=tuple(_alias_pattern(alias) for alias in mapping.aliases),
-        context_patterns=tuple(_alias_pattern(alias) for alias in mapping.context_aliases),
+        aliases=tuple(
+            _CompiledTerminologyAlias(
+                term=alias.term,
+                pattern=_alias_pattern(alias.term),
+                context_patterns=tuple(
+                    _alias_pattern(context_alias)
+                    for context_alias in _combined_context_aliases(mapping, alias)
+                ),
+            )
+            for _, alias in sorted_aliases
+        ),
     )
 
 
@@ -37,10 +72,10 @@ def _compile_terminology_config(
     return tuple(_compile_mapping(mapping) for mapping in terminology.mappings)
 
 
-def _has_required_context(question: str, mapping: _CompiledTerminologyMapping) -> bool:
-    if not mapping.context_patterns:
+def _has_required_context(question: str, alias: _CompiledTerminologyAlias) -> bool:
+    if not alias.context_patterns:
         return True
-    return any(pattern.search(question) for pattern in mapping.context_patterns)
+    return any(pattern.search(question) for pattern in alias.context_patterns)
 
 
 def normalize_query_terms_with_trace(
@@ -52,10 +87,10 @@ def normalize_query_terms_with_trace(
     applied_with_positions: list[tuple[int, str, str]] = []
 
     for mapping in _compile_terminology_config(terminology):
-        if not _has_required_context(normalized, mapping):
-            continue
-        for pattern in mapping.patterns:
-            matches = list(pattern.finditer(normalized))
+        for alias in mapping.aliases:
+            if not _has_required_context(normalized, alias):
+                continue
+            matches = list(alias.pattern.finditer(normalized))
             if not matches:
                 continue
             rebuilt_parts: list[str] = []

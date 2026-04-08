@@ -542,12 +542,24 @@ def _is_relying_party_registration_information_question(lowered: str) -> bool:
     )
 
 
-def _is_relying_party_certificate_question(lowered: str) -> bool:
+def _is_relying_party_certificate_question(
+    lowered: str,
+    *,
+    original_lowered: str | None = None,
+) -> bool:
     tokens = _token_set(lowered)
+    original_tokens = _token_set(original_lowered) if original_lowered is not None else tokens
     return (
-        _has_business_wallet_subject(lowered, tokens)
-        and _contains_any(lowered, ["registration certificate", "access certificate"])
+        "registration certificate" in lowered
+        and "access certificate" in lowered
         and _is_comparison_request(lowered, tokens)
+        and (
+            _has_business_wallet_subject(lowered, tokens)
+            or (
+                original_lowered is not None
+                and _has_business_wallet_subject(original_lowered, original_tokens)
+            )
+        )
     )
 
 
@@ -675,6 +687,7 @@ def _arf_boundary_targets() -> List[ClaimTarget]:
 
 def analyze_query(question: str, terminology: TerminologyConfig) -> QueryIntent:
     lowered = normalize_query_terms(question, terminology).lower()
+    original_lowered = question.lower()
     tokens = _token_set(lowered)
     eu_first = True
 
@@ -741,7 +754,10 @@ def analyze_query(question: str, terminology: TerminologyConfig) -> QueryIntent:
             ],
         )
 
-    if _is_relying_party_certificate_question(lowered):
+    if _is_relying_party_certificate_question(
+        lowered,
+        original_lowered=original_lowered,
+    ):
         return QueryIntent(
             question=question,
             intent_type="relying_party_certificate_requirements",

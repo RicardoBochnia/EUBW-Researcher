@@ -1,28 +1,141 @@
 {
+  "generator_owned": true,
+  "policy_version": "corpus_terminology.v1",
+  "archive_catalog_path": "artifacts/real_corpus/archive/catalog.json",
+  "curated_catalog_path": "artifacts/real_corpus/curated_catalog.json",
   "mappings": [
     {
       "canonical_term": "business wallet",
-      "aliases": ["eu business wallet", "eubw"]
+      "aliases": [
+        "eu business wallet",
+        "eubw",
+        "European Business Wallet",
+        "EBW"
+      ]
     },
     {
       "canonical_term": "wallet-relying party",
       "aliases": [
         "wallet relying party",
         "wallet relying-party",
-        "wallet-relying-party"
+        "wallet-relying-party",
+        "wallet relying parties",
+        "wallet relying-parties",
+        "wallet-relying parties",
+        "wallet-relying-parties"
+      ]
+    },
+    {
+      "canonical_term": "provider of person identification data",
+      "aliases": [
+        "PID provider",
+        "provider of PID"
+      ]
+    },
+    {
+      "canonical_term": "person identification data",
+      "aliases": [
+        {
+          "term": "PID",
+          "context_aliases": [
+            "wallet",
+            "provider",
+            "issuer",
+            "credential",
+            "attestation",
+            "eudi"
+          ]
+        }
+      ]
+    },
+    {
+      "canonical_term": "qualified electronic attestation of attributes",
+      "aliases": [
+        {
+          "term": "QEAA",
+          "context_aliases": [
+            "wallet",
+            "provider",
+            "credential",
+            "attestation",
+            "attributes",
+            "eudi"
+          ]
+        }
       ]
     },
     {
       "canonical_term": "authorization server",
-      "aliases": ["authorisation server"]
+      "aliases": [
+        "authorisation server"
+      ]
     },
     {
       "canonical_term": "registration certificate",
-      "aliases": ["registration cert"]
+      "aliases": [
+        "registration cert",
+        "wallet relying party registration certificate",
+        "wallet-relying party registration certificate",
+        {
+          "term": "WRPRC",
+          "context_aliases": [
+            "business wallet",
+            "eu business wallet",
+            "eubw",
+            "wallet-relying party",
+            "wallet relying party",
+            "wallet-relying-party",
+            "wallet-relying parties",
+            "wallet relying parties",
+            "wallet-relying-parties",
+            "wallet relying-parties",
+            "relying party",
+            "relying parties"
+          ]
+        }
+      ]
     },
     {
       "canonical_term": "access certificate",
-      "aliases": ["access cert"],
+      "aliases": [
+        "access cert",
+        "wallet relying party access certificate",
+        "wallet-relying party access certificate",
+        {
+          "term": "WRPAC",
+          "context_aliases": [
+            "business wallet",
+            "eu business wallet",
+            "eubw",
+            "wallet-relying party",
+            "wallet relying party",
+            "wallet-relying-party",
+            "wallet-relying parties",
+            "wallet relying parties",
+            "wallet-relying-parties",
+            "wallet relying-parties",
+            "relying party",
+            "relying parties"
+          ]
+        },
+        {
+          "term": "RPAC",
+          "context_aliases": [
+            "business wallet",
+            "eu business wallet",
+            "eubw",
+            "wallet-relying party",
+            "wallet relying party",
+            "wallet-relying-party",
+            "wallet-relying parties",
+            "wallet relying parties",
+            "wallet-relying-parties",
+            "wallet relying-parties",
+            "relying party",
+            "relying parties"
+          ]
+        }
+      ],
       "context_aliases": [
         "business wallet",
         "eu business wallet",

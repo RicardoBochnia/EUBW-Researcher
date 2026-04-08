@@ -134,6 +134,14 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(intent.intent_type, "wallet_requirements_summary")
         self.assertGreaterEqual(len(intent.claim_targets), 4)
 
+    def test_ebw_alias_routes_to_business_wallet_requirements_path(self) -> None:
+        intent = analyze_query(
+            "What requirements apply to the EBW, and how can they be provisionally structured?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "wallet_requirements_summary")
+        self.assertGreaterEqual(len(intent.claim_targets), 4)
+
     def test_protocol_paraphrase_stays_on_protocol_comparison_route(self) -> None:
         intent = analyze_query(
             "Compare OpenID4VCI and OpenID4VP on token endpoint use and wallet metadata handling.",
@@ -215,6 +223,48 @@ class RetrievalTests(unittest.TestCase):
         )
         self.assertEqual(intent.intent_type, "certificate_layer_analysis")
         self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
+
+    def test_wrpac_and_wrprc_aliases_route_to_certificate_comparison_path(self) -> None:
+        intent = analyze_query(
+            "What is the difference between the wallet-relying party WRPAC and WRPRC?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "relying_party_certificate_requirements")
+        self.assertEqual(len(intent.claim_targets), 3)
+
+    def test_rpac_alias_without_wallet_context_stays_on_broad_fallback(self) -> None:
+        intent = analyze_query(
+            "How should our API gateway rotate an RPAC for internal access control?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "broad_regulation_question")
+
+    def test_pid_provider_alias_improves_wallet_query_normalization_without_new_router_branch(self) -> None:
+        intent = analyze_query(
+            "What requirements apply when a Business Wallet PID provider registers?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "wallet_requirements_summary")
+        plan = build_retrieval_plan(intent, self.hierarchy, self.runtime, self.terminology)
+        self.assertEqual(
+            plan.normalized_question,
+            (
+                "What requirements apply when a Business Wallet "
+                "provider of person identification data registers?"
+            ),
+        )
+        self.assertTrue(
+            any(
+                query.applied_term_normalizations
+                == [
+                    AppliedTermNormalization(
+                        "pid provider",
+                        "provider of person identification data",
+                    )
+                ]
+                for query in plan.target_queries
+            )
+        )
 
     def test_analyze_query_classifies_arf_boundary_question(self) -> None:
         intent = analyze_query(

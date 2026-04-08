@@ -392,15 +392,29 @@ class ClaimTarget:
 
 
 @dataclass(frozen=True)
+class TerminologyAlias:
+    term: str
+    context_aliases: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class TerminologyMapping:
     canonical_term: str
-    aliases: tuple[str, ...]
+    alias_rules: tuple[TerminologyAlias, ...]
     context_aliases: tuple[str, ...] = field(default_factory=tuple)
+
+    @property
+    def aliases(self) -> tuple[str, ...]:
+        return tuple(alias.term for alias in self.alias_rules)
 
 
 @dataclass(frozen=True)
 class TerminologyConfig:
     mappings: tuple[TerminologyMapping, ...]
+    generator_owned: bool = False
+    policy_version: Optional[str] = None
+    archive_catalog_path: Optional[str] = None
+    curated_catalog_path: Optional[str] = None
 
 
 @dataclass(frozen=True)

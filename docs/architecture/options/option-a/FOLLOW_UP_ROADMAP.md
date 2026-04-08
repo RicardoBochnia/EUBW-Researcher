@@ -110,7 +110,7 @@ Goal:
 - improve the current system conservatively without changing its shape
 
 Items:
-- [#5](https://github.com/RicardoBochnia/EUBW-Researcher/issues/5) small terminology and synonym layer
+- [#5](https://github.com/RicardoBochnia/EUBW-Researcher/issues/5) automated corpus-based terminology generator
 - [#2](https://github.com/RicardoBochnia/EUBW-Researcher/issues/2) user-triggered corpus refresh against original web sources
 - [#3](https://github.com/RicardoBochnia/EUBW-Researcher/issues/3) Germany beyond best effort
 
@@ -124,7 +124,7 @@ Recommended order inside the wave:
 3. `#3`
 
 Rationale:
-- terminology is the lightest, safest uplift
+- terminology remains the lightest, safest recall uplift, but it should now land as a generator-owned config derived from the real corpus rather than as a hand-maintained alias list
 - refresh automation then reduces manual archive maintenance and makes configured sources easier to keep current
 - Germany expansion should come after corpus management is more disciplined
 

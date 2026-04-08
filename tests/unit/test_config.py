@@ -129,10 +129,81 @@ class ConfigLoadingTests(unittest.TestCase):
             ],
         )
         self.assertTrue(all(question.review_prompts for question in real_question_pack.questions))
-        self.assertEqual(len(terminology.mappings), 5)
+        self.assertTrue(terminology.generator_owned)
+        self.assertEqual(terminology.policy_version, "corpus_terminology.v1")
+        self.assertEqual(
+            terminology.archive_catalog_path,
+            "artifacts/real_corpus/archive/catalog.json",
+        )
+        self.assertEqual(
+            terminology.curated_catalog_path,
+            "artifacts/real_corpus/curated_catalog.json",
+        )
+        self.assertGreaterEqual(len(terminology.mappings), 8)
         self.assertEqual(terminology.mappings[0].canonical_term, "business wallet")
-        self.assertEqual(terminology.mappings[0].aliases, ("eu business wallet", "eubw"))
+        self.assertEqual(
+            terminology.mappings[0].aliases,
+            ("eu business wallet", "eubw", "European Business Wallet", "EBW"),
+        )
+        pid_mapping = next(
+            mapping
+            for mapping in terminology.mappings
+            if mapping.canonical_term == "person identification data"
+        )
+        self.assertEqual(pid_mapping.alias_rules[0].term, "PID")
+        self.assertEqual(
+            pid_mapping.alias_rules[0].context_aliases,
+            ("wallet", "provider", "issuer", "credential", "attestation", "eudi"),
+        )
         self.assertIsInstance(terminology.mappings, tuple)
+
+    def test_terminology_config_supports_alias_objects_and_generator_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "generator_owned": True,
+                        "policy_version": "test_policy.v1",
+                        "archive_catalog_path": "archive/catalog.json",
+                        "curated_catalog_path": "archive/curated_catalog.json",
+                        "mappings": [
+                            {
+                                "canonical_term": "access certificate",
+                                "aliases": [
+                                    {
+                                        "term": "RPAC",
+                                        "context_aliases": ["wallet", "certificate"],
+                                    }
+                                ],
+                                "context_aliases": ["wallet-relying party"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            terminology = load_terminology_config(terminology_path)
+
+            self.assertTrue(terminology.generator_owned)
+            self.assertEqual(terminology.policy_version, "test_policy.v1")
+            self.assertEqual(terminology.archive_catalog_path, "archive/catalog.json")
+            self.assertEqual(
+                terminology.curated_catalog_path,
+                "archive/curated_catalog.json",
+            )
+            self.assertEqual(len(terminology.mappings), 1)
+            self.assertEqual(terminology.mappings[0].canonical_term, "access certificate")
+            self.assertEqual(terminology.mappings[0].aliases, ("RPAC",))
+            self.assertEqual(
+                terminology.mappings[0].alias_rules[0].context_aliases,
+                ("wallet", "certificate"),
+            )
+            self.assertEqual(
+                terminology.mappings[0].context_aliases,
+                ("wallet-relying party",),
+            )
 
     def test_terminology_config_rejects_duplicate_canonical_terms(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -200,6 +271,70 @@ class ConfigLoadingTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(ValueError, "reuses trigger term 'EUBW'"):
+                load_terminology_config(terminology_path)
+
+    def test_terminology_config_rejects_invalid_generator_owned_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "generator_owned": "yes",
+                        "mappings": [
+                            {
+                                "canonical_term": "business wallet",
+                                "aliases": ["eubw"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "generator_owned"):
+                load_terminology_config(terminology_path)
+
+    def test_terminology_config_rejects_duplicate_alias_object_and_string(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "mappings": [
+                            {
+                                "canonical_term": "business wallet",
+                                "aliases": [
+                                    "eubw",
+                                    {"term": "EUBW", "context_aliases": ["wallet"]},
+                                ],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "duplicate alias 'EUBW'"):
+                load_terminology_config(terminology_path)
+
+    def test_terminology_config_rejects_non_string_alias_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "mappings": [
+                            {
+                                "canonical_term": "business wallet",
+                                "aliases": [123],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "strings or alias objects"):
                 load_terminology_config(terminology_path)
 
     def test_real_question_pack_rejects_duplicate_question_ids(self) -> None:
