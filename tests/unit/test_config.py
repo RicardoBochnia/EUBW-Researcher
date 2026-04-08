@@ -205,6 +205,24 @@ class ConfigLoadingTests(unittest.TestCase):
                 ("wallet-relying party",),
             )
 
+    def test_terminology_config_rejects_non_object_top_level_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "canonical_term": "business wallet",
+                            "aliases": ["eubw"],
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "JSON/YAML object"):
+                load_terminology_config(terminology_path)
+
     def test_terminology_config_rejects_duplicate_canonical_terms(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             terminology_path = Path(tmp_dir) / "terminology.json"

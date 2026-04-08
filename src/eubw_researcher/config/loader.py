@@ -154,6 +154,8 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
 
 def load_terminology_config(path: Path) -> TerminologyConfig:
     payload = _load_json_yaml(path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Terminology config must be a JSON/YAML object: {path}")
     raw_mappings = payload.get("mappings")
     if not isinstance(raw_mappings, list):
         raise ValueError(f"Terminology config must define a list 'mappings': {path}")

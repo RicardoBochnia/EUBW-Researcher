@@ -59,9 +59,6 @@ def main() -> int:
     )
     rendered = render_generated_terminology(config_payload)
 
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
-
     if args.check:
         current = output_path.read_text(encoding="utf-8-sig") if output_path.exists() else ""
         if current != rendered:
@@ -72,6 +69,9 @@ def main() -> int:
             return 1
         print(output_path)
         return 0
+
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(rendered, encoding="utf-8")

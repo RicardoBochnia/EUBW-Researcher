@@ -204,13 +204,38 @@ def _load_archive_sources(
     archive_catalog_path: Path,
 ) -> tuple[list[tuple[str, Path]], list[dict[str, str]]]:
     rows = json.loads(archive_catalog_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(rows, list):
+        raise ValueError(
+            "Archive catalog "
+            f"{archive_catalog_path} must contain a JSON list of row objects; "
+            f"got {type(rows).__name__}"
+        )
     archive_root = archive_catalog_path.parent
     sources: list[tuple[str, Path]] = []
     skipped: list[dict[str, str]] = []
-    for row in rows:
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            skipped.append(
+                {
+                    "source_id": "",
+                    "path": "",
+                    "reason": (
+                        "invalid archive catalog row at index "
+                        f"{index}: expected object, got {type(row).__name__}"
+                    ),
+                }
+            )
+            continue
         source_id = row.get("source_id")
         raw_path = row.get("local_path")
         if not source_id or not raw_path:
+            skipped.append(
+                {
+                    "source_id": "" if source_id is None else str(source_id),
+                    "path": "" if raw_path is None else str(raw_path),
+                    "reason": "missing source_id or local_path in archive catalog row",
+                }
+            )
             continue
         if not _should_analyze_archive_path(str(raw_path)):
             skipped.append(

@@ -65,7 +65,7 @@ def _compile_mapping(mapping: TerminologyMapping) -> _CompiledTerminologyMapping
     )
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=8)
 def _compile_terminology_config(
     terminology: TerminologyConfig,
 ) -> tuple[_CompiledTerminologyMapping, ...]:

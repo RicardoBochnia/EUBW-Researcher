@@ -195,6 +195,58 @@ class TerminologyGenerationTests(unittest.TestCase):
             )
             self.assertFalse(pid_report["included_in_config"])
 
+    def test_build_generated_terminology_rejects_non_list_archive_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            archive_root = tmp_root / "archive"
+            archive_root.mkdir(parents=True, exist_ok=True)
+            catalog_path = archive_root / "catalog.json"
+            catalog_path.write_text(
+                json.dumps({"source_id": "invalid"}),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "must contain a JSON list"):
+                build_generated_terminology(catalog_path)
+
+    def test_build_generated_terminology_reports_invalid_archive_rows_as_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            archive_root = tmp_root / "archive"
+            sources_root = archive_root / "sources"
+            sources_root.mkdir(parents=True, exist_ok=True)
+            (sources_root / "doc.md").write_text(
+                "# Terminology\n\nThe Business Wallet mentions a wallet relying party.\n",
+                encoding="utf-8",
+            )
+            catalog_path = archive_root / "catalog.json"
+            catalog_path.write_text(
+                json.dumps(
+                    [
+                        "not-an-object",
+                        {"source_id": "missing_path"},
+                        {"local_path": "sources/doc.md"},
+                        {"source_id": "valid", "local_path": "sources/doc.md"},
+                    ],
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            config_payload, report_payload = build_generated_terminology(catalog_path)
+
+            self.assertTrue(config_payload["mappings"])
+            skipped_reasons = [item["reason"] for item in report_payload["archive_skipped"]]
+            self.assertTrue(
+                any("expected object" in reason for reason in skipped_reasons)
+            )
+            self.assertTrue(
+                any(
+                    "missing source_id or local_path in archive catalog row" == reason
+                    for reason in skipped_reasons
+                )
+            )
+
     def test_update_terminology_script_check_detects_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
@@ -241,6 +293,8 @@ class TerminologyGenerationTests(unittest.TestCase):
                 check=True,
             )
             self.assertIn(str(output_path), check_completed.stdout)
+            self.assertTrue(report_path.exists())
+            initial_report = report_path.read_text(encoding="utf-8")
 
             output_path.write_text(
                 output_path.read_text(encoding="utf-8").replace(
@@ -268,6 +322,55 @@ class TerminologyGenerationTests(unittest.TestCase):
             )
             self.assertEqual(stale_check.returncode, 1)
             self.assertIn("out of date", stale_check.stderr)
+            self.assertEqual(report_path.read_text(encoding="utf-8"), initial_report)
+
+    def test_update_terminology_script_check_does_not_create_report_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            archive_catalog_path = self._write_archive_catalog(tmp_root, self._rich_documents())
+            output_path = tmp_root / "terminology.json"
+            report_path = tmp_root / "nested" / "terminology_report.json"
+
+            generate_completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "update_terminology_from_corpus.py"),
+                    "--archive-catalog",
+                    str(archive_catalog_path),
+                    "--output",
+                    str(output_path),
+                    "--report",
+                    str(report_path),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertIn(str(output_path), generate_completed.stdout)
+            report_path.unlink()
+            report_path.parent.rmdir()
+
+            check_completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "update_terminology_from_corpus.py"),
+                    "--archive-catalog",
+                    str(archive_catalog_path),
+                    "--output",
+                    str(output_path),
+                    "--report",
+                    str(report_path),
+                    "--check",
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertIn(str(output_path), check_completed.stdout)
+            self.assertFalse(report_path.exists())
+            self.assertFalse(report_path.parent.exists())
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
