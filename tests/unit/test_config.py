@@ -41,7 +41,26 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertEqual(runtime.web_max_admitted_per_domain, 10)
         self.assertTrue(hierarchy.default_eu_first)
         self.assertIn("openid.net", allowlist.allowed_domains)
-        self.assertTrue(allowlist.policy_for_domain("eur-lex.europa.eu").allowed_path_prefixes)
+        eur_lex_policies = allowlist.policies_for_domain("eur-lex.europa.eu")
+        self.assertEqual(len(eur_lex_policies), 2)
+        self.assertTrue(all(policy.crawl_path_prefixes for policy in eur_lex_policies))
+        self.assertTrue(all(policy.admission_path_prefixes for policy in eur_lex_policies))
+        self.assertTrue(all(policy.discovery_entrypoints for policy in eur_lex_policies))
+        self.assertTrue(
+            all(
+                entrypoint.strategy == "official_search"
+                for policy in eur_lex_policies
+                for entrypoint in policy.discovery_entrypoints
+            )
+        )
+        self.assertEqual(
+            real_scenarios[
+                [scenario.scenario_id for scenario in real_scenarios].index(
+                    "scenario_b_registration_certificate_mandatory"
+                )
+            ].required_web_domains,
+            ["eur-lex.europa.eu"],
+        )
         self.assertEqual(archive_corpus.archive_root.name, "archive")
         self.assertGreaterEqual(len(archive_corpus.sources), 11)
         self.assertIn(

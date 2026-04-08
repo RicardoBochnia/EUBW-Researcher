@@ -10,6 +10,7 @@ from eubw_researcher.models import (
     ArchiveCorpusConfig,
     ArchiveSourceSelection,
     ClaimState,
+    DiscoveryEntrypoint,
     EvaluationScenario,
     RealQuestionPack,
     RealQuestionPackQuestion,
@@ -59,17 +60,47 @@ def load_source_hierarchy(path: Path) -> SourceHierarchyConfig:
 
 def load_web_allowlist(path: Path) -> WebAllowlistConfig:
     payload = _load_json_yaml(path)
+
+    def _load_discovery_entrypoints(item: dict) -> List[DiscoveryEntrypoint]:
+        configured = item.get("discovery_entrypoints")
+        if configured:
+            return [
+                DiscoveryEntrypoint(
+                    entrypoint_id=str(entry["entrypoint_id"]).strip(),
+                    url_template=str(entry["url_template"]).strip(),
+                    strategy=str(entry["strategy"]).strip(),
+                )
+                for entry in configured
+            ]
+        return [
+            DiscoveryEntrypoint(
+                entrypoint_id=f"{item.get('policy_id', item['domain'] + ':' + item['source_kind'])}:legacy:{index + 1}",
+                url_template=str(url).strip(),
+                strategy="index_crawl",
+            )
+            for index, url in enumerate(item.get("discovery_urls", []))
+            if str(url).strip()
+        ]
+
     domain_policies = [
         WebDomainPolicy(
             domain=item["domain"],
             source_kind=SourceKind(item["source_kind"]),
             source_role_level=SourceRoleLevel(item["source_role_level"]),
             jurisdiction=item["jurisdiction"],
+            policy_id=item.get("policy_id"),
             seed_urls=list(item.get("seed_urls", [])),
-            discovery_urls=list(item.get("discovery_urls", [])),
-            allowed_path_prefixes=list(item.get("allowed_path_prefixes", [])),
+            discovery_entrypoints=_load_discovery_entrypoints(item),
+            crawl_path_prefixes=list(
+                item.get("crawl_path_prefixes", item.get("allowed_path_prefixes", []))
+            ),
+            admission_path_prefixes=list(
+                item.get("admission_path_prefixes", item.get("allowed_path_prefixes", []))
+            ),
             blocked_url_keywords=list(item.get("blocked_url_keywords", [])),
             allowed_cross_domain_domains=list(item.get("allowed_cross_domain_domains", [])),
+            discovery_urls=list(item.get("discovery_urls", [])),
+            allowed_path_prefixes=list(item.get("allowed_path_prefixes", [])),
         )
         for item in payload.get("domain_policies", [])
     ]
@@ -148,7 +179,9 @@ def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
             ],
             required_clarification_substring=item.get("required_clarification_substring"),
             required_web_discovery_count=int(item.get("required_web_discovery_count", 0)),
+            required_web_discovered_link_count=int(item.get("required_web_discovered_link_count", 0)),
             required_web_fetch_count=int(item.get("required_web_fetch_count", 0)),
+            required_web_domains=[str(value).strip() for value in item.get("required_web_domains", []) if str(value).strip()],
             require_provisional_grouping=bool(item.get("require_provisional_grouping", False)),
             require_manual_review_accept=bool(item.get("require_manual_review_accept", False)),
             min_gap_records=int(item.get("min_gap_records", 0)),

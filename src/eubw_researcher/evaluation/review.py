@@ -207,6 +207,11 @@ def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvide
                 citation_quality=citation.citation_quality,
                 discovered_from=fetch_record.discovered_from,
                 retrieval_timestamp=fetch_record.retrieval_timestamp,
+                policy_id=fetch_record.policy_id,
+                entrypoint_id=fetch_record.entrypoint_id,
+                discovery_strategy=fetch_record.discovery_strategy,
+                admission_rule=fetch_record.admission_rule,
+                discovery_query=fetch_record.discovery_query,
             )
             evidence_items[(evidence.source_id, evidence.canonical_url)] = evidence
 
@@ -395,7 +400,12 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
                 f"(type=`{evidence.content_type}`, "
                 f"digest=`{evidence.content_digest}`, "
                 f"normalization=`{evidence.normalization_status.value}`, "
-                f"provenance=`{evidence.provenance_record}`)"
+                f"provenance=`{evidence.provenance_record}`, "
+                f"policy_id=`{evidence.policy_id or 'n/a'}`, "
+                f"entrypoint_id=`{evidence.entrypoint_id or 'n/a'}`, "
+                f"strategy=`{evidence.discovery_strategy or 'n/a'}`, "
+                f"admission_rule=`{evidence.admission_rule or 'n/a'}`, "
+                f"discovery_query=`{evidence.discovery_query or 'n/a'}`)"
             )
     else:
         lines.append("- No approved fetched web sources in this run.")

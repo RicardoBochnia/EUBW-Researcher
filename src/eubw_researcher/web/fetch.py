@@ -3,16 +3,18 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Deque, Dict, List, Optional, Set, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote_plus, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from eubw_researcher.corpus import ingest_text_entry
 from eubw_researcher.corpus.normalize import normalize_bytes_content, normalize_text_content
 from eubw_researcher.models import (
     CitationQuality,
+    DiscoveryEntrypoint,
     IngestionReportEntry,
     NormalizationStatus,
     RuntimeConfig,
@@ -102,6 +104,16 @@ class _AnchorLinkParser(HTMLParser):
         self.links.append((self._current_href, text))
         self._current_href = None
         self._current_text = []
+
+
+@dataclass
+class _CandidateOrigin:
+    discovered_from: Optional[str] = None
+    provenance_record: Optional[str] = None
+    policy_id: Optional[str] = None
+    entrypoint_id: Optional[str] = None
+    discovery_strategy: Optional[str] = None
+    discovery_query: Optional[str] = None
 
 
 def _slug_from_url(url: str) -> str:
@@ -232,17 +244,37 @@ def _policy_for_candidate_url(candidate_url: str, policy, allowlist: WebAllowlis
     if not candidate_domain or not validate_domain(candidate_url, allowlist):
         return None
     if candidate_domain == policy.domain:
-        return allowlist.policy_for_domain(candidate_domain) or policy
+        return allowlist.policy_for_domain_and_kind(candidate_domain, policy.source_kind) or policy
     if candidate_domain in policy.allowed_cross_domain_domains:
-        return allowlist.policy_for_domain(candidate_domain)
+        return allowlist.policy_for_domain_and_kind(candidate_domain, policy.source_kind)
     return None
 
 
-def _matches_allowed_path_prefixes(url: str, policy) -> bool:
-    if not policy.allowed_path_prefixes:
+def _matches_path_prefixes(url: str, prefixes: List[str]) -> bool:
+    if not prefixes:
         return False
     path = urlparse(url).path or "/"
-    return any(path.startswith(prefix) for prefix in policy.allowed_path_prefixes)
+    return any(path.startswith(prefix) for prefix in prefixes)
+
+
+def _matches_crawl_path_prefixes(url: str, policy) -> bool:
+    return _matches_path_prefixes(url, policy.crawl_path_prefixes)
+
+
+def _matches_admission_path_prefixes(url: str, policy) -> bool:
+    return _matches_path_prefixes(url, policy.admission_path_prefixes)
+
+
+def _admission_rule_label(policy) -> str:
+    if policy.admission_path_prefixes:
+        return "admission_path_prefixes"
+    return "configured_seed_url"
+
+
+def _resolve_discovery_url(entrypoint: DiscoveryEntrypoint, discovery_query: str) -> str:
+    if entrypoint.strategy == "official_search":
+        return entrypoint.url_template.replace("{query}", quote_plus(discovery_query))
+    return entrypoint.url_template
 
 
 def _admissible_document_policy(candidate_url: str, policy, allowlist: WebAllowlistConfig):
@@ -251,7 +283,7 @@ def _admissible_document_policy(candidate_url: str, policy, allowlist: WebAllowl
         return None
     if _url_has_blocked_keyword(candidate_url, candidate_policy):
         return None
-    if not _matches_allowed_path_prefixes(candidate_url, candidate_policy):
+    if not _matches_admission_path_prefixes(candidate_url, candidate_policy):
         return None
     return candidate_policy
 
@@ -260,20 +292,25 @@ def _followable_discovery_link(candidate_url: str, policy, allowlist: WebAllowli
     candidate_policy = _policy_for_candidate_url(candidate_url, policy, allowlist)
     if candidate_policy is None:
         return False
-    return not _url_has_blocked_keyword(candidate_url, candidate_policy)
+    return not _url_has_blocked_keyword(candidate_url, candidate_policy) and _matches_crawl_path_prefixes(
+        candidate_url,
+        candidate_policy,
+    )
 
 
 def _discover_candidate_urls(
     sub_question: str,
-    discovery_urls: List[str],
+    discovery_query: str,
+    entrypoint: DiscoveryEntrypoint,
     policy,
     allowlist: WebAllowlistConfig,
     runtime_config: RuntimeConfig,
 ) -> tuple[List[str], List[WebFetchRecord]]:
     records: List[WebFetchRecord] = []
-    candidate_scores: Dict[str, Tuple[int, str, str]] = {}
+    candidate_scores: Dict[str, Tuple[int, str, str, object]] = {}
+    discovery_url = _resolve_discovery_url(entrypoint, discovery_query)
     crawl_queue: Deque[Tuple[str, int, Optional[str]]] = deque(
-        (url, 0, None) for url in discovery_urls
+        [(discovery_url, 0, None)]
     )
     visited: Set[str] = set()
     crawled_pages = 0
@@ -303,6 +340,10 @@ def _discover_candidate_urls(
                     record_type="discovery",
                     discovered_from=parent_url,
                     normalization_status=NormalizationStatus.FAILED,
+                    policy_id=policy.policy_id,
+                    entrypoint_id=entrypoint.entrypoint_id,
+                    discovery_strategy=entrypoint.strategy,
+                    discovery_query=discovery_query if entrypoint.strategy == "official_search" else None,
                     provenance_record=(
                         f"discovered_from={parent_url}" if parent_url else "configured_discovery_url"
                     ),
@@ -329,6 +370,10 @@ def _discover_candidate_urls(
                     record_type="discovery",
                     discovered_from=parent_url,
                     normalization_status=NormalizationStatus.FAILED,
+                    policy_id=policy.policy_id,
+                    entrypoint_id=entrypoint.entrypoint_id,
+                    discovery_strategy=entrypoint.strategy,
+                    discovery_query=discovery_query if entrypoint.strategy == "official_search" else None,
                     provenance_record=(
                         f"discovered_from={parent_url}" if parent_url else "configured_discovery_url"
                     ),
@@ -356,6 +401,10 @@ def _discover_candidate_urls(
                     content_type=content_type,
                     normalization_status=NormalizationStatus.FAILED,
                     content_digest=_content_digest(raw_bytes),
+                    policy_id=policy.policy_id,
+                    entrypoint_id=entrypoint.entrypoint_id,
+                    discovery_strategy=entrypoint.strategy,
+                    discovery_query=discovery_query if entrypoint.strategy == "official_search" else None,
                     provenance_record=(
                         f"discovered_from={parent_url}" if parent_url else "configured_discovery_url"
                     ),
@@ -394,6 +443,10 @@ def _discover_candidate_urls(
                     content_type=content_type,
                     normalization_status=NormalizationStatus.FAILED,
                     content_digest=_content_digest(raw_bytes),
+                    policy_id=policy.policy_id,
+                    entrypoint_id=entrypoint.entrypoint_id,
+                    discovery_strategy=entrypoint.strategy,
+                    discovery_query=discovery_query if entrypoint.strategy == "official_search" else None,
                     provenance_record=(
                         f"discovered_from={parent_url}" if parent_url else "configured_discovery_url"
                     ),
@@ -418,6 +471,10 @@ def _discover_candidate_urls(
                 content_type=content_type,
                 normalization_status=NormalizationStatus.SUCCESS,
                 content_digest=_content_digest(raw_bytes),
+                policy_id=policy.policy_id,
+                entrypoint_id=entrypoint.entrypoint_id,
+                discovery_strategy=entrypoint.strategy,
+                discovery_query=discovery_query if entrypoint.strategy == "official_search" else None,
                 provenance_record=(
                     f"discovered_from={parent_url}" if parent_url else "configured_discovery_url"
                 ),
@@ -444,7 +501,12 @@ def _discover_candidate_urls(
             if candidate_policy is not None and plausible and score >= 2:
                 existing = candidate_scores.get(candidate_url)
                 if existing is None or score > existing[0]:
-                    candidate_scores[candidate_url] = (score, anchor_text, discovery_url)
+                    candidate_scores[candidate_url] = (
+                        score,
+                        anchor_text,
+                        discovery_url,
+                        candidate_policy,
+                    )
 
             should_crawl = (
                 (depth + 1) < runtime_config.web_discovery_max_depth
@@ -456,15 +518,15 @@ def _discover_candidate_urls(
 
     discovered = sorted(
         (
-            (score, candidate_url, anchor_text, discovered_from)
-            for candidate_url, (score, anchor_text, discovered_from) in candidate_scores.items()
+            (score, candidate_url, anchor_text, discovered_from, candidate_policy)
+            for candidate_url, (score, anchor_text, discovered_from, candidate_policy) in candidate_scores.items()
         ),
         key=lambda item: (item[0], item[1]),
         reverse=True,
     )
 
     selected_urls: List[str] = []
-    for score, candidate_url, anchor_text, discovered_from in discovered:
+    for score, candidate_url, anchor_text, discovered_from, candidate_policy in discovered:
         if candidate_url in selected_urls:
             continue
         selected_urls.append(candidate_url)
@@ -474,15 +536,20 @@ def _discover_candidate_urls(
                 canonical_url=candidate_url,
                 domain=normalize_domain(candidate_url),
                 allowed=True,
-                source_kind=policy.source_kind,
-                source_role_level=policy.source_role_level,
-                jurisdiction=policy.jurisdiction,
+                source_kind=(candidate_policy or policy).source_kind,
+                source_role_level=(candidate_policy or policy).source_role_level,
+                jurisdiction=(candidate_policy or policy).jurisdiction,
                 retrieval_timestamp=datetime.now(timezone.utc).isoformat(),
                 citation_quality=None,
                 metadata_complete=False,
                 reason=f"Discovered allowlisted official candidate link (score {score}) from discovery crawl: {anchor_text or candidate_url}",
                 record_type="discovered_link",
                 discovered_from=discovered_from,
+                policy_id=(candidate_policy or policy).policy_id,
+                entrypoint_id=entrypoint.entrypoint_id,
+                discovery_strategy=entrypoint.strategy,
+                discovery_query=discovery_query if entrypoint.strategy == "official_search" else None,
+                admission_rule=_admission_rule_label(candidate_policy or policy),
                 provenance_record=f"discovered_from={discovered_from or 'configured_discovery_url'}",
             )
         )
@@ -495,6 +562,7 @@ def _discover_candidate_urls(
 def fetch_and_normalize_official_sources(
     sub_question: str,
     source_kinds: List[SourceKind],
+    discovery_query: str,
     allowlist: WebAllowlistConfig,
     runtime_config: RuntimeConfig,
 ) -> Tuple[List[SourceDocument], List[IngestionReportEntry], List[WebFetchRecord]]:
@@ -506,39 +574,65 @@ def fetch_and_normalize_official_sources(
     admitted_total = 0
 
     for source_kind in source_kinds:
-        candidate_urls: Dict[str, Optional[str]] = {}
+        candidate_urls: Dict[str, _CandidateOrigin] = {}
         for url in allowlist.seed_urls_for_kind(source_kind):
-            candidate_urls[url] = None
+            candidate_urls[url] = _CandidateOrigin(
+                provenance_record="configured_seed_url",
+            )
 
         policies = [policy for policy in allowlist.domain_policies if policy.source_kind == source_kind]
         for policy in policies:
-            discovered_urls, discovery_records = _discover_candidate_urls(
-                sub_question=sub_question,
-                discovery_urls=policy.discovery_urls,
-                policy=policy,
-                allowlist=allowlist,
-                runtime_config=runtime_config,
-            )
-            fetch_records.extend(discovery_records)
-            for discovered_url in discovered_urls:
-                discovered_from = next(
-                    (
-                        record.discovered_from
-                        for record in reversed(discovery_records)
-                        if record.canonical_url == discovered_url
-                        and record.record_type == "discovered_link"
-                    ),
-                    None,
+            for entrypoint in policy.discovery_entrypoints:
+                discovered_urls, discovery_records = _discover_candidate_urls(
+                    sub_question=sub_question,
+                    discovery_query=discovery_query,
+                    entrypoint=entrypoint,
+                    policy=policy,
+                    allowlist=allowlist,
+                    runtime_config=runtime_config,
                 )
-                candidate_urls.setdefault(discovered_url, discovered_from)
+                fetch_records.extend(discovery_records)
+                for discovered_url in discovered_urls:
+                    discovery_record = next(
+                        (
+                            record
+                            for record in reversed(discovery_records)
+                            if record.canonical_url == discovered_url
+                            and record.record_type == "discovered_link"
+                        ),
+                        None,
+                    )
+                    candidate_urls.setdefault(
+                        discovered_url,
+                        _CandidateOrigin(
+                            discovered_from=(
+                                discovery_record.discovered_from if discovery_record is not None else None
+                            ),
+                            provenance_record=(
+                                discovery_record.provenance_record if discovery_record is not None else None
+                            ),
+                            policy_id=(
+                                discovery_record.policy_id if discovery_record is not None else policy.policy_id
+                            ),
+                            entrypoint_id=(
+                                discovery_record.entrypoint_id if discovery_record is not None else entrypoint.entrypoint_id
+                            ),
+                            discovery_strategy=(
+                                discovery_record.discovery_strategy if discovery_record is not None else entrypoint.strategy
+                            ),
+                            discovery_query=(
+                                discovery_record.discovery_query if discovery_record is not None else discovery_query
+                            ),
+                        ),
+                    )
 
-        for url, discovered_from in candidate_urls.items():
+        for url, origin in candidate_urls.items():
             if url in seen_urls:
                 continue
             seen_urls.add(url)
             domain = normalize_domain(url)
             allowed = validate_domain(url, allowlist)
-            policy = allowlist.policy_for_domain(domain)
+            policy = allowlist.policy_for_domain_and_kind(domain, source_kind)
             now = datetime.now(timezone.utc).isoformat()
 
             if not allowed or policy is None or policy.source_kind not in source_kinds:
@@ -556,10 +650,14 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason="Domain is not allowlisted or lacks a domain policy.",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         normalization_status=NormalizationStatus.FAILED,
+                        policy_id=origin.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -580,10 +678,15 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason="Fetched URL failed the document-admission policy for this official domain.",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         normalization_status=NormalizationStatus.FAILED,
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -604,10 +707,15 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason="Per-run admitted web-document cap reached before this candidate could be admitted.",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         normalization_status=NormalizationStatus.FAILED,
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -628,10 +736,15 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason="Per-domain admitted web-document cap reached before this candidate could be admitted.",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         normalization_status=NormalizationStatus.FAILED,
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -654,10 +767,15 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason=f"Fetch failed: {exc}",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         normalization_status=NormalizationStatus.FAILED,
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -683,12 +801,17 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason=normalization_reason,
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         content_type=content_type,
                         normalization_status=NormalizationStatus.FAILED,
                         content_digest=_content_digest(raw_bytes),
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -720,12 +843,17 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason=f"Normalization failed: {exc}",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         content_type=content_type,
                         normalization_status=NormalizationStatus.FAILED,
                         content_digest=_content_digest(raw_bytes),
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -770,12 +898,17 @@ def fetch_and_normalize_official_sources(
                         metadata_complete=False,
                         reason="Normalized web source metadata was incomplete.",
                         record_type="fetch",
-                        discovered_from=discovered_from,
+                        discovered_from=origin.discovered_from,
                         content_type=content_type,
                         normalization_status=NormalizationStatus.FAILED,
                         content_digest=_content_digest(raw_bytes),
+                        policy_id=policy.policy_id,
+                        entrypoint_id=origin.entrypoint_id,
+                        discovery_strategy=origin.discovery_strategy,
+                        admission_rule=_admission_rule_label(policy),
+                        discovery_query=origin.discovery_query,
                         provenance_record=(
-                            f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                            origin.provenance_record or "configured_seed_url"
                         ),
                     )
                 )
@@ -788,7 +921,7 @@ def fetch_and_normalize_official_sources(
                 normalization_note=normalization_note
                 or (
                     "Fetched from allowlisted official discovery result."
-                    if discovered_from
+                    if origin.discovered_from
                     else "Fetched from allowlisted configured source."
                 ),
             )
@@ -810,16 +943,21 @@ def fetch_and_normalize_official_sources(
                     metadata_complete=True,
                     reason=(
                         "Fetched and normalized official source discovered from allowlisted index."
-                        if discovered_from
+                        if origin.discovered_from
                         else "Fetched and normalized official source for gap-driven expansion."
                     ),
                     record_type="fetch",
-                    discovered_from=discovered_from,
+                    discovered_from=origin.discovered_from,
                     content_type=content_type,
                     normalization_status=NormalizationStatus.SUCCESS,
                     content_digest=_content_digest(raw_bytes),
+                    policy_id=policy.policy_id,
+                    entrypoint_id=origin.entrypoint_id,
+                    discovery_strategy=origin.discovery_strategy,
+                    admission_rule=_admission_rule_label(policy),
+                    discovery_query=origin.discovery_query,
                     provenance_record=(
-                        f"discovered_from={discovered_from}" if discovered_from else "configured_seed_url"
+                        origin.provenance_record or "configured_seed_url"
                     ),
                 )
             )

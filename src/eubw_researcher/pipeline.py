@@ -55,7 +55,7 @@ class ResearchPipeline:
             for kind in target.preferred_kinds
             if (
                 self.allowlist.seed_urls_for_kind(kind)
-                or self.allowlist.discovery_urls_for_kind(kind)
+                or self.allowlist.discovery_entrypoints_for_kind(kind)
             )
             and self._role_weight(self.hierarchy.role_for(kind))
             <= self._role_weight(target.required_source_role_level)
@@ -259,9 +259,11 @@ class ResearchPipeline:
                 target.target_id,
                 gap_record.reason_local_evidence_insufficient,
             )
+            discovery_query = self._target_query_text(question, target)
             documents, reports, fetch_records = fetch_and_normalize_official_sources(
                 sub_question=gap_record.sub_question,
                 source_kinds=allowed_web_kinds,
+                discovery_query=discovery_query,
                 allowlist=self.allowlist,
                 runtime_config=self.runtime_config,
             )

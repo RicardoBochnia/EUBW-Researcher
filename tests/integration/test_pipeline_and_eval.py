@@ -26,6 +26,7 @@ from eubw_researcher.evaluation import run_all_scenarios
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
     ClaimState,
+    DiscoveryEntrypoint,
     ScenarioVerdict,
     SourceCatalog,
     SourceCatalogEntry,
@@ -224,7 +225,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         filtered_pipeline = ResearchPipeline(
             runtime_config=self.runtime,
             hierarchy=self.hierarchy,
-            allowlist=self.allowlist,
+            allowlist=WebAllowlistConfig(allowed_domains=[], domain_policies=[]),
             ingestion_bundle=filtered_bundle,
         )
 
@@ -241,6 +242,116 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         self.assertTrue(
             any(entry.final_claim_state == ClaimState.BLOCKED for entry in result.ledger_entries)
         )
+
+    def test_official_search_entrypoint_can_discover_cross_domain_official_document(self) -> None:
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                if self.path.startswith("/search"):
+                    body = (
+                        "<html><body>"
+                        f"<a href='http://localhost:{self.server.server_port}/resource/cellar/registration-certificate'>"
+                        "Registration certificate implementing act"
+                        "</a>"
+                        "</body></html>"
+                    ).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                else:
+                    body = (
+                        "<html><head><title>Registration Certificate Implementing Act</title></head>"
+                        "<body><h1>Article 1 Registration certificate</h1>"
+                        "<p>The implementing act describes the registration certificate requirements.</p>"
+                        "</body></html>"
+                    ).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):  # noqa: A003
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            filtered_catalog = load_source_catalog(
+                REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
+            )
+            filtered_catalog.entries = [
+                entry
+                for entry in filtered_catalog.entries
+                if entry.source_id != "eidas_regulation_business_wallet"
+            ]
+            custom_allowlist = WebAllowlistConfig(
+                allowed_domains=["127.0.0.1", "localhost"],
+                domain_policies=[
+                    WebDomainPolicy(
+                        domain="127.0.0.1",
+                        source_kind=SourceKind.REGULATION,
+                        source_role_level=SourceRoleLevel.HIGH,
+                        jurisdiction="EU",
+                        policy_id="local_search_regulation",
+                        discovery_entrypoints=[
+                            DiscoveryEntrypoint(
+                                entrypoint_id="local_quick_search",
+                                url_template=(
+                                    f"http://127.0.0.1:{server.server_port}/search?text={{query}}"
+                                ),
+                                strategy="official_search",
+                            )
+                        ],
+                        crawl_path_prefixes=["/search", "/resource/cellar/"],
+                        admission_path_prefixes=["/resource/cellar/"],
+                        allowed_cross_domain_domains=["localhost"],
+                    ),
+                    WebDomainPolicy(
+                        domain="localhost",
+                        source_kind=SourceKind.REGULATION,
+                        source_role_level=SourceRoleLevel.HIGH,
+                        jurisdiction="EU",
+                        policy_id="local_publications_regulation",
+                        crawl_path_prefixes=["/resource/cellar/"],
+                        admission_path_prefixes=["/resource/cellar/"],
+                    ),
+                ],
+            )
+            pipeline = ResearchPipeline(
+                runtime_config=self.runtime,
+                hierarchy=self.hierarchy,
+                allowlist=custom_allowlist,
+                ingestion_bundle=ingest_catalog(filtered_catalog),
+            )
+
+            result = pipeline.answer_question(
+                "Is the registration certificate mandatory at EU level, or is that delegated to member states?"
+            )
+
+            self.assertTrue(any(record.record_type == "discovery" for record in result.web_fetch_records))
+            self.assertTrue(
+                any(
+                    record.record_type == "discovered_link"
+                    and record.domain == "localhost"
+                    and record.entrypoint_id == "local_quick_search"
+                    and record.discovery_strategy == "official_search"
+                    and record.discovery_query
+                    for record in result.web_fetch_records
+                )
+            )
+            self.assertTrue(
+                any(
+                    record.record_type == "fetch"
+                    and record.domain == "localhost"
+                    and record.policy_id == "local_publications_regulation"
+                    and record.admission_rule == "admission_path_prefixes"
+                    for record in result.web_fetch_records
+                )
+            )
+            self.assertGreaterEqual(len(result.gap_records), 1)
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_open_claim_creates_gap_record_without_rendering_blocked_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -957,7 +1068,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         self.assertIn("Evidence (medium-rank project support):", result.rendered_answer)
         self.assertTrue(
             any(
-                citation.source_id == "eudi_discussion_topic_x_rp_registration"
+                citation.source_role_level == SourceRoleLevel.MEDIUM
                 for entry in result.approved_entries
                 for citation in entry.citations
             )

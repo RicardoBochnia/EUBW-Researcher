@@ -55,6 +55,11 @@ Validator contract for the closeout harness:
 - The binding real-corpus review samples are `primary_success_scenario` and `scenario_b_registration_certificate_mandatory`; their `manual_review_report.md` must end in `accept`.
 - `scenario_d_certificate_topology_anchor` is the maintained Option A closeout proof case; use the separate closeout harness rather than the normal eval gate when a fresh no-context validator proof is required.
 - Approved fetched web sources are surfaced in `manual_review_report.md` with digest and provenance evidence for reviewability.
+- Wave 3 official discovery is exact-host-only: `configs/web_allowlist.yaml` now uses per-host `policy_id`, structured `discovery_entrypoints`, and separate `crawl_path_prefixes` / `admission_path_prefixes` rather than relying on hostname allowlisting alone.
+- `official_search` is intentionally narrow: it is currently used for EUR-Lex quick-search HTML result pages only, while `publications.europa.eu` is admitted as a direct official-document host and as an explicit cross-domain follow-up target from EUR-Lex.
+- `eu-digital-identity-wallet.github.io` is treated as an allowed GitHub Pages exact host; this does not relax the exclusion of `raw.githubusercontent.com`, `api.github.com`, or generic raw GitHub content.
+- `manual_review_report.md` now surfaces `policy_id`, `entrypoint_id`, `discovery_strategy`, `admission_rule`, and `discovery_query` for approved fetched web evidence so reviewers can audit why a web source was discovered and admitted.
+- Before opening a PR for discovery/governance changes, run multiple self-review rounds, then `python3 scripts/run_tests.py`, then `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`; the expected closeout is a reviewer-ready PR with Copilot feedback already addressed rather than still finding functional bugs.
 - The local real corpus archive now lives under `artifacts/real_corpus/archive` and is intentionally excluded from git.
 - `configs/real_corpus_selection.yaml` is the inspectable bridge from the local source archive into the internal Option A source catalog.
 - If another agent is working in parallel, prefer a dedicated Git worktree before making repo changes, for example: `git worktree add -b codex/<topic> ../<repo>-<topic> HEAD`

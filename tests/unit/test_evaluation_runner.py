@@ -399,6 +399,45 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertTrue(verdict.passed)
         self.assertIn("web_discovery_records>=1:ok", verdict.checks)
 
+    def test_required_web_discovered_link_count_counts_discovered_link_records_only(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_discovered_link_gate",
+            question="Synthetic question?",
+            expectation="Require at least one discovered candidate link.",
+            required_web_discovered_link_count=1,
+        )
+
+        verdict = _evaluate_scenario(scenario, _minimal_result("discovery"))
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_discovered_link_records>=1:fail", verdict.checks)
+
+        verdict = _evaluate_scenario(scenario, _minimal_result("discovered_link"))
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_discovered_link_records>=1:ok", verdict.checks)
+
+    def test_required_web_domains_requires_expected_host_presence(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_domain_gate",
+            question="Synthetic question?",
+            expectation="Require a specific discovered or fetched host.",
+            required_web_domains=["eur-lex.europa.eu"],
+        )
+
+        verdict = _evaluate_scenario(scenario, _minimal_result("fetch"))
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_domains:fail:eur-lex.europa.eu", verdict.checks)
+
+        result = _minimal_result("fetch")
+        result.web_fetch_records[0].domain = "eur-lex.europa.eu"
+
+        verdict = _evaluate_scenario(scenario, result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_domains:ok:eur-lex.europa.eu", verdict.checks)
+
     def test_required_intent_type_fails_when_analyzer_contract_drifts(self) -> None:
         scenario = EvaluationScenario(
             scenario_id="synthetic_intent_gate",
@@ -513,6 +552,11 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("Approved Fetched-Source Evidence", markdown)
         self.assertIn("digest=`abc123`", markdown)
         self.assertIn("provenance=`configured_seed_url`", markdown)
+        self.assertIn("policy_id=`n/a`", markdown)
+        self.assertIn("entrypoint_id=`n/a`", markdown)
+        self.assertIn("strategy=`n/a`", markdown)
+        self.assertIn("admission_rule=`n/a`", markdown)
+        self.assertIn("discovery_query=`n/a`", markdown)
         self.assertIn("Pinpoint traceability verdict", markdown)
         self.assertIn("Reusable without raw-document reconstruction", markdown)
 

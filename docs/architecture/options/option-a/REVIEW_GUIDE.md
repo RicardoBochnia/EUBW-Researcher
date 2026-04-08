@@ -103,8 +103,10 @@ Scenario D closeout runs additionally include:
 - `gap_records.json` explains unresolved claims and any `official_web_search` trigger.
 - `gap_records.json` preserves any discovery/fetch URLs used during official web expansion.
 - `web_fetch_records.json` only contains allowlisted URLs, and rejected web sources stay out of the approved ledger.
+- `web_fetch_records.json` keeps the Wave 3 governance fields visible: `policy_id`, `entrypoint_id`, `discovery_strategy`, `admission_rule`, and `discovery_query`.
 - `manual_review.json` is clearly marked as an automated prefill, not mistaken for human review.
 - `manual_review_report.md` is present and gives a usable human-readable review summary.
+- `manual_review_report.md` surfaces the same governance fields for approved fetched web evidence, so reviewers can confirm which policy and entrypoint admitted the source.
 - `pinpoint_evidence.json` maps each cited answer claim to a concrete local locator and is explicit when only approximate traceability is available.
 - `answer_alignment.json` shows no blocking wording-to-evidence alignment violations.
 - `blind_validation_report.json` passes and records that the run should be reusable without raw-document reconstruction.
@@ -144,9 +146,16 @@ For validated current-state review, treat the real-corpus eval manifest as autho
 The review should explicitly note these accepted limits:
 
 - web expansion is allowlist-only and bounded to configured official domains
-- official discovery is a bounded crawl from configured official entrypoints, with path/document admission controls rather than hostname-only admission
+- official discovery is exact-host-only and bounded to configured official entrypoints, with separate crawl and admission path controls rather than hostname-only admission
+- `official_search` is intentionally narrow and currently restricted to the EUR-Lex quick-search HTML endpoint
 - fetched html/xhtml/xml/pdf content is normalized when possible; malformed fetched documents remain explicit failures rather than silent fallbacks
 - real-corpus acceptance means reviewable, uncertainty-aware outputs, not identical answers to the fixture corpus
+
+For Wave 3 review gates, keep the three web-record counters distinct:
+- `required_web_discovery_count` covers `record_type == "discovery"`
+- `required_web_discovered_link_count` covers `record_type == "discovered_link"`
+- `required_web_fetch_count` covers `record_type == "fetch"`
+- `required_web_domains` checks expected hosts in `web_fetch_records.json`
 
 ## Suggested PR summary structure
 
@@ -154,3 +163,8 @@ The review should explicitly note these accepted limits:
 - Core implementation: ingestion, retrieval planning, official discovery, gap handling, source-role controller, answer composition, grouping artifact, eval runner
 - Verification: test suite, fixture eval gate, real-corpus eval gate, manual review artifacts
 - Known limits: the explicit V2 boundaries from `HARDENING_NOTES.md`
+
+For discovery/governance changes, the expected PR closeout standard is:
+- run multiple self-review rounds before opening the PR
+- use those rounds to eliminate schema/API drift, governance leaks, and reviewer-surface gaps before Copilot sees the diff
+- treat Copilot as the final confirmation pass, not as the main bug-finder

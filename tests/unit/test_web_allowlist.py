@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import unittest
 from pathlib import Path
+import tempfile
 from unittest.mock import patch
 
 from eubw_researcher.config import load_runtime_config, load_web_allowlist
-from eubw_researcher.models import SourceKind, SourceRoleLevel, WebAllowlistConfig, WebDomainPolicy
+from eubw_researcher.models import (
+    DiscoveryEntrypoint,
+    SourceKind,
+    SourceRoleLevel,
+    WebAllowlistConfig,
+    WebDomainPolicy,
+)
 from eubw_researcher.web import validate_domain
 from eubw_researcher.web.fetch import (
     _admissible_document_policy,
@@ -26,23 +34,53 @@ class WebAllowlistTests(unittest.TestCase):
     def test_validate_domain_accepts_allowlisted_domain_and_rejects_other_domain(self) -> None:
         self.assertTrue(validate_domain("https://openid.net/specs/openid-4-vp", self.allowlist))
         self.assertFalse(validate_domain("https://vendor.example/blog", self.allowlist))
-        self.assertTrue(self.allowlist.discovery_urls_for_kind(SourceKind.TECHNICAL_STANDARD))
+        self.assertTrue(self.allowlist.discovery_entrypoints_for_kind(SourceKind.TECHNICAL_STANDARD))
         technical_policy = self.allowlist.policy_for_domain("openid.net")
         self.assertIsNotNone(technical_policy)
-        self.assertTrue(technical_policy.allowed_path_prefixes)
+        self.assertTrue(technical_policy.crawl_path_prefixes)
+        self.assertTrue(technical_policy.admission_path_prefixes)
 
-    def test_discovery_urls_for_kind_returns_only_matching_policy_urls(self) -> None:
+    def test_discovery_entrypoints_for_kind_returns_only_matching_policy_urls(self) -> None:
         self.assertEqual(
-            self.allowlist.discovery_urls_for_kind(SourceKind.TECHNICAL_STANDARD),
+            [
+                entrypoint.url_template
+                for entrypoint in self.allowlist.discovery_entrypoints_for_kind(
+                    SourceKind.TECHNICAL_STANDARD
+                )
+            ],
             ["https://openid.net/specs/"],
         )
         self.assertEqual(
-            self.allowlist.discovery_urls_for_kind(SourceKind.PROJECT_ARTIFACT),
-            ["https://eudi-walletconsortium.org/"],
+            sorted(
+                entrypoint.url_template
+                for entrypoint in self.allowlist.discovery_entrypoints_for_kind(
+                    SourceKind.PROJECT_ARTIFACT
+                )
+            ),
+            sorted(
+                [
+                    "https://commission.europa.eu/topics/digital-economy-and-society/european-digital-identity_en",
+                    "https://digital-strategy.ec.europa.eu/en/policies/eudi-wallet-implementation",
+                    "https://docs.eudi.dev/latest/",
+                    "https://eudi-walletconsortium.org/",
+                    "https://eudi.dev/latest/technical-specifications/",
+                    "https://eu-digital-identity-wallet.github.io/eudi-doc-architecture-and-reference-framework/latest/",
+                ]
+            ),
         )
         self.assertEqual(
-            self.allowlist.discovery_urls_for_kind(SourceKind.REGULATION),
-            ["https://eur-lex.europa.eu/homepage.html"],
+            [
+                (entrypoint.url_template, entrypoint.strategy)
+                for entrypoint in self.allowlist.discovery_entrypoints_for_kind(
+                    SourceKind.REGULATION
+                )
+            ],
+            [
+                (
+                    "https://eur-lex.europa.eu/search.html?text={query}&lang=en&type=quick",
+                    "official_search",
+                )
+            ],
         )
 
     def test_admissible_document_policy_enforces_path_prefixes_and_blocked_keywords(self) -> None:
@@ -88,8 +126,15 @@ class WebAllowlistTests(unittest.TestCase):
                     source_kind=SourceKind.TECHNICAL_STANDARD,
                     source_role_level=SourceRoleLevel.HIGH,
                     jurisdiction="international",
-                    discovery_urls=["https://example.test/specs/"],
-                    allowed_path_prefixes=["/specs/"],
+                    discovery_entrypoints=[
+                        DiscoveryEntrypoint(
+                            entrypoint_id="example_specs",
+                            url_template="https://example.test/specs/",
+                            strategy="index_crawl",
+                        )
+                    ],
+                    crawl_path_prefixes=["/specs/"],
+                    admission_path_prefixes=["/specs/"],
                     allowed_cross_domain_domains=["cdn.example.test"],
                 ),
                 WebDomainPolicy(
@@ -97,14 +142,16 @@ class WebAllowlistTests(unittest.TestCase):
                     source_kind=SourceKind.TECHNICAL_STANDARD,
                     source_role_level=SourceRoleLevel.HIGH,
                     jurisdiction="international",
-                    allowed_path_prefixes=["/mirror/"],
+                    crawl_path_prefixes=["/mirror/"],
+                    admission_path_prefixes=["/mirror/"],
                 ),
                 WebDomainPolicy(
                     domain="other.example.test",
                     source_kind=SourceKind.TECHNICAL_STANDARD,
                     source_role_level=SourceRoleLevel.HIGH,
                     jurisdiction="international",
-                    allowed_path_prefixes=["/mirror/"],
+                    crawl_path_prefixes=["/mirror/"],
+                    admission_path_prefixes=["/mirror/"],
                 ),
             ],
         )
@@ -154,7 +201,8 @@ class WebAllowlistTests(unittest.TestCase):
         ):
             selected_urls, records = _discover_candidate_urls(
                 sub_question="Compare OpenID4VCI and OpenID4VP on token endpoint and wallet metadata handling.",
-                discovery_urls=["https://openid.net/specs/"],
+                discovery_query="OpenID4VCI OpenID4VP token endpoint wallet metadata",
+                entrypoint=policy.discovery_entrypoints[0],
                 policy=policy,
                 allowlist=self.allowlist,
                 runtime_config=runtime,
@@ -170,3 +218,106 @@ class WebAllowlistTests(unittest.TestCase):
             [record.record_type for record in records].count("discovered_link"),
             2,
         )
+
+    def test_policy_lookup_is_exact_host_only(self) -> None:
+        self.assertIsNone(self.allowlist.policy_for_domain("docs.openid.net"))
+        self.assertIsNone(self.allowlist.policy_for_domain_and_kind("docs.eudi.dev", SourceKind.TECHNICAL_STANDARD))
+        self.assertIsNotNone(
+            self.allowlist.policy_for_domain_and_kind(
+                "docs.eudi.dev",
+                SourceKind.PROJECT_ARTIFACT,
+            )
+        )
+        self.assertIsNone(
+            self.allowlist.policy_for_domain_and_kind(
+                "sub.docs.eudi.dev",
+                SourceKind.PROJECT_ARTIFACT,
+            )
+        )
+
+    def test_policy_lookup_can_select_multiple_policies_for_same_host_by_kind(self) -> None:
+        allowlist = WebAllowlistConfig(
+            allowed_domains=["example.test"],
+            domain_policies=[
+                WebDomainPolicy(
+                    domain="example.test",
+                    source_kind=SourceKind.REGULATION,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    policy_id="example_regulation",
+                    admission_path_prefixes=["/legal/"],
+                ),
+                WebDomainPolicy(
+                    domain="example.test",
+                    source_kind=SourceKind.IMPLEMENTING_ACT,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    policy_id="example_implementing_act",
+                    admission_path_prefixes=["/acts/"],
+                ),
+            ],
+        )
+
+        self.assertEqual(len(allowlist.policies_for_domain("example.test")), 2)
+        self.assertEqual(
+            allowlist.policy_for_domain_and_kind("example.test", SourceKind.REGULATION).policy_id,
+            "example_regulation",
+        )
+        self.assertEqual(
+            allowlist.policy_for_domain_and_kind("example.test", SourceKind.IMPLEMENTING_ACT).policy_id,
+            "example_implementing_act",
+        )
+
+    def test_web_domain_policy_migrates_legacy_fields_into_new_config_shape(self) -> None:
+        policy = WebDomainPolicy(
+            domain="example.test",
+            source_kind=SourceKind.TECHNICAL_STANDARD,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="international",
+            discovery_urls=["https://example.test/specs/"],
+            allowed_path_prefixes=["/specs/"],
+        )
+
+        self.assertEqual(
+            [(entry.entrypoint_id, entry.url_template, entry.strategy) for entry in policy.discovery_entrypoints],
+            [("example.test:technical_standard:legacy:1", "https://example.test/specs/", "index_crawl")],
+        )
+        self.assertEqual(policy.crawl_path_prefixes, ["/specs/"])
+        self.assertEqual(policy.admission_path_prefixes, ["/specs/"])
+
+    def test_loader_rejects_official_search_entrypoint_without_query_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "web_allowlist.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "allowed_domains": ["eur-lex.europa.eu"],
+                        "domain_policies": [
+                            {
+                                "policy_id": "invalid_official_search",
+                                "domain": "eur-lex.europa.eu",
+                                "source_kind": "regulation",
+                                "source_role_level": "high",
+                                "jurisdiction": "EU",
+                                "seed_urls": [],
+                                "discovery_entrypoints": [
+                                    {
+                                        "entrypoint_id": "broken_search",
+                                        "url_template": "https://eur-lex.europa.eu/search.html?lang=en&type=quick",
+                                        "strategy": "official_search",
+                                    }
+                                ],
+                                "crawl_path_prefixes": ["/legal-content/"],
+                                "admission_path_prefixes": ["/legal-content/", "/eli/"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                r"official_search entrypoint 'broken_search' must contain \{query\}",
+            ):
+                load_web_allowlist(config_path)
