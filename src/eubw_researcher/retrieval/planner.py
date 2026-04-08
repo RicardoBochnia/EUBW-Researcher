@@ -17,8 +17,8 @@ from eubw_researcher.models import (
     TerminologyConfig,
 )
 from eubw_researcher.retrieval.terminology import (
-    explain_query_term_normalization,
     normalize_query_terms,
+    normalize_query_terms_with_trace,
 )
 
 
@@ -828,26 +828,25 @@ def build_retrieval_plan(
     terminology: TerminologyConfig,
 ) -> RetrievalPlan:
     hierarchy_kinds = [rule.source_kind for rule in sorted(hierarchy.rules, key=lambda item: item.rank)]
-    normalized_question = normalize_query_terms(query_intent.question, terminology)
-    question_term_normalizations = explain_query_term_normalization(
+    normalized_question, question_term_normalizations = normalize_query_terms_with_trace(
         query_intent.question,
         terminology,
     )
-    target_queries = [
-        RetrievalTargetQuery(
-            target_id=target.target_id,
-            raw_query=build_target_query_text(query_intent.question, target),
-            normalized_query=normalize_query_terms(
-                build_target_query_text(query_intent.question, target),
-                terminology,
-            ),
-            applied_term_normalizations=explain_query_term_normalization(
-                build_target_query_text(query_intent.question, target),
-                terminology,
-            ),
+    target_queries: List[RetrievalTargetQuery] = []
+    for target in query_intent.claim_targets:
+        raw_query = build_target_query_text(query_intent.question, target)
+        normalized_target_query, applied_target_normalizations = normalize_query_terms_with_trace(
+            raw_query,
+            terminology,
         )
-        for target in query_intent.claim_targets
-    ]
+        target_queries.append(
+            RetrievalTargetQuery(
+                target_id=target.target_id,
+                raw_query=raw_query,
+                normalized_query=normalized_target_query,
+                applied_term_normalizations=applied_target_normalizations,
+            )
+        )
 
     if query_intent.eu_first:
         # In EU-first mode, query preferences must not pull lower-ranked material

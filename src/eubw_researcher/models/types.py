@@ -394,13 +394,13 @@ class ClaimTarget:
 @dataclass(frozen=True)
 class TerminologyMapping:
     canonical_term: str
-    aliases: List[str]
-    context_aliases: List[str] = field(default_factory=list)
+    aliases: tuple[str, ...]
+    context_aliases: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
 class TerminologyConfig:
-    mappings: List[TerminologyMapping]
+    mappings: tuple[TerminologyMapping, ...]
 
 
 @dataclass(frozen=True)

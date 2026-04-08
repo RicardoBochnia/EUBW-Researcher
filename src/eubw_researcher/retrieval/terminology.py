@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from dataclasses import dataclass
 
 from eubw_researcher.models import (
@@ -29,6 +30,7 @@ def _compile_mapping(mapping: TerminologyMapping) -> _CompiledTerminologyMapping
     )
 
 
+@lru_cache(maxsize=None)
 def _compile_terminology_config(
     terminology: TerminologyConfig,
 ) -> tuple[_CompiledTerminologyMapping, ...]:
@@ -41,7 +43,7 @@ def _has_required_context(question: str, mapping: _CompiledTerminologyMapping) -
     return any(pattern.search(question) for pattern in mapping.context_patterns)
 
 
-def _apply_query_term_normalization(
+def normalize_query_terms_with_trace(
     question: str,
     terminology: TerminologyConfig,
 ) -> tuple[str, list[AppliedTermNormalization]]:
@@ -91,8 +93,8 @@ def explain_query_term_normalization(
     question: str,
     terminology: TerminologyConfig,
 ) -> list[AppliedTermNormalization]:
-    return _apply_query_term_normalization(question, terminology)[1]
+    return normalize_query_terms_with_trace(question, terminology)[1]
 
 
 def normalize_query_terms(question: str, terminology: TerminologyConfig) -> str:
-    return _apply_query_term_normalization(question, terminology)[0]
+    return normalize_query_terms_with_trace(question, terminology)[0]

@@ -131,7 +131,8 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertTrue(all(question.review_prompts for question in real_question_pack.questions))
         self.assertEqual(len(terminology.mappings), 5)
         self.assertEqual(terminology.mappings[0].canonical_term, "business wallet")
-        self.assertEqual(terminology.mappings[0].aliases, ["eu business wallet", "eubw"])
+        self.assertEqual(terminology.mappings[0].aliases, ("eu business wallet", "eubw"))
+        self.assertIsInstance(terminology.mappings, tuple)
 
     def test_terminology_config_rejects_duplicate_canonical_terms(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

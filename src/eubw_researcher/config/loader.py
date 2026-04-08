@@ -240,12 +240,12 @@ def load_terminology_config(path: Path) -> TerminologyConfig:
         mappings.append(
             TerminologyMapping(
                 canonical_term=canonical_term,
-                aliases=aliases,
-                context_aliases=context_aliases,
+                aliases=tuple(aliases),
+                context_aliases=tuple(context_aliases),
             )
         )
 
-    return TerminologyConfig(mappings=mappings)
+    return TerminologyConfig(mappings=tuple(mappings))
 
 
 def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
