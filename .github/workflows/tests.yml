@@ -24,6 +24,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Detect impacted test suites
         id: detect
         run: |
@@ -68,8 +73,10 @@ jobs:
   integration-tests:
     name: Integration tests
     runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.run_integration == 'true'
+    needs:
+      - detect-changes
+      - unit-tests
+    if: needs.detect-changes.outputs.run_integration == 'true' && needs.unit-tests.result == 'success'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -92,8 +99,10 @@ jobs:
   closeout-tests:
     name: Closeout tests
     runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.run_closeout == 'true'
+    needs:
+      - detect-changes
+      - unit-tests
+    if: needs.detect-changes.outputs.run_closeout == 'true' && needs.unit-tests.result == 'success'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

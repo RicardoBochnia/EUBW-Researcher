@@ -29,7 +29,7 @@ The primary usage pattern is:
 - Run only the separate Scenario D closeout harness tests:
   `python3 scripts/run_closeout_tests.py`
 
-Pull-request CI uses a cheap routing step on every PR, runs the unit suite only for runtime-relevant changes, and adds the integration and closeout suites only when their owned surfaces change.
+Pull-request CI uses a cheap routing step on every PR, pins Python 3.12 for that routing step, runs the unit suite only for runtime-relevant changes, and lets the integration and closeout suites proceed only after the unit suite passes when their owned surfaces changed.
 The full-confidence suite (`python3 scripts/run_tests.py`) runs on every push to `main`, plus scheduled and manual validation.
 - Run fixture eval:
   `python3 scripts/run_eval.py --all`
