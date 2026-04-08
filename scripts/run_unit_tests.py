@@ -3,5 +3,9 @@ from __future__ import annotations
 from _test_runner import run_suites
 
 
+def main() -> int:
+    return run_suites("tests/unit")
+
+
 if __name__ == "__main__":
-    raise SystemExit(run_suites("tests/unit"))
+    raise SystemExit(main())
