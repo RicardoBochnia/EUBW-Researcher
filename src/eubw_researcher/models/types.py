@@ -354,6 +354,8 @@ class EvaluationScenario:
     required_web_fetch_count: int = 0
     require_provisional_grouping: bool = False
     require_manual_review_accept: bool = False
+    spawned_validator_gate_eligible: bool = False
+    spawned_validator_release_gate: bool = False
     min_gap_records: int = 0
     min_ledger_entries: int = 1
 
@@ -815,6 +817,34 @@ class EvalRunManifest:
 
 
 @dataclass
+class SpawnedValidatorGateScenarioRunSummary:
+    scenario_id: str
+    deterministic_passed: bool
+    spawned_validator_invoked: bool
+    spawned_validator_contract_passed: Optional[bool]
+    spawned_validator_passed: Optional[bool]
+    final_passed: bool
+    output_dir: str
+    verdict_path: str
+    blind_validation_report_path: str
+    spawned_validator_request_path: Optional[str] = None
+    spawned_validator_result_path: Optional[str] = None
+
+
+@dataclass
+class SpawnedValidatorGateManifest:
+    run_timestamp: str
+    scenario_config_path: str
+    catalog_path: str
+    corpus_state_id: str
+    runtime_contract_version: str
+    gate_target: str
+    validator_command: str
+    overall_passed: bool
+    scenario_runs: List[SpawnedValidatorGateScenarioRunSummary] = field(default_factory=list)
+
+
+@dataclass
 class ValidatedBindingReviewSample:
     scenario_id: str
     manual_review_accept_required: bool
@@ -827,6 +857,7 @@ class ValidatedBindingReviewSample:
 class ValidatedCurrentStateReport:
     report_version: str
     binding_gate_surface: str
+    release_validation_mode: str
     validated: bool
     catalog_path: str
     corpus_state_id: str
@@ -846,7 +877,10 @@ class ValidatedCurrentStateReport:
     corpus_coverage_report_path: Optional[str]
     corpus_coverage_summary_path: Optional[str]
     corpus_selection_summary_path: Optional[str]
+    spawned_validator_gate_passed: Optional[bool]
     binding_review_samples: List[ValidatedBindingReviewSample] = field(default_factory=list)
+    spawned_validator_gate_manifest_path: Optional[str] = None
+    spawned_validator_gate_matches_state: Optional[bool] = None
     supplemental_real_question_pack_manifest_path: Optional[str] = None
     supplemental_real_question_pack_matches_state: Optional[bool] = None
     supplemental_real_question_pack_run_id: Optional[str] = None

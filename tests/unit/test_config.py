@@ -92,6 +92,30 @@ class ConfigLoadingTests(unittest.TestCase):
                 "scenario_d_certificate_topology_anchor",
             },
         )
+        spawned_validator_eligible_ids = {
+            scenario.scenario_id
+            for scenario in real_scenarios
+            if scenario.spawned_validator_gate_eligible
+        }
+        self.assertEqual(
+            spawned_validator_eligible_ids,
+            {
+                "scenario_d_certificate_topology_anchor",
+                "high_risk_failure_pattern",
+            },
+        )
+        spawned_validator_release_ids = {
+            scenario.scenario_id
+            for scenario in real_scenarios
+            if scenario.spawned_validator_release_gate
+        }
+        self.assertEqual(
+            spawned_validator_release_ids,
+            {
+                "scenario_d_certificate_topology_anchor",
+                "high_risk_failure_pattern",
+            },
+        )
         self.assertEqual(
             [question.question_id for question in real_question_pack.questions],
             [
@@ -186,6 +210,84 @@ class ConfigLoadingTests(unittest.TestCase):
 
             self.assertEqual(pack.questions[0].expected_intent_type, "synthetic_intent")
             self.assertIsNone(pack.questions[0].seed_from_scenario_id)
+
+    def test_evaluation_scenarios_reject_duplicate_scenario_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenarios_path = Path(tmp_dir) / "scenarios.json"
+            scenarios_path.write_text(
+                json.dumps(
+                    {
+                        "scenarios": [
+                            {
+                                "scenario_id": "duplicate",
+                                "question": "Question A?",
+                                "expectation": "Expectation A.",
+                            },
+                            {
+                                "scenario_id": "duplicate",
+                                "question": "Question B?",
+                                "expectation": "Expectation B.",
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "duplicate scenario_id 'duplicate'",
+            ):
+                load_evaluation_scenarios(scenarios_path)
+
+    def test_evaluation_scenarios_reject_unsafe_scenario_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenarios_path = Path(tmp_dir) / "scenarios.json"
+            scenarios_path.write_text(
+                json.dumps(
+                    {
+                        "scenarios": [
+                            {
+                                "scenario_id": "../unsafe",
+                                "question": "Question?",
+                                "expectation": "Expectation.",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "scenario_id must use only letters, numbers, periods, underscores, or hyphens",
+            ):
+                load_evaluation_scenarios(scenarios_path)
+
+    def test_evaluation_scenarios_require_release_gate_entries_to_be_eligible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenarios_path = Path(tmp_dir) / "scenarios.json"
+            scenarios_path.write_text(
+                json.dumps(
+                    {
+                        "scenarios": [
+                            {
+                                "scenario_id": "release_only",
+                                "question": "Question?",
+                                "expectation": "Expectation.",
+                                "spawned_validator_release_gate": True,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "must also be spawned-validator eligible: release_only",
+            ):
+                load_evaluation_scenarios(scenarios_path)
 
 
 if __name__ == "__main__":

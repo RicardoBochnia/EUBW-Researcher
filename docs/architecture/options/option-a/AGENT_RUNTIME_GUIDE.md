@@ -28,6 +28,10 @@ The primary usage pattern is:
   `python3 scripts/run_eval.py --all`
 - Run real-corpus eval:
   `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- Run the optional spawned-validator gate for one configured high-risk scenario:
+  `python3 scripts/run_spawned_validator_gate.py --scenario high_risk_failure_pattern --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
+- Run the configured spawned-validator release-gate subset:
+  `python3 scripts/run_spawned_validator_gate.py --release-gate --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 - Run one direct research question:
   `python3 scripts/answer_question.py "<question>" --catalog artifacts/real_corpus/curated_catalog.json --output-dir artifacts/manual_runs/<run-name>`
 - Run the separate Scenario D closeout harness:
@@ -97,6 +101,7 @@ The highest-value artifacts are:
 - `retrieval_plan.json`
 - `provisional_grouping.json` when present
 - `corpus_coverage_report.json` for corpus-backed runs
+- `spawned_validator_gate_manifest.json` for optional validator-gated runs
 
 For Scenario D closeout runs, also inspect:
 - `spawned_validator_request.json`
@@ -108,7 +113,7 @@ Do not mis-state these accepted boundaries as bugs unless the user explicitly wa
 - no UI
 - no persistent provenance graph
 - no multi-agent orchestration inside the product
-- the Scenario D spawned-validator proof is a separate review harness, not in-product orchestration
+- the spawned-validator high-risk/release gates and the Scenario D closeout proof remain separate review harnesses, not in-product orchestration
 - no arbitrary open-web search
 - Germany remains best-effort, not a broad member-state engine
 - real-corpus acceptance means reviewable, uncertainty-aware, source-bound output, not exact wording parity with fixtures

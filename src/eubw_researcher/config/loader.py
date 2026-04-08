@@ -41,6 +41,28 @@ def _optional_stripped(value: object) -> str | None:
     return normalized or None
 
 
+def _validate_safe_config_id(
+    *,
+    raw_id: str,
+    id_label: str,
+    path: Path,
+) -> str:
+    normalized = raw_id.strip()
+    if not normalized:
+        raise ValueError(f"{id_label} contains a blank id: {path}")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", normalized):
+        raise ValueError(
+            f"{id_label} must use only letters, numbers, periods, underscores, or hyphens: "
+            f"{normalized}"
+        )
+    if normalized.startswith("."):
+        raise ValueError(
+            f"{id_label} must not be '.' or '..' and must not start with a period: "
+            f"{normalized}"
+        )
+    return normalized
+
+
 def load_source_hierarchy(path: Path) -> SourceHierarchyConfig:
     payload = _load_json_yaml(path)
     rules = [
@@ -129,9 +151,13 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
 
 def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
     payload = _load_json_yaml(path)
-    return [
+    scenarios = [
         EvaluationScenario(
-            scenario_id=item["scenario_id"],
+            scenario_id=_validate_safe_config_id(
+                raw_id=str(item["scenario_id"]),
+                id_label="Evaluation scenario scenario_id",
+                path=path,
+            ),
             question=item["question"],
             expectation=item["expectation"],
             required_intent_type=item.get("required_intent_type"),
@@ -151,11 +177,33 @@ def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
             required_web_fetch_count=int(item.get("required_web_fetch_count", 0)),
             require_provisional_grouping=bool(item.get("require_provisional_grouping", False)),
             require_manual_review_accept=bool(item.get("require_manual_review_accept", False)),
+            spawned_validator_gate_eligible=bool(
+                item.get("spawned_validator_gate_eligible", False)
+            ),
+            spawned_validator_release_gate=bool(
+                item.get("spawned_validator_release_gate", False)
+            ),
             min_gap_records=int(item.get("min_gap_records", 0)),
             min_ledger_entries=int(item.get("min_ledger_entries", 1)),
         )
         for item in payload["scenarios"]
     ]
+    seen_scenario_ids: set[str] = set()
+    for scenario in scenarios:
+        if scenario.scenario_id in seen_scenario_ids:
+            raise ValueError(
+                f"Evaluation scenarios contain duplicate scenario_id '{scenario.scenario_id}': {path}"
+            )
+        if (
+            scenario.spawned_validator_release_gate
+            and not scenario.spawned_validator_gate_eligible
+        ):
+            raise ValueError(
+                "Evaluation scenario marked for spawned-validator release gate must also be "
+                f"spawned-validator eligible: {scenario.scenario_id}"
+            )
+        seen_scenario_ids.add(scenario.scenario_id)
+    return scenarios
 
 
 def load_real_question_pack(path: Path) -> RealQuestionPack:
@@ -180,18 +228,11 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
 
     seen_question_ids: set[str] = set()
     for question in questions:
-        if not question.question_id:
-            raise ValueError(f"Real-question pack contains a blank question_id: {path}")
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", question.question_id):
-            raise ValueError(
-                "Real-question pack question_id must use only letters, numbers, "
-                f"periods, underscores, or hyphens: {question.question_id}"
-            )
-        if question.question_id.startswith("."):
-            raise ValueError(
-                "Real-question pack question_id must not be '.' or '..' and must not "
-                f"start with a period: {question.question_id}"
-            )
+        _validate_safe_config_id(
+            raw_id=question.question_id,
+            id_label="Real-question pack question_id",
+            path=path,
+        )
         if question.question_id in seen_question_ids:
             raise ValueError(
                 f"Real-question pack contains duplicate question_id '{question.question_id}': {path}"

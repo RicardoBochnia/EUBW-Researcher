@@ -40,6 +40,7 @@ def main() -> int:
     args = parse_args()
     request = json.loads(Path(args.input).read_text(encoding="utf-8"))
     payload = _base_payload()
+    payload["artifacts_used"] = list(request.get("required_artifacts", payload["artifacts_used"]))
     payload["notes"] = f"Validated bundle {request['bundle_dir']}."
     if args.sleep_seconds:
         time.sleep(args.sleep_seconds)

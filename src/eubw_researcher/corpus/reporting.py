@@ -7,6 +7,7 @@ from typing import Any, List, Mapping, Optional
 from eubw_researcher.models import (
     CorpusCoverageReport,
     EvalRunManifest,
+    SpawnedValidatorGateManifest,
     SourceCatalog,
     SourceKind,
     SourceRoleLevel,
@@ -21,6 +22,23 @@ _ROLE_LEVEL_ORDER: List[SourceRoleLevel] = [
 ]
 
 _KIND_ORDER: List[SourceKind] = list(SourceKind)
+_RELEASE_GATE_TARGET = "release_gate"
+
+
+def _validated_spawned_validator_gate_passed(
+    manifest: SpawnedValidatorGateManifest,
+) -> bool:
+    return (
+        bool(manifest.scenario_runs)
+        and manifest.overall_passed
+        and all(
+            item.final_passed
+            and item.spawned_validator_invoked
+            and item.spawned_validator_contract_passed is True
+            and item.spawned_validator_passed is True
+            for item in manifest.scenario_runs
+        )
+    )
 
 
 def render_corpus_selection_summary_md(catalog: SourceCatalog) -> str:
@@ -149,6 +167,9 @@ def build_validated_current_state_report(
     corpus_state_snapshot_path: Path,
     real_question_pack_manifest: Optional[Mapping[str, Any]] = None,
     real_question_pack_manifest_path: Optional[Path] = None,
+    spawned_validator_gate_manifest: Optional[SpawnedValidatorGateManifest] = None,
+    spawned_validator_gate_manifest_path: Optional[Path] = None,
+    promote_spawned_validator_gate: bool = False,
     git_metadata: Optional[Mapping[str, Any]] = None,
 ) -> ValidatedCurrentStateReport:
     snapshot_catalog_path = str(Path(snapshot["catalog_path"]).resolve())
@@ -173,11 +194,41 @@ def build_validated_current_state_report(
     )
     coverage_gate_passed = eval_manifest.coverage_gate_passed
     eval_gate_passed = eval_manifest.overall_passed
+    spawned_validator_gate_matches_state = None
+    spawned_validator_gate_passed = None
+    release_validation_mode = "deterministic_eval_only"
+    binding_spawned_validator_gate_ok = True
+    if spawned_validator_gate_manifest is not None:
+        spawned_validator_catalog_path = str(
+            Path(spawned_validator_gate_manifest.catalog_path).resolve()
+        )
+        spawned_validator_gate_matches_state = (
+            spawned_validator_catalog_path == snapshot_catalog_path
+            and spawned_validator_gate_manifest.corpus_state_id == snapshot["corpus_state_id"]
+            and spawned_validator_gate_manifest.runtime_contract_version
+            == runtime_contract_version
+        )
+        spawned_validator_gate_passed = _validated_spawned_validator_gate_passed(
+            spawned_validator_gate_manifest
+        )
+        spawned_validator_gate_is_release_gate = (
+            spawned_validator_gate_manifest.gate_target == _RELEASE_GATE_TARGET
+        )
+        if promote_spawned_validator_gate:
+            release_validation_mode = "deterministic_eval_plus_binding_spawned_validator"
+            binding_spawned_validator_gate_ok = bool(
+                spawned_validator_gate_matches_state
+                and spawned_validator_gate_passed
+                and spawned_validator_gate_is_release_gate
+            )
+        else:
+            release_validation_mode = "deterministic_eval_plus_supplemental_spawned_validator"
     validated = (
         coverage_gate_passed is True
         and eval_gate_passed
         and current_catalog_matches_eval_gate
         and current_runtime_matches_eval_gate
+        and binding_spawned_validator_gate_ok
     )
     supplemental_matches_state = None
     supplemental_run_id = None
@@ -196,6 +247,7 @@ def build_validated_current_state_report(
     return ValidatedCurrentStateReport(
         report_version="validated_current_state.v1",
         binding_gate_surface=eval_manifest.binding_gate_surface,
+        release_validation_mode=release_validation_mode,
         validated=validated,
         catalog_path=snapshot_catalog_path,
         corpus_state_id=snapshot["corpus_state_id"],
@@ -223,7 +275,14 @@ def build_validated_current_state_report(
             if corpus_selection_summary_path is not None
             else None
         ),
+        spawned_validator_gate_passed=spawned_validator_gate_passed,
         binding_review_samples=binding_review_samples,
+        spawned_validator_gate_manifest_path=(
+            str(spawned_validator_gate_manifest_path.resolve())
+            if spawned_validator_gate_manifest_path is not None
+            else None
+        ),
+        spawned_validator_gate_matches_state=spawned_validator_gate_matches_state,
         supplemental_real_question_pack_manifest_path=(
             str(real_question_pack_manifest_path.resolve())
             if real_question_pack_manifest_path is not None
@@ -250,6 +309,7 @@ def render_validated_current_state_report_md(
     lines.append("")
     lines.append(f"**Overall:** {overall}")
     lines.append(f"**Binding gate surface:** `{report.binding_gate_surface}`")
+    lines.append(f"**Release validation mode:** `{report.release_validation_mode}`")
     lines.append(f"**Corpus state:** `{report.corpus_state_id}`")
     lines.append(f"**Runtime contract:** `{report.runtime_contract_version}`")
     lines.append("")
@@ -284,6 +344,19 @@ def render_validated_current_state_report_md(
         "- Current runtime matches eval gate: "
         + ("yes" if report.current_runtime_matches_eval_gate else "no")
     )
+    if report.spawned_validator_gate_passed is not None:
+        lines.append(
+            "- Spawned-validator gate passed: "
+            + ("yes" if report.spawned_validator_gate_passed else "no")
+        )
+        lines.append(
+            "- Spawned-validator gate matches current state: "
+            + (
+                "yes"
+                if report.spawned_validator_gate_matches_state
+                else "no"
+            )
+        )
     if report.binding_review_samples:
         lines.append("")
         lines.append("## Binding review samples")
@@ -315,10 +388,30 @@ def render_validated_current_state_report_md(
         lines.append(f"- Corpus coverage summary: `{report.corpus_coverage_summary_path}`")
     if report.corpus_selection_summary_path:
         lines.append(f"- Corpus selection summary: `{report.corpus_selection_summary_path}`")
+    if report.spawned_validator_gate_manifest_path and not report.release_validation_mode.endswith(
+        "supplemental_spawned_validator"
+    ):
+        lines.append(
+            "- Spawned-validator gate manifest: "
+            f"`{report.spawned_validator_gate_manifest_path}`"
+        )
     if report.supplemental_real_question_pack_manifest_path:
         lines.append("")
         lines.append("## Supplemental evidence")
         lines.append("")
+        if report.spawned_validator_gate_manifest_path:
+            lines.append(
+                "- Spawned-validator gate manifest: "
+                f"`{report.spawned_validator_gate_manifest_path}`"
+            )
+            lines.append(
+                "- Spawned-validator gate matches current state: "
+                + (
+                    "yes"
+                    if report.spawned_validator_gate_matches_state
+                    else "no"
+                )
+            )
         lines.append(
             f"- Real-question pack manifest: `{report.supplemental_real_question_pack_manifest_path}`"
         )
@@ -327,6 +420,24 @@ def render_validated_current_state_report_md(
             + (
                 "yes"
                 if report.supplemental_real_question_pack_matches_state
+                else "no"
+            )
+        )
+    elif report.spawned_validator_gate_manifest_path and report.release_validation_mode.endswith(
+        "supplemental_spawned_validator"
+    ):
+        lines.append("")
+        lines.append("## Supplemental evidence")
+        lines.append("")
+        lines.append(
+            "- Spawned-validator gate manifest: "
+            f"`{report.spawned_validator_gate_manifest_path}`"
+        )
+        lines.append(
+            "- Matches current state: "
+            + (
+                "yes"
+                if report.spawned_validator_gate_matches_state
                 else "no"
             )
         )

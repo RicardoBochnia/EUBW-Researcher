@@ -97,7 +97,7 @@ Goal:
 - extend the current trust surface with a reusable second-pass validation gate without turning the product into a multi-agent system
 
 Items:
-- [#14](https://github.com/RicardoBochnia/EUBW-Researcher/issues/14) generalize the Codex spawned validator into an optional high-risk and release gate
+- [x] [#14](https://github.com/RicardoBochnia/EUBW-Researcher/issues/14) generalize the Codex spawned validator into an optional high-risk and release gate
 
 Why here:
 - the spawned-validator pattern is already proven in Scenario D closeout

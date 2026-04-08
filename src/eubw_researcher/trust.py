@@ -197,6 +197,8 @@ def build_blind_validation_report(result: TrustResultLike) -> BlindValidationRep
 def merge_spawned_validator_result(
     structural_report: BlindValidationReport,
     spawned_validator: SpawnedValidatorResult,
+    *,
+    validation_mode: str = "structural_plus_spawned_validator_closeout",
 ) -> BlindValidationReport:
     # Older structural reports may predate the explicit structural_passed field,
     # so preserve backwards compatibility by falling back to the original
@@ -241,7 +243,7 @@ def merge_spawned_validator_result(
     return BlindValidationReport(
         question=structural_report.question,
         intent_type=structural_report.intent_type,
-        validation_mode="structural_plus_spawned_validator_closeout",
+        validation_mode=validation_mode,
         artifacts_used=artifacts_used,
         raw_document_reads=spawned_validator.raw_document_reads,
         raw_document_dependency=raw_document_dependency,
