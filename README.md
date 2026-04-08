@@ -35,7 +35,7 @@ Validator contract for the closeout harness:
 ## Notes
 
 - The repository is V2-backend-only by design: no UI, no persistent provenance graph, and no multi-agent orchestration.
-- Pull-request CI now runs unit tests by default, adds integration and closeout suites only when relevant files change, and reserves `python3 scripts/run_tests.py` for the full-confidence workflow on `main`, schedule, or manual dispatch.
+- Pull-request CI now uses a cheap routing step on every PR, runs the unit suite only when runtime-relevant files changed, adds integration and closeout suites when their owned surfaces change, and reserves `python3 scripts/run_tests.py` for every push to `main`, scheduled validation, or manual dispatch.
 - Real-corpus refresh is user-triggered: `scripts/refresh_real_corpus.py` checks configured archive entries against their stored canonical source URLs, stages changed candidates under `artifacts/real_corpus/refresh_staging`, and only updates the accepted archive when run with `--apply`.
 - Refresh governance decision: refresh is intentionally not governed by the open-web discovery allowlist. Discovery stays allowlist-only and path-gated for finding new sources; refresh is limited to already accepted corpus entries and may only re-check the exact stored `canonical_url` for those entries. No discovery, link-following, alternate-source search, or silent source replacement is allowed in the refresh workflow.
 - Config files under `configs/` use YAML-compatible JSON so no separate YAML parser dependency is required; PDF extraction uses `pypdf`.

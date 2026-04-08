@@ -2,15 +2,6 @@ name: PR Tests
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/**"
-      - "README.md"
-      - "configs/**"
-      - "pyproject.toml"
-      - "scripts/**"
-      - "src/**"
-      - "tests/**"
-      - "tests_closeout/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,6 +14,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
+      run_ci: ${{ steps.detect.outputs.run_ci }}
       run_integration: ${{ steps.detect.outputs.run_integration }}
       run_closeout: ${{ steps.detect.outputs.run_closeout }}
 
@@ -34,32 +26,26 @@ jobs:
 
       - name: Detect impacted test suites
         id: detect
-        shell: bash
         run: |
-          changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
-          integration_pattern='^(configs/|scripts/(_test_runner\.py|answer_question\.py|build_real_corpus_catalog\.py|refresh_real_corpus\.py|report_validated_current_state\.py|run_eval\.py|run_integration_tests\.py|run_real_question_pack\.py|run_tests\.py)|src/eubw_researcher/|tests/integration/)'
-          closeout_pattern='^(scripts/(_test_runner\.py|report_validated_current_state\.py|run_closeout_tests\.py|run_scenario_d_closeout\.py|run_spawned_validator_gate\.py|run_tests\.py)|src/eubw_researcher/(corpus/reporting\.py|evaluation/)|tests/unit/(test_evaluation_closeout\.py|test_validated_current_state\.py)|tests_closeout/)'
+          python3 scripts/route_pr_test_suites.py \
+            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --github-output "$GITHUB_OUTPUT"
 
-          echo "Changed files:"
-          printf '%s\n' "$changed_files"
-
-          run_integration=false
-          if printf '%s\n' "$changed_files" | grep -Eq "$integration_pattern"; then
-            run_integration=true
-          fi
-
-          run_closeout=false
-          if printf '%s\n' "$changed_files" | grep -Eq "$closeout_pattern"; then
-            run_closeout=true
-          fi
-
-          echo "run_integration=$run_integration" >> "$GITHUB_OUTPUT"
-          echo "run_closeout=$run_closeout" >> "$GITHUB_OUTPUT"
+  no-runtime-changes:
+    name: No runtime test suites required
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.run_ci != 'true'
+    steps:
+      - name: Explain why test jobs were skipped
+        run: echo "No runtime-relevant files changed; skipping test suites."
 
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
     needs: detect-changes
+    if: needs.detect-changes.outputs.run_ci == 'true'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
