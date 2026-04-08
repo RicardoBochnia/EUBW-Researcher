@@ -269,8 +269,7 @@ class WebAllowlistConfig:
                 continue
             if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
                 continue
-            if policy.source_kind == source_kind:
-                urls.extend(policy.seed_urls)
+            urls.extend(policy.seed_urls)
         return urls
 
     def discovery_urls_for_kind(
@@ -285,8 +284,7 @@ class WebAllowlistConfig:
                 continue
             if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
                 continue
-            if policy.source_kind == source_kind:
-                urls.extend(policy.discovery_urls)
+            urls.extend(policy.discovery_urls)
         return urls
 
 

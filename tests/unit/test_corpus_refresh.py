@@ -653,8 +653,11 @@ class CorpusRefreshTests(unittest.TestCase):
                     apply_updates=True,
                 )
 
-                result = report.results[0]
-                self.assertEqual(result.status, "staged_successor")
+                self.assertEqual(report.checked_sources, 1)
+                self.assertEqual(report.current_sources, 1)
+                self.assertEqual(report.changed_sources, 1)
+                self.assertEqual([item.status for item in report.results], ["current", "staged_successor"])
+                result = report.results[1]
                 self.assertFalse(result.applied)
                 self.assertEqual(
                     result.selected_successor_candidate_url,
@@ -757,8 +760,14 @@ class CorpusRefreshTests(unittest.TestCase):
                     config_path=config_path,
                 )
 
-                result = report.results[0]
-                self.assertEqual(result.status, "ambiguous_successor_candidates")
+                self.assertEqual(report.checked_sources, 1)
+                self.assertEqual(report.current_sources, 1)
+                self.assertEqual(report.changed_sources, 1)
+                self.assertEqual(
+                    [item.status for item in report.results],
+                    ["current", "ambiguous_successor_candidates"],
+                )
+                result = report.results[1]
                 self.assertEqual(
                     result.matching_successor_candidate_urls,
                     [

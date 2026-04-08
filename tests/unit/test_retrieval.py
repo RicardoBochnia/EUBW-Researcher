@@ -96,6 +96,13 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(len(intent.claim_targets), 3)
         self.assertEqual(intent.preferred_kinds[0], SourceKind.IMPLEMENTING_ACT)
 
+    def test_single_certificate_question_does_not_route_to_certificate_comparison(self) -> None:
+        intent = analyze_query(
+            "What requirements apply to a wallet-relying party access certificate?"
+        )
+        self.assertEqual(intent.intent_type, "certificate_layer_analysis")
+        self.assertNotEqual(intent.intent_type, "relying_party_certificate_requirements")
+
     def test_analyze_query_classifies_certificate_topology_anchor_question(self) -> None:
         intent = analyze_query(
             "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?"

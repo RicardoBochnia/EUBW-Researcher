@@ -324,6 +324,8 @@ def _apply_document_status_cap(
         return final_state
     if target.claim_type not in {ClaimType.OBLIGATION, ClaimType.ALLOWANCE}:
         return final_state
+    if not governing_matches and not support_matches:
+        return final_state
     governing_support = governing_matches[0] if governing_matches else support_matches[0]
     if governing_support.candidate.chunk.document_status in {
         DocumentStatus.DRAFT,

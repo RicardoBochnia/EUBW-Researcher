@@ -289,7 +289,7 @@ class CorpusRuntimeTests(unittest.TestCase):
                     ),
                     SourceCatalogEntry(
                         source_id="de_law_bmv_eidas",
-                        title="BMV eIDAS Durchfuehrungsgesetz",
+                        title="BMV eIDAS Durchführungsgesetz",
                         source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
                         source_role_level=SourceRoleLevel.MEDIUM,
                         jurisdiction="DE",
@@ -325,7 +325,7 @@ class CorpusRuntimeTests(unittest.TestCase):
                     ),
                     SourceCatalogEntry(
                         source_id="de_wallet_implementation_note",
-                        title="Deutschland EUDI Wallet Umsetzung",
+                        title="Deutschland EUDI Wallet Digitale Identität Umsetzung",
                         source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
                         source_role_level=SourceRoleLevel.MEDIUM,
                         jurisdiction="DE",

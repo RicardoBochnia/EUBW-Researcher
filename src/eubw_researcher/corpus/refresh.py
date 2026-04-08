@@ -124,6 +124,34 @@ def _record_current_result(
     )
 
 
+def _append_successor_result_if_any(
+    results: list[ArchiveRefreshResult],
+    *,
+    selection,
+    runtime_config: RuntimeConfig,
+    stage_root: Path,
+    archive_root: Path,
+    local_path: Path,
+    canonical_url: str,
+    checked_at: str,
+    local_exists: bool,
+    local_content_digest: Optional[str],
+) -> None:
+    successor_result = _maybe_stage_successor_result(
+        selection=selection,
+        runtime_config=runtime_config,
+        stage_root=stage_root,
+        archive_root=archive_root,
+        local_path=local_path,
+        canonical_url=canonical_url,
+        checked_at=checked_at,
+        local_exists=local_exists,
+        local_content_digest=local_content_digest,
+    )
+    if successor_result is not None:
+        results.append(successor_result)
+
+
 def _should_check_successor_candidates(selection) -> bool:
     return (
         selection.document_status
@@ -380,7 +408,8 @@ def refresh_archive_sources(
                     remote_etag=remote_etag,
                     remote_last_modified=remote_last_modified,
                 )
-                successor_result = _maybe_stage_successor_result(
+                _append_successor_result_if_any(
+                    results,
                     selection=selection,
                     runtime_config=runtime_config,
                     stage_root=stage_root,
@@ -391,8 +420,6 @@ def refresh_archive_sources(
                     local_exists=local_exists,
                     local_content_digest=local_content_digest,
                 )
-                if successor_result is not None:
-                    results[-1] = successor_result
                 continue
 
             try:
@@ -444,7 +471,8 @@ def refresh_archive_sources(
                 remote_last_modified=remote_last_modified,
                 content_type=content_type,
             )
-            successor_result = _maybe_stage_successor_result(
+            _append_successor_result_if_any(
+                results,
                 selection=selection,
                 runtime_config=runtime_config,
                 stage_root=stage_root,
@@ -455,8 +483,6 @@ def refresh_archive_sources(
                 local_exists=local_exists,
                 local_content_digest=local_content_digest,
             )
-            if successor_result is not None:
-                results[-1] = successor_result
             continue
 
         stage_path = _stage_candidate(stage_root, config.archive_root, local_path, raw_bytes)
@@ -531,7 +557,7 @@ def refresh_archive_sources(
         stage_root=str(stage_root.resolve()),
         generated_at=datetime.now(timezone.utc).isoformat(),
         apply_updates=apply_updates,
-        checked_sources=len(results),
+        checked_sources=len(config.sources),
         refreshable_sources=refreshable_sources,
         current_sources=current_sources,
         changed_sources=changed_sources,

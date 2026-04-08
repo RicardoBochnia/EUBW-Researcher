@@ -20,6 +20,7 @@ from eubw_researcher.models import (
     SourceKind,
     dataclass_to_dict,
 )
+from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
 
 def is_real_corpus_catalog(catalog_path: Optional[Path]) -> bool:
@@ -59,14 +60,14 @@ def _entry_is_admitted(entry) -> bool:
 
 
 def _matches_arf(entry: SourceCatalogEntry) -> bool:
-    lowered = f"{entry.source_id} {entry.title}".lower()
+    lowered = normalize_text_for_matching(f"{entry.source_id} {entry.title}")
     return "arf" in lowered or "architecture and reference framework" in lowered
 
 
 def _matches_rp_project(entry: SourceCatalogEntry) -> bool:
     if entry.source_kind != SourceKind.PROJECT_ARTIFACT:
         return False
-    lowered = f"{entry.source_id} {entry.title}".lower()
+    lowered = normalize_text_for_matching(f"{entry.source_id} {entry.title}")
     return any(
         token in lowered
         for token in [
@@ -83,7 +84,7 @@ def _matches_rp_project(entry: SourceCatalogEntry) -> bool:
 def _matches_germany_legal_or_legislative(entry: SourceCatalogEntry) -> bool:
     if entry.jurisdiction != "DE":
         return False
-    lowered = f"{entry.source_id} {entry.title}".lower()
+    lowered = normalize_text_for_matching(f"{entry.source_id} {entry.title}")
     return any(
         token in lowered
         for token in [
@@ -100,7 +101,7 @@ def _matches_germany_legal_or_legislative(entry: SourceCatalogEntry) -> bool:
 def _matches_germany_wallet_delivery(entry: SourceCatalogEntry) -> bool:
     if entry.jurisdiction != "DE":
         return False
-    lowered = f"{entry.source_id} {entry.title}".lower()
+    lowered = normalize_text_for_matching(f"{entry.source_id} {entry.title}")
     return entry.source_kind == SourceKind.PROJECT_ARTIFACT or any(
         token in lowered
         for token in [
@@ -108,7 +109,7 @@ def _matches_germany_wallet_delivery(entry: SourceCatalogEntry) -> bool:
             "sprind",
             "wallet",
             "eudi",
-            "digitale identitat",
+            "digitale identitaet",
             "digitale brieftasche",
         ]
     )

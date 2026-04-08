@@ -6,12 +6,19 @@ from pathlib import Path
 from unittest.mock import patch
 
 from eubw_researcher.config import load_runtime_config, load_web_allowlist
-from eubw_researcher.models import SourceKind, SourceRoleLevel, WebAllowlistConfig, WebDomainPolicy
+from eubw_researcher.models import (
+    DocumentStatus,
+    SourceKind,
+    SourceRoleLevel,
+    WebAllowlistConfig,
+    WebDomainPolicy,
+)
 from eubw_researcher.web import validate_domain
 from eubw_researcher.web.fetch import (
     _admissible_document_policy,
     _discover_candidate_urls,
     _followable_discovery_link,
+    _infer_document_status,
 )
 
 
@@ -76,6 +83,34 @@ class WebAllowlistTests(unittest.TestCase):
             "https://dserver.bundestag.de/btd/21/041/2104115.pdf",
             germany_seeds,
         )
+
+    def test_infer_document_status_marks_bmv_refe_page_as_draft(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+            policy,
+            "Referentenentwurf eIDAS-Durchführungsgesetz",
+            "Der Referentenentwurf befindet sich in der Ressortabstimmung.",
+        )
+
+        self.assertEqual(status, DocumentStatus.DRAFT)
+
+    def test_infer_document_status_marks_bundestag_bill_as_proposal(self) -> None:
+        policy = self.allowlist.policy_for_domain("dserver.bundestag.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://dserver.bundestag.de/btd/21/041/2104115.pdf",
+            policy,
+            "Gesetzentwurf zur digitalen Identität",
+            "Entwurf eines Gesetzes zur digitalen Identität in Deutschland.",
+        )
+
+        self.assertEqual(status, DocumentStatus.PROPOSAL)
 
     def test_admissible_document_policy_enforces_path_prefixes_and_blocked_keywords(self) -> None:
         policy = self.allowlist.policy_for_domain("openid.net")

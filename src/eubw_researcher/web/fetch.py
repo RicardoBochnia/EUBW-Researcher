@@ -24,6 +24,7 @@ from eubw_researcher.models import (
     WebAllowlistConfig,
     WebFetchRecord,
 )
+from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 from eubw_researcher.web.allowlist import normalize_domain, validate_domain
 
 
@@ -216,6 +217,54 @@ def _default_title_for_url(url: str) -> str:
     if not slug:
         slug = parsed.hostname or "official source"
     return re.sub(r"\s+", " ", slug).title()
+
+
+def _infer_document_status(
+    url: str,
+    policy,
+    title: str,
+    normalized_text: str,
+) -> DocumentStatus:
+    if policy.source_kind in {
+        SourceKind.REGULATION,
+        SourceKind.IMPLEMENTING_ACT,
+        SourceKind.TECHNICAL_STANDARD,
+    }:
+        return DocumentStatus.FINAL
+
+    combined = normalize_text_for_matching(f"{url} {title} {normalized_text}")
+    if "lobbyregister" in combined or "stellungnahme" in combined:
+        return DocumentStatus.INFORMATIONAL
+
+    if policy.source_kind == SourceKind.NATIONAL_IMPLEMENTATION:
+        if any(marker in combined for marker in ["noch nicht in kraft", "not yet effective", "noch nicht wirksam"]):
+            return DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE
+        if any(
+            marker in combined
+            for marker in [
+                "referentenentwurf",
+                " refe ",
+                "refe ",
+                "refe)",
+                "draft law",
+                "draft bill",
+            ]
+        ):
+            return DocumentStatus.DRAFT
+        if any(
+            marker in combined
+            for marker in [
+                "gesetzentwurf",
+                "entwurf eines gesetzes",
+                "proposal for a regulation",
+                "proposal for a law",
+            ]
+        ):
+            return DocumentStatus.PROPOSAL
+        if any(marker in combined for marker in ["in kraft", "entered into force", "verkuendet", "verkundet"]):
+            return DocumentStatus.FINAL
+
+    return DocumentStatus.INFORMATIONAL
 
 
 def _content_digest(raw_bytes: bytes) -> str:
@@ -804,15 +853,11 @@ def fetch_and_normalize_official_sources(
                 publication_date=None,
                 local_path=None,
                 canonical_url=url,
-                document_status=(
-                    DocumentStatus.FINAL
-                    if policy.source_kind
-                    in {
-                        SourceKind.REGULATION,
-                        SourceKind.IMPLEMENTING_ACT,
-                        SourceKind.TECHNICAL_STANDARD,
-                    }
-                    else DocumentStatus.INFORMATIONAL
+                document_status=_infer_document_status(
+                    url,
+                    policy,
+                    title,
+                    normalized_text,
                 ),
                 source_origin=SourceOrigin.WEB,
                 anchorability_hints=_anchorability_hints_for_web_content(content_type, url),

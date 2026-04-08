@@ -330,12 +330,14 @@ def _germany_wallet_targets() -> List[ClaimTarget]:
             claim_type=ClaimType.SYNTHESIS,
             required_source_role_level=SourceRoleLevel.MEDIUM,
             preferred_kinds=[SourceKind.NATIONAL_IMPLEMENTATION],
-            scope_terms=["germany", "deutschland", "gesetz", "wallet"],
+            scope_terms=["germany", "deutschland", "gesetz", "eidas", "durchführungsgesetz"],
             primary_terms=["germany", "law", "draft", "wallet"],
             support_groups=[
-                ["deutschland", "wallet"],
-                ["gesetz", "digitale identitat"],
-                ["eidas", "durchfuhrungsgesetz"],
+                ["referentenentwurf", "eidas"],
+                ["gesetzentwurf", "eidas"],
+                ["durchführungsgesetz", "eidas"],
+                ["gesetz", "digitale identität"],
+                ["ressortabstimmung", "eidas"],
             ],
             contradiction_groups=[["final law already in force"]],
             grouping_label="Germany implementation path",
@@ -348,13 +350,13 @@ def _germany_wallet_targets() -> List[ClaimTarget]:
             ),
             claim_type=ClaimType.SYNTHESIS,
             required_source_role_level=SourceRoleLevel.MEDIUM,
-            preferred_kinds=[SourceKind.NATIONAL_IMPLEMENTATION],
+            preferred_kinds=[SourceKind.PROJECT_ARTIFACT, SourceKind.NATIONAL_IMPLEMENTATION],
             scope_terms=["sprind", "wallet", "germany"],
             primary_terms=["sprind", "prototype", "wallet", "development"],
             support_groups=[
                 ["sprind", "wallet"],
                 ["sprind", "prototype"],
-                ["sprind", "digitale identitat"],
+                ["sprind", "digitale identität"],
             ],
             contradiction_groups=[["sprind creates binding law"]],
             grouping_label="Germany implementation path",
@@ -372,7 +374,10 @@ def _germany_wallet_targets() -> List[ClaimTarget]:
             primary_terms=["override", "germany", "eu", "implementation"],
             support_groups=[
                 ["does not override", "union"],
-                ["implementation", "germany"],
+                ["does not override", "eu"],
+                ["unionsrecht", "vorrang"],
+                ["eu-recht", "vorrang"],
+                ["union law", "implementation discretion"],
             ],
             contradiction_groups=[["germany overrides eu"]],
             grouping_label="Governance and discretion",
@@ -620,7 +625,8 @@ def _is_relying_party_certificate_question(lowered: str) -> bool:
     tokens = token_set(lowered)
     return (
         _has_business_wallet_subject(lowered, tokens)
-        and _contains_any(lowered, ["registration certificate", "access certificate"])
+        and _contains_any(lowered, ["registration certificate"])
+        and _contains_any(lowered, ["access certificate"])
         and _is_comparison_request(lowered, tokens)
     )
 
@@ -734,10 +740,10 @@ def _is_germany_wallet_implementation_question(lowered: str) -> bool:
             "german",
             "deutschland",
             "deutsch",
-            "digitale identitat",
+            "digitale identitaet",
             "digitale brieftasche",
-            "eidas-durchfuhrungsgesetz",
-            "durchfuhrungsgesetz",
+            "eidas-durchfuehrungsgesetz",
+            "durchfuehrungsgesetz",
         ],
     ) or _token_overlap(tokens, ["sprind", "germany", "deutschland", "deutsch"]) >= 1
     has_wallet_signal = _contains_any(
@@ -747,7 +753,7 @@ def _is_germany_wallet_implementation_question(lowered: str) -> bool:
             "business wallet",
             "eudi",
             "brieftasche",
-            "digitale identitat",
+            "digitale identitaet",
         ],
     ) or _token_overlap(tokens, ["wallet", "eudi", "brieftasche"]) >= 1
     return has_germany_signal and has_wallet_signal
@@ -837,15 +843,6 @@ def analyze_query(question: str) -> QueryIntent:
             ],
         )
 
-    if _is_business_wallet_requirements_question(lowered):
-        return QueryIntent(
-            question=question,
-            intent_type="wallet_requirements_summary",
-            eu_first=eu_first,
-            claim_targets=_wallet_requirements_targets(),
-            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
-        )
-
     if _is_relying_party_registration_information_question(lowered):
         return QueryIntent(
             question=question,
@@ -887,6 +884,15 @@ def analyze_query(question: str) -> QueryIntent:
                 SourceKind.NATIONAL_IMPLEMENTATION,
                 SourceKind.SCIENTIFIC_LITERATURE,
             ],
+        )
+
+    if _is_business_wallet_requirements_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="wallet_requirements_summary",
+            eu_first=eu_first,
+            claim_targets=_wallet_requirements_targets(),
+            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
         )
 
     if _is_arf_boundary_question(lowered):

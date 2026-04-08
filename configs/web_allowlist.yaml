@@ -129,9 +129,9 @@
     },
     {
       "domain": "www.lobbyregister.bundestag.de",
-      "source_kind": "national_implementation",
-      "source_role_level": "medium",
-      "jurisdiction": "DE",
+      "source_kind": "commentary",
+      "source_role_level": "low",
+      "jurisdiction": "unknown",
       "allowed_intent_types": ["germany_wallet_implementation_status"],
       "seed_urls": [
         "https://www.lobbyregister.bundestag.de/inhalte-der-interessenvertretung/stellungnahmengutachtensuche/SG2507180006"

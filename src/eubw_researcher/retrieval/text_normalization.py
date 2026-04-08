@@ -7,13 +7,13 @@ TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 _MATCH_TRANSLATION = str.maketrans(
     {
-        "ä": "a",
-        "ö": "o",
-        "ü": "u",
-        "ß": "s",
-        "Ä": "a",
-        "Ö": "o",
-        "Ü": "u",
+        "ä": "ae",
+        "ö": "oe",
+        "ü": "ue",
+        "ß": "ss",
+        "Ä": "ae",
+        "Ö": "oe",
+        "Ü": "ue",
     }
 )
 
