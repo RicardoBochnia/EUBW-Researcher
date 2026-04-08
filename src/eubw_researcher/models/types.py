@@ -391,6 +391,24 @@ class ClaimTarget:
     grouping_label: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class TerminologyMapping:
+    canonical_term: str
+    aliases: List[str]
+    context_aliases: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TerminologyConfig:
+    mappings: List[TerminologyMapping]
+
+
+@dataclass(frozen=True)
+class AppliedTermNormalization:
+    source_term: str
+    canonical_term: str
+
+
 @dataclass
 class QueryIntent:
     question: str
@@ -413,9 +431,20 @@ class RetrievalPlanStep:
 
 
 @dataclass
+class RetrievalTargetQuery:
+    target_id: str
+    raw_query: str
+    normalized_query: str
+    applied_term_normalizations: List[AppliedTermNormalization] = field(default_factory=list)
+
+
+@dataclass
 class RetrievalPlan:
     question: str
-    steps: List[RetrievalPlanStep]
+    normalized_question: str
+    question_term_normalizations: List[AppliedTermNormalization] = field(default_factory=list)
+    target_queries: List[RetrievalTargetQuery] = field(default_factory=list)
+    steps: List[RetrievalPlanStep] = field(default_factory=list)
 
 
 @dataclass

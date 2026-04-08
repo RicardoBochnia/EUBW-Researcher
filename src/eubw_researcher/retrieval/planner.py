@@ -9,12 +9,17 @@ from eubw_researcher.models import (
     QueryIntent,
     RetrievalPlan,
     RetrievalPlanStep,
+    RetrievalTargetQuery,
     RuntimeConfig,
     SourceHierarchyConfig,
     SourceKind,
     SourceRoleLevel,
+    TerminologyConfig,
 )
-from eubw_researcher.retrieval.terminology import normalize_query_terms
+from eubw_researcher.retrieval.terminology import (
+    explain_query_term_normalization,
+    normalize_query_terms,
+)
 
 
 def _contains_any(text: str, terms: List[str]) -> bool:
@@ -668,8 +673,8 @@ def _arf_boundary_targets() -> List[ClaimTarget]:
     ]
 
 
-def analyze_query(question: str) -> QueryIntent:
-    lowered = normalize_query_terms(question).lower()
+def analyze_query(question: str, terminology: TerminologyConfig) -> QueryIntent:
+    lowered = normalize_query_terms(question, terminology).lower()
     tokens = _token_set(lowered)
     eu_first = True
 
@@ -803,12 +808,46 @@ def analyze_query(question: str) -> QueryIntent:
     )
 
 
+def build_target_query_text(question: str, target: ClaimTarget) -> str:
+    support_terms = [" ".join(group) for group in target.support_groups]
+    return " ".join(
+        [
+            question,
+            target.claim_text,
+            " ".join(target.scope_terms),
+            " ".join(target.primary_terms),
+            " ".join(support_terms),
+        ]
+    )
+
+
 def build_retrieval_plan(
     query_intent: QueryIntent,
     hierarchy: SourceHierarchyConfig,
     runtime_config: RuntimeConfig,
+    terminology: TerminologyConfig,
 ) -> RetrievalPlan:
     hierarchy_kinds = [rule.source_kind for rule in sorted(hierarchy.rules, key=lambda item: item.rank)]
+    normalized_question = normalize_query_terms(query_intent.question, terminology)
+    question_term_normalizations = explain_query_term_normalization(
+        query_intent.question,
+        terminology,
+    )
+    target_queries = [
+        RetrievalTargetQuery(
+            target_id=target.target_id,
+            raw_query=build_target_query_text(query_intent.question, target),
+            normalized_query=normalize_query_terms(
+                build_target_query_text(query_intent.question, target),
+                terminology,
+            ),
+            applied_term_normalizations=explain_query_term_normalization(
+                build_target_query_text(query_intent.question, target),
+                terminology,
+            ),
+        )
+        for target in query_intent.claim_targets
+    ]
 
     if query_intent.eu_first:
         # In EU-first mode, query preferences must not pull lower-ranked material
@@ -832,4 +871,10 @@ def build_retrieval_plan(
         )
         for index, kind in enumerate(kinds)
     ]
-    return RetrievalPlan(question=query_intent.question, steps=steps)
+    return RetrievalPlan(
+        question=query_intent.question,
+        normalized_question=normalized_question,
+        question_term_normalizations=question_term_normalizations,
+        target_queries=target_queries,
+        steps=steps,
+    )

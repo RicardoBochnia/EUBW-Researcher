@@ -11,6 +11,7 @@ from eubw_researcher.config import (
     load_real_question_pack,
     load_runtime_config,
     load_source_hierarchy,
+    load_terminology_config,
     load_web_allowlist,
 )
 
@@ -35,6 +36,7 @@ class ConfigLoadingTests(unittest.TestCase):
         real_question_pack = load_real_question_pack(
             REPO_ROOT / "configs" / "real_question_pack.yaml"
         )
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
 
         self.assertEqual(runtime.retrieval_top_k, 5)
         self.assertEqual(runtime.web_discovery_max_depth, 1)
@@ -127,6 +129,77 @@ class ConfigLoadingTests(unittest.TestCase):
             ],
         )
         self.assertTrue(all(question.review_prompts for question in real_question_pack.questions))
+        self.assertEqual(len(terminology.mappings), 5)
+        self.assertEqual(terminology.mappings[0].canonical_term, "business wallet")
+        self.assertEqual(terminology.mappings[0].aliases, ["eu business wallet", "eubw"])
+
+    def test_terminology_config_rejects_duplicate_canonical_terms(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "mappings": [
+                            {
+                                "canonical_term": "business wallet",
+                                "aliases": ["eubw"],
+                            },
+                            {
+                                "canonical_term": "Business Wallet",
+                                "aliases": ["eu business wallet"],
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "duplicate canonical_term"):
+                load_terminology_config(terminology_path)
+
+    def test_terminology_config_rejects_blank_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "mappings": [
+                            {
+                                "canonical_term": "business wallet",
+                                "aliases": ["   "],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "blank alias"):
+                load_terminology_config(terminology_path)
+
+    def test_terminology_config_rejects_alias_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            terminology_path = Path(tmp_dir) / "terminology.json"
+            terminology_path.write_text(
+                json.dumps(
+                    {
+                        "mappings": [
+                            {
+                                "canonical_term": "business wallet",
+                                "aliases": ["eubw"],
+                            },
+                            {
+                                "canonical_term": "wallet-relying party",
+                                "aliases": ["EUBW"],
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "reuses trigger term 'EUBW'"):
+                load_terminology_config(terminology_path)
 
     def test_real_question_pack_rejects_duplicate_question_ids(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -120,7 +120,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         )
         return SimpleNamespace(
             contract_version="option_a_runtime.v2",
-            result_schema_version="agent_runtime_result.v1",
+            result_schema_version="agent_runtime_result.v2",
             catalog_path=resolved_catalog_path,
             corpus_state_id="synthetic-state",
             output_dir=output_dir.resolve(),

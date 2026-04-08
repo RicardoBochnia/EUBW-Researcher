@@ -1,0 +1,36 @@
+{
+  "mappings": [
+    {
+      "canonical_term": "business wallet",
+      "aliases": ["eu business wallet", "eubw"]
+    },
+    {
+      "canonical_term": "wallet-relying party",
+      "aliases": [
+        "wallet relying party",
+        "wallet relying-party",
+        "wallet-relying-party"
+      ]
+    },
+    {
+      "canonical_term": "authorization server",
+      "aliases": ["authorisation server"]
+    },
+    {
+      "canonical_term": "registration certificate",
+      "aliases": ["registration cert"]
+    },
+    {
+      "canonical_term": "access certificate",
+      "aliases": ["access cert"],
+      "context_aliases": [
+        "business wallet",
+        "eu business wallet",
+        "eubw",
+        "wallet-relying party",
+        "wallet relying party",
+        "wallet-relying-party"
+      ]
+    }
+  ]
+}

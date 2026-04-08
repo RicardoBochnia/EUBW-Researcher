@@ -19,6 +19,8 @@ from eubw_researcher.models import (
     SourceKind,
     SourceOrigin,
     SourceRoleLevel,
+    TerminologyConfig,
+    TerminologyMapping,
     WebDomainPolicy,
     WebAllowlistConfig,
 )
@@ -147,6 +149,103 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
         web_max_admitted_per_domain=int(retrieval.get("web_max_admitted_per_domain", 10)),
         web_max_admitted_per_run=int(retrieval.get("web_max_admitted_per_run", 25)),
     )
+
+
+def load_terminology_config(path: Path) -> TerminologyConfig:
+    payload = _load_json_yaml(path)
+    raw_mappings = payload.get("mappings")
+    if not isinstance(raw_mappings, list):
+        raise ValueError(f"Terminology config must define a list 'mappings': {path}")
+
+    seen_canonical_terms: dict[str, str] = {}
+    seen_trigger_terms: dict[str, str] = {}
+    mappings: list[TerminologyMapping] = []
+
+    for index, item in enumerate(raw_mappings, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"Terminology mapping #{index} must be an object with canonical_term and aliases: {path}"
+            )
+        canonical_term = _optional_stripped(item.get("canonical_term"))
+        if canonical_term is None:
+            raise ValueError(f"Terminology mapping #{index} is missing canonical_term: {path}")
+
+        canonical_key = canonical_term.casefold()
+        if canonical_key in seen_canonical_terms:
+            raise ValueError(
+                f"Terminology config contains duplicate canonical_term '{canonical_term}': {path}"
+            )
+        seen_canonical_terms[canonical_key] = canonical_term
+
+        raw_aliases = item.get("aliases")
+        if not isinstance(raw_aliases, list):
+            raise ValueError(
+                f"Terminology mapping '{canonical_term}' must define a list 'aliases': {path}"
+            )
+        aliases: list[str] = []
+        seen_mapping_aliases: set[str] = set()
+        for raw_alias in raw_aliases:
+            alias = _optional_stripped(raw_alias)
+            if alias is None:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains a blank alias: {path}"
+                )
+            alias_key = alias.casefold()
+            if alias_key == canonical_key:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' must not repeat the canonical term as an alias: {path}"
+                )
+            if alias_key in seen_mapping_aliases:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains duplicate alias '{alias}': {path}"
+                )
+            seen_mapping_aliases.add(alias_key)
+            aliases.append(alias)
+
+        if not aliases:
+            raise ValueError(
+                f"Terminology mapping '{canonical_term}' must define at least one alias: {path}"
+            )
+
+        raw_context_aliases = item.get("context_aliases", [])
+        if not isinstance(raw_context_aliases, list):
+            raise ValueError(
+                f"Terminology mapping '{canonical_term}' must define list context_aliases when present: {path}"
+            )
+        context_aliases: list[str] = []
+        seen_context_aliases: set[str] = set()
+        for raw_context_alias in raw_context_aliases:
+            context_alias = _optional_stripped(raw_context_alias)
+            if context_alias is None:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains a blank context alias: {path}"
+                )
+            context_key = context_alias.casefold()
+            if context_key in seen_context_aliases:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains duplicate context alias '{context_alias}': {path}"
+                )
+            seen_context_aliases.add(context_key)
+            context_aliases.append(context_alias)
+
+        for trigger_term in [canonical_term, *aliases]:
+            trigger_key = trigger_term.casefold()
+            existing = seen_trigger_terms.get(trigger_key)
+            if existing is not None and existing != canonical_term:
+                raise ValueError(
+                    f"Terminology config reuses trigger term '{trigger_term}' for both '{existing}' and '{canonical_term}': {path}"
+                )
+            seen_trigger_terms[trigger_key] = canonical_term
+
+        mappings.append(
+            TerminologyMapping(
+                canonical_term=canonical_term,
+                aliases=aliases,
+                context_aliases=context_aliases,
+            )
+        )
+
+    return TerminologyConfig(mappings=mappings)
 
 
 def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:

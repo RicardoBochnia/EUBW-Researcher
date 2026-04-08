@@ -675,7 +675,11 @@ class WriteArtifactBundleCoverageTests(unittest.TestCase):
         result.query_intent = SimpleNamespace(intent_type="synthetic_intent", claim_targets=[])
         # write_artifact_bundle serializes retrieval_plan via dataclass_to_dict;
         # replace the SimpleNamespace with a proper serializable dataclass
-        result.retrieval_plan = RetrievalPlan(question="Synthetic question?", steps=[])
+        result.retrieval_plan = RetrievalPlan(
+            question="Synthetic question?",
+            normalized_question="Synthetic question?",
+            steps=[],
+        )
         result.ledger_entries = []
         result.approved_entries = []
         result.ingestion_report = []
