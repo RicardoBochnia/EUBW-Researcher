@@ -25,6 +25,22 @@ _KIND_ORDER: List[SourceKind] = list(SourceKind)
 _RELEASE_GATE_TARGET = "release_gate"
 
 
+def _validated_spawned_validator_gate_passed(
+    manifest: SpawnedValidatorGateManifest,
+) -> bool:
+    return (
+        bool(manifest.scenario_runs)
+        and manifest.overall_passed
+        and all(
+            item.final_passed
+            and item.spawned_validator_invoked
+            and item.spawned_validator_contract_passed is True
+            and item.spawned_validator_passed is True
+            for item in manifest.scenario_runs
+        )
+    )
+
+
 def render_corpus_selection_summary_md(catalog: SourceCatalog) -> str:
     """Compact markdown listing of all selected sources.
 
@@ -192,7 +208,9 @@ def build_validated_current_state_report(
             and spawned_validator_gate_manifest.runtime_contract_version
             == runtime_contract_version
         )
-        spawned_validator_gate_passed = spawned_validator_gate_manifest.overall_passed
+        spawned_validator_gate_passed = _validated_spawned_validator_gate_passed(
+            spawned_validator_gate_manifest
+        )
         spawned_validator_gate_is_release_gate = (
             spawned_validator_gate_manifest.gate_target == _RELEASE_GATE_TARGET
         )

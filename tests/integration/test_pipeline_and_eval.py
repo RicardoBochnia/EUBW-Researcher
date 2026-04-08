@@ -1141,7 +1141,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     "--catalog",
                     str(REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"),
                     "--validator-command",
-                    f"{fake_validator} --mode minor_confirmation",
+                    f"{fake_validator} --mode assert_bundle_ready",
                     "--output-dir",
                     str(output_dir),
                 ],
@@ -1166,6 +1166,25 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 "high_risk_failure_pattern",
             )
             self.assertTrue(payload["scenario_runs"][0]["spawned_validator_invoked"])
+            request_payload = json.loads(
+                (
+                    output_dir
+                    / "high_risk_failure_pattern"
+                    / "spawned_validator_request.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertNotIn("facet_coverage.json", request_payload["required_artifacts"])
+            blind_validation_payload = json.loads(
+                (
+                    output_dir
+                    / "high_risk_failure_pattern"
+                    / "blind_validation_report.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                blind_validation_payload["validation_mode"],
+                "structural_plus_spawned_validator_gate",
+            )
 
     def test_answer_question_cli_rejects_invalid_output_dir_values(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1477,7 +1496,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 payload["release_validation_mode"],
                 "deterministic_eval_plus_supplemental_spawned_validator",
             )
-            self.assertTrue(payload["spawned_validator_gate_passed"])
+            self.assertFalse(payload["spawned_validator_gate_passed"])
             self.assertEqual(
                 payload["spawned_validator_gate_manifest_path"],
                 str(spawned_manifest_path.resolve()),

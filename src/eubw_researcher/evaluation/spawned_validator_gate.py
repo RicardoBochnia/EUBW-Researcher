@@ -36,6 +36,17 @@ VALIDATOR_ALLOWED_RAW_DOCUMENT_DEPENDENCIES = {
     "minor_confirmation",
     "central_reconstruction",
 }
+_SPAWNED_VALIDATOR_REQUIRED_ARTIFACTS = [
+    "final_answer.txt",
+    "approved_ledger.json",
+    "pinpoint_evidence.json",
+    "answer_alignment.json",
+    "manual_review_report.md",
+]
+_SPAWNED_VALIDATOR_OPTIONAL_REQUIRED_ARTIFACTS = [
+    "facet_coverage.json",
+]
+_SPAWNED_VALIDATOR_GATE_VALIDATION_MODE = "structural_plus_spawned_validator_gate"
 
 
 def _utcnow() -> datetime:
@@ -63,17 +74,14 @@ def _append_corpus_coverage_gate(verdict: ScenarioVerdict, coverage_report) -> S
 
 
 def _build_spawned_validator_request(bundle_dir: Path, question: str) -> dict[str, Any]:
+    required_artifacts = list(_SPAWNED_VALIDATOR_REQUIRED_ARTIFACTS)
+    for artifact_name in _SPAWNED_VALIDATOR_OPTIONAL_REQUIRED_ARTIFACTS:
+        if (bundle_dir / artifact_name).exists():
+            required_artifacts.append(artifact_name)
     return {
         "bundle_dir": str(bundle_dir),
         "question": question,
-        "required_artifacts": [
-            "final_answer.txt",
-            "approved_ledger.json",
-            "facet_coverage.json",
-            "pinpoint_evidence.json",
-            "answer_alignment.json",
-            "manual_review_report.md",
-        ],
+        "required_artifacts": required_artifacts,
         "instructions": (
             "Derive your answer primarily from the generated artifact bundle. "
             "You may read raw source documents only for minor confirmation of citations already discoverable "
@@ -404,6 +412,17 @@ def _build_spawned_validator_verdict(
     )
 
 
+def _merge_spawned_validator_gate_report(
+    structural_report: BlindValidationReport,
+    spawned_validator: SpawnedValidatorResult,
+) -> BlindValidationReport:
+    return merge_spawned_validator_result(
+        structural_report,
+        spawned_validator,
+        validation_mode=_SPAWNED_VALIDATOR_GATE_VALIDATION_MODE,
+    )
+
+
 def build_spawned_validator_gate_manifest(
     *,
     scenario_config_path: Path,
@@ -479,10 +498,21 @@ def _resolve_selected_scenarios(
     by_id = {scenario.scenario_id: scenario for scenario in scenarios}
     if scenario_ids:
         selected: List[EvaluationScenario] = []
+        seen_scenario_ids: set[str] = set()
+        duplicate_scenario_ids: List[str] = []
         for scenario_id in scenario_ids:
             if scenario_id not in by_id:
                 raise ValueError(f"Scenario with id {scenario_id!r} not found.")
+            if scenario_id in seen_scenario_ids:
+                duplicate_scenario_ids.append(scenario_id)
+                continue
+            seen_scenario_ids.add(scenario_id)
             selected.append(by_id[scenario_id])
+        if duplicate_scenario_ids:
+            raise ValueError(
+                "Duplicate scenario_ids are not allowed: "
+                + ", ".join(duplicate_scenario_ids)
+            )
         if require_eligibility:
             ineligible = [
                 scenario.scenario_id
@@ -546,7 +576,7 @@ def run_spawned_validator_gate(
     if blind_validation_report_builder is None:
         blind_validation_report_builder = build_blind_validation_report
     if blind_validation_merger is None:
-        blind_validation_merger = merge_spawned_validator_result
+        blind_validation_merger = _merge_spawned_validator_gate_report
     if final_verdict_builder is None:
         final_verdict_builder = _build_spawned_validator_verdict
     if request_builder is None:
