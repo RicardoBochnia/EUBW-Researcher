@@ -264,11 +264,27 @@ def _load_curated_sources(curated_catalog_path: Optional[Path]) -> list[tuple[st
 
 def _collect_normalized_texts(
     sources: list[tuple[str, Path]],
-) -> tuple[list[tuple[str, str]], list[dict[str, str]]]:
+) -> tuple[list[tuple[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     cache: dict[Path, str] = {}
     normalized_sources: list[tuple[str, str]] = []
     failures: list[dict[str, str]] = []
+    deduplicated: list[dict[str, str]] = []
+    seen_paths: dict[Path, str] = {}
     for source_id, path in sources:
+        existing_source_id = seen_paths.get(path)
+        if existing_source_id is not None:
+            deduplicated.append(
+                {
+                    "source_id": source_id,
+                    "path": str(path),
+                    "reason": (
+                        "duplicate source path; evidence already counted via "
+                        f"{existing_source_id}"
+                    ),
+                }
+            )
+            continue
+        seen_paths[path] = source_id
         if not path.exists():
             failures.append(
                 {
@@ -291,7 +307,7 @@ def _collect_normalized_texts(
                 )
                 continue
         normalized_sources.append((source_id, cache[path]))
-    return normalized_sources, failures
+    return normalized_sources, failures, deduplicated
 
 
 def _collect_term_evidence(
@@ -439,8 +455,10 @@ def build_generated_terminology(
     curated_catalog_display_path: Optional[str] = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     archive_source_defs, archive_skipped = _load_archive_sources(archive_catalog_path)
-    archive_sources, archive_failures = _collect_normalized_texts(archive_source_defs)
-    curated_sources, curated_failures = _collect_normalized_texts(
+    archive_sources, archive_failures, archive_deduplicated = _collect_normalized_texts(
+        archive_source_defs
+    )
+    curated_sources, curated_failures, curated_deduplicated = _collect_normalized_texts(
         _load_curated_sources(curated_catalog_path)
     )
 
@@ -483,7 +501,9 @@ def build_generated_terminology(
         "curated_source_count": len(curated_sources),
         "archive_skipped": archive_skipped,
         "archive_failures": archive_failures,
+        "archive_deduplicated": archive_deduplicated,
         "curated_failures": curated_failures,
+        "curated_deduplicated": curated_deduplicated,
         "families": report_families,
     }
     return config_payload, report_payload

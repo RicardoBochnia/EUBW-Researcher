@@ -247,6 +247,75 @@ class TerminologyGenerationTests(unittest.TestCase):
                 )
             )
 
+    def test_duplicate_catalog_rows_for_same_file_do_not_fake_multi_source_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            archive_root = tmp_root / "archive"
+            sources_root = archive_root / "sources"
+            sources_root.mkdir(parents=True, exist_ok=True)
+            document_path = sources_root / "business_wallet_note.md"
+            document_path.write_text(
+                (
+                    "# Business Wallet Note\n\n"
+                    "The European Business Wallet (EBW) profile describes the Business Wallet.\n"
+                ),
+                encoding="utf-8",
+            )
+            catalog_path = archive_root / "catalog.json"
+            catalog_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "source_id": "archive_a",
+                            "local_path": "sources/business_wallet_note.md",
+                        },
+                        {
+                            "source_id": "archive_b",
+                            "local_path": "sources/business_wallet_note.md",
+                        },
+                    ],
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            config_payload, report_payload = build_generated_terminology(catalog_path)
+
+            business_wallet = _mapping_by_canonical(
+                config_payload["mappings"],
+                "business wallet",
+            )
+            self.assertEqual(
+                _alias_terms(business_wallet),
+                ["eu business wallet", "eubw"],
+            )
+
+            business_wallet_report = next(
+                family
+                for family in report_payload["families"]
+                if family["canonical_term"] == "business wallet"
+            )
+            ebw_candidate = next(
+                candidate
+                for candidate in business_wallet_report["candidate_aliases"]
+                if candidate["term"] == "EBW"
+            )
+            long_form_candidate = next(
+                candidate
+                for candidate in business_wallet_report["candidate_aliases"]
+                if candidate["term"] == "European Business Wallet"
+            )
+            self.assertEqual(ebw_candidate["archive_source_count"], 1)
+            self.assertFalse(ebw_candidate["activated"])
+            self.assertEqual(long_form_candidate["archive_source_count"], 1)
+            self.assertFalse(long_form_candidate["activated"])
+            self.assertEqual(report_payload["archive_source_count"], 1)
+            self.assertEqual(len(report_payload["archive_deduplicated"]), 1)
+            self.assertEqual(
+                report_payload["archive_deduplicated"][0]["source_id"],
+                "archive_b",
+            )
+
     def test_update_terminology_script_check_detects_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
