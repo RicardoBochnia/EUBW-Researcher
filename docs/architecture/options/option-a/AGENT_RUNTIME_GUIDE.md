@@ -22,8 +22,15 @@ The primary usage pattern is:
   - add `--apply` only when you intentionally want to update the accepted local archive and archive-catalog metadata
 - Run the full testsuite, including Scenario D closeout coverage:
   `python3 scripts/run_tests.py`
+- Run only the unit tests used by the default pull-request CI path:
+  `python3 scripts/run_unit_tests.py`
+- Run only the integration-heavy pipeline/eval tests used by the conditional pull-request CI path:
+  `python3 scripts/run_integration_tests.py`
 - Run only the separate Scenario D closeout harness tests:
   `python3 scripts/run_closeout_tests.py`
+
+Pull-request CI uses a cheap routing step on every PR, pins Python 3.12 for that routing step, runs the unit suite only for runtime-relevant changes, and lets the integration and closeout suites proceed only after the unit suite passes when their owned surfaces changed.
+The full-confidence suite (`python3 scripts/run_tests.py`) runs on every push to `main`, plus scheduled and manual validation.
 - Run fixture eval:
   `python3 scripts/run_eval.py --all`
 - Run real-corpus eval:
