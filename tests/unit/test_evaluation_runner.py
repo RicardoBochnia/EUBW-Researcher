@@ -627,6 +627,30 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
 
+    def test_manual_review_report_includes_germany_dependency_summary_for_germany_intent(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="germany_wallet_implementation_status")
+        result.approved_entries[0].citations[0].jurisdiction = "DE"
+        result.approved_entries[0].citations[0].source_role_level = SourceRoleLevel.MEDIUM
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_germany_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_germany_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+        markdown = build_manual_review_report_markdown(report)
+
+        self.assertEqual(report.germany_dependency_summary["used_source_ids"], ["synthetic-local-source"])
+        self.assertEqual(report.germany_dependency_summary["claims_with_de_support"], ["synthetic-claim"])
+        self.assertEqual(report.germany_dependency_summary["medium_rank_only_claim_ids"], ["synthetic-claim"])
+        self.assertIn("## Germany Dependency Summary", markdown)
+
 
 class WriteArtifactBundleCoverageTests(unittest.TestCase):
     def _make_coverage_report(self) -> CorpusCoverageReport:

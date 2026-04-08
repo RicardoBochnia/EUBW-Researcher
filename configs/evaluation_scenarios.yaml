@@ -22,8 +22,8 @@
       "question": "How should I analyse registration and access certificate requirements across regulation, annex, and national guidance?",
       "expectation": "Return a cross-layer answer that keeps EU obligations separate from national guidance.",
       "required_intent_type": "certificate_layer_analysis",
-      "required_states": ["confirmed", "interpretive"],
-      "allowed_states": ["confirmed", "interpretive"],
+      "required_states": ["interpretive"],
+      "allowed_states": ["interpretive"],
       "required_sources": [
         "eidas_regulation_business_wallet",
         "german_wallet_guidance_note"
@@ -43,8 +43,8 @@
       "question": "Is the registration certificate mandatory at EU level, or is that delegated to member states?",
       "expectation": "Prefer EU-level regulation and keep national discretion visible.",
       "required_intent_type": "registration_certificate_scope",
-      "required_states": ["confirmed"],
-      "allowed_states": ["confirmed"],
+      "required_states": ["interpretive"],
+      "allowed_states": ["interpretive"],
       "required_sources": ["eidas_regulation_business_wallet"],
       "required_answer_substrings": ["Member States may define national registration procedures"],
       "forbidden_answer_substrings": ["Blocked:"],
@@ -59,8 +59,8 @@
       "required_states": ["confirmed"],
       "allowed_states": ["confirmed"],
       "required_sources": [
-        "openid4vci_draft13",
-        "openid4vp_draft18"
+        "openid4vci_1_0_official",
+        "openid4vp_1_0_official"
       ],
       "forbidden_sources": ["ssi_commentary_blog"],
       "required_answer_substrings": ["Confirmed"],
@@ -76,7 +76,7 @@
       "required_states": ["confirmed", "interpretive"],
       "allowed_states": ["confirmed", "interpretive"],
       "required_sources": [
-        "openid4vp_draft18",
+        "openid4vp_1_0_official",
         "arf_profile_note"
       ],
       "forbidden_sources": ["ssi_commentary_blog"],

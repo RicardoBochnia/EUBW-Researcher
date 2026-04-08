@@ -185,8 +185,8 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             all(entry.final_claim_state == ClaimState.CONFIRMED for entry in result.approved_entries)
         )
         self.assertIn("Confirmed:", result.rendered_answer)
-        self.assertIn("OpenID for Verifiable Credential Issuance 1.0 Draft 13", result.rendered_answer)
-        self.assertIn("OpenID for Verifiable Presentations 1.0 Draft 18", result.rendered_answer)
+        self.assertIn("OpenID for Verifiable Credential Issuance 1.0", result.rendered_answer)
+        self.assertIn("OpenID for Verifiable Presentations 1.0", result.rendered_answer)
         self.assertNotIn("SSI Commentary Blog on Authorization Servers", result.rendered_answer)
 
     def test_all_configured_eval_scenarios_now_produce_passing_verdicts(self) -> None:
@@ -379,7 +379,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             filtered_catalog.entries = [
                 entry
                 for entry in filtered_catalog.entries
-                if entry.source_id != "openid4vp_draft18"
+                if entry.source_id != "openid4vp_1_0_official"
             ]
             filtered_bundle = ingest_catalog(filtered_catalog)
             pipeline = ResearchPipeline(
@@ -487,7 +487,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             filtered_catalog.entries = [
                 entry
                 for entry in filtered_catalog.entries
-                if entry.source_id != "openid4vp_draft18"
+                if entry.source_id != "openid4vp_1_0_official"
             ]
             pipeline = ResearchPipeline(
                 runtime_config=self.runtime,
@@ -582,7 +582,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             filtered_catalog.entries = [
                 entry
                 for entry in filtered_catalog.entries
-                if entry.source_id != "openid4vp_draft18"
+                if entry.source_id != "openid4vp_1_0_official"
             ]
             pipeline = ResearchPipeline(
                 runtime_config=self.runtime,
@@ -643,7 +643,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             filtered_catalog.entries = [
                 entry
                 for entry in filtered_catalog.entries
-                if entry.source_id != "openid4vp_draft18"
+                if entry.source_id != "openid4vp_1_0_official"
             ]
             pipeline = ResearchPipeline(
                 runtime_config=self.runtime,
@@ -713,7 +713,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             filtered_catalog.entries = [
                 entry
                 for entry in filtered_catalog.entries
-                if entry.source_id != "openid4vp_draft18"
+                if entry.source_id != "openid4vp_1_0_official"
             ]
             pipeline = ResearchPipeline(
                 runtime_config=self.runtime,
@@ -784,7 +784,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             filtered_catalog.entries = [
                 entry
                 for entry in filtered_catalog.entries
-                if entry.source_id != "openid4vp_draft18"
+                if entry.source_id != "openid4vp_1_0_official"
             ]
             pipeline = ResearchPipeline(
                 runtime_config=self.runtime,

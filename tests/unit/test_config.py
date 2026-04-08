@@ -41,6 +41,7 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertEqual(runtime.web_max_admitted_per_domain, 10)
         self.assertTrue(hierarchy.default_eu_first)
         self.assertIn("openid.net", allowlist.allowed_domains)
+        self.assertIn("www.sprind.org", allowlist.allowed_domains)
         self.assertTrue(allowlist.policy_for_domain("eur-lex.europa.eu").allowed_path_prefixes)
         self.assertEqual(archive_corpus.archive_root.name, "archive")
         self.assertGreaterEqual(len(archive_corpus.sources), 11)
@@ -100,6 +101,7 @@ class ConfigLoadingTests(unittest.TestCase):
                 "scenario_b_registration_certificate_mandatory",
                 "scenario_c_protocol_authorization_server",
                 "scenario_d_certificate_topology_anchor",
+                "germany_wallet_implementation_status",
             ],
         )
         self.assertTrue(all(question.review_prompts for question in real_question_pack.questions))

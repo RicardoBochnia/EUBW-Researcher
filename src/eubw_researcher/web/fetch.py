@@ -13,6 +13,7 @@ from eubw_researcher.corpus import ingest_text_entry
 from eubw_researcher.corpus.normalize import normalize_bytes_content, normalize_text_content
 from eubw_researcher.models import (
     CitationQuality,
+    DocumentStatus,
     IngestionReportEntry,
     NormalizationStatus,
     RuntimeConfig,
@@ -227,14 +228,28 @@ def _url_has_blocked_keyword(url: str, policy) -> bool:
     return any(term in lowered for term in blocked_terms)
 
 
-def _policy_for_candidate_url(candidate_url: str, policy, allowlist: WebAllowlistConfig):
+def _policy_allows_intent(policy, intent_type: str | None) -> bool:
+    return not policy.allowed_intent_types or intent_type in policy.allowed_intent_types
+
+
+def _policy_for_candidate_url(
+    candidate_url: str,
+    policy,
+    allowlist: WebAllowlistConfig,
+    *,
+    intent_type: str | None,
+):
     candidate_domain = normalize_domain(candidate_url)
     if not candidate_domain or not validate_domain(candidate_url, allowlist):
         return None
     if candidate_domain == policy.domain:
-        return allowlist.policy_for_domain(candidate_domain) or policy
+        candidate_policy = allowlist.policy_for_domain(candidate_domain) or policy
+        return candidate_policy if _policy_allows_intent(candidate_policy, intent_type) else None
     if candidate_domain in policy.allowed_cross_domain_domains:
-        return allowlist.policy_for_domain(candidate_domain)
+        candidate_policy = allowlist.policy_for_domain(candidate_domain)
+        if candidate_policy is None:
+            return None
+        return candidate_policy if _policy_allows_intent(candidate_policy, intent_type) else None
     return None
 
 
@@ -245,8 +260,19 @@ def _matches_allowed_path_prefixes(url: str, policy) -> bool:
     return any(path.startswith(prefix) for prefix in policy.allowed_path_prefixes)
 
 
-def _admissible_document_policy(candidate_url: str, policy, allowlist: WebAllowlistConfig):
-    candidate_policy = _policy_for_candidate_url(candidate_url, policy, allowlist)
+def _admissible_document_policy(
+    candidate_url: str,
+    policy,
+    allowlist: WebAllowlistConfig,
+    *,
+    intent_type: str | None = None,
+):
+    candidate_policy = _policy_for_candidate_url(
+        candidate_url,
+        policy,
+        allowlist,
+        intent_type=intent_type,
+    )
     if candidate_policy is None:
         return None
     if _url_has_blocked_keyword(candidate_url, candidate_policy):
@@ -256,8 +282,19 @@ def _admissible_document_policy(candidate_url: str, policy, allowlist: WebAllowl
     return candidate_policy
 
 
-def _followable_discovery_link(candidate_url: str, policy, allowlist: WebAllowlistConfig) -> bool:
-    candidate_policy = _policy_for_candidate_url(candidate_url, policy, allowlist)
+def _followable_discovery_link(
+    candidate_url: str,
+    policy,
+    allowlist: WebAllowlistConfig,
+    *,
+    intent_type: str | None = None,
+) -> bool:
+    candidate_policy = _policy_for_candidate_url(
+        candidate_url,
+        policy,
+        allowlist,
+        intent_type=intent_type,
+    )
     if candidate_policy is None:
         return False
     return not _url_has_blocked_keyword(candidate_url, candidate_policy)
@@ -269,6 +306,8 @@ def _discover_candidate_urls(
     policy,
     allowlist: WebAllowlistConfig,
     runtime_config: RuntimeConfig,
+    *,
+    intent_type: str | None = None,
 ) -> tuple[List[str], List[WebFetchRecord]]:
     records: List[WebFetchRecord] = []
     candidate_scores: Dict[str, Tuple[int, str, str]] = {}
@@ -431,11 +470,21 @@ def _discover_candidate_urls(
         parser.feed(raw_text)
         for href, anchor_text in parser.links:
             candidate_url = urljoin(discovery_url, href)
-            if not _followable_discovery_link(candidate_url, policy, allowlist):
+            if not _followable_discovery_link(
+                candidate_url,
+                policy,
+                allowlist,
+                intent_type=intent_type,
+            ):
                 continue
 
             score = _score_discovered_link(sub_question, candidate_url, anchor_text)
-            candidate_policy = _admissible_document_policy(candidate_url, policy, allowlist)
+            candidate_policy = _admissible_document_policy(
+                candidate_url,
+                policy,
+                allowlist,
+                intent_type=intent_type,
+            )
             plausible = _is_plausible_for_kind(
                 (candidate_policy or policy).source_kind,
                 candidate_url,
@@ -449,6 +498,7 @@ def _discover_candidate_urls(
             should_crawl = (
                 (depth + 1) < runtime_config.web_discovery_max_depth
                 and candidate_url not in visited
+                and _policy_allows_intent(policy, intent_type)
                 and any(token in candidate_url.lower() for token in URL_RELEVANCE_HINTS)
             )
             if should_crawl:
@@ -497,6 +547,8 @@ def fetch_and_normalize_official_sources(
     source_kinds: List[SourceKind],
     allowlist: WebAllowlistConfig,
     runtime_config: RuntimeConfig,
+    *,
+    intent_type: str | None = None,
 ) -> Tuple[List[SourceDocument], List[IngestionReportEntry], List[WebFetchRecord]]:
     documents: List[SourceDocument] = []
     reports: List[IngestionReportEntry] = []
@@ -507,10 +559,14 @@ def fetch_and_normalize_official_sources(
 
     for source_kind in source_kinds:
         candidate_urls: Dict[str, Optional[str]] = {}
-        for url in allowlist.seed_urls_for_kind(source_kind):
+        for url in allowlist.seed_urls_for_kind(source_kind, intent_type=intent_type):
             candidate_urls[url] = None
 
-        policies = [policy for policy in allowlist.domain_policies if policy.source_kind == source_kind]
+        policies = [
+            policy
+            for policy in allowlist.domain_policies
+            if policy.source_kind == source_kind and _policy_allows_intent(policy, intent_type)
+        ]
         for policy in policies:
             discovered_urls, discovery_records = _discover_candidate_urls(
                 sub_question=sub_question,
@@ -518,6 +574,7 @@ def fetch_and_normalize_official_sources(
                 policy=policy,
                 allowlist=allowlist,
                 runtime_config=runtime_config,
+                intent_type=intent_type,
             )
             fetch_records.extend(discovery_records)
             for discovered_url in discovered_urls:
@@ -565,7 +622,12 @@ def fetch_and_normalize_official_sources(
                 )
                 continue
 
-            if _admissible_document_policy(url, policy, allowlist) is None:
+            if _admissible_document_policy(
+                url,
+                policy,
+                allowlist,
+                intent_type=intent_type,
+            ) is None:
                 fetch_records.append(
                     WebFetchRecord(
                         sub_question=sub_question,
@@ -742,6 +804,16 @@ def fetch_and_normalize_official_sources(
                 publication_date=None,
                 local_path=None,
                 canonical_url=url,
+                document_status=(
+                    DocumentStatus.FINAL
+                    if policy.source_kind
+                    in {
+                        SourceKind.REGULATION,
+                        SourceKind.IMPLEMENTING_ACT,
+                        SourceKind.TECHNICAL_STANDARD,
+                    }
+                    else DocumentStatus.INFORMATIONAL
+                ),
                 source_origin=SourceOrigin.WEB,
                 anchorability_hints=_anchorability_hints_for_web_content(content_type, url),
             )

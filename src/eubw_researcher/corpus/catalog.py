@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from eubw_researcher.models import SourceCatalog, SourceCatalogEntry, SourceKind, SourceOrigin, SourceRoleLevel
+from eubw_researcher.models import (
+    DocumentStatus,
+    SourceCatalog,
+    SourceCatalogEntry,
+    SourceKind,
+    SourceOrigin,
+    SourceRoleLevel,
+)
 
 
 def load_source_catalog(path: Path) -> SourceCatalog:
@@ -28,9 +35,11 @@ def load_source_catalog(path: Path) -> SourceCatalog:
                 publication_date=item.get("publication_date"),
                 local_path=resolved_path,
                 canonical_url=item.get("canonical_url"),
+                document_status=DocumentStatus(item.get("document_status", "final")),
                 source_origin=SourceOrigin(item.get("source_origin", "local")),
                 anchorability_hints=list(item.get("anchorability_hints", [])),
                 admission_reason=item.get("admission_reason"),
+                source_family_id=item.get("source_family_id"),
             )
         )
     return SourceCatalog(entries=entries)
@@ -49,9 +58,11 @@ def write_source_catalog(catalog: SourceCatalog, path: Path) -> None:
                 "publication_date": entry.publication_date,
                 "local_path": str(entry.local_path) if entry.local_path else None,
                 "canonical_url": entry.canonical_url,
+                "document_status": entry.document_status.value,
                 "source_origin": entry.source_origin.value,
                 "anchorability_hints": list(entry.anchorability_hints),
                 "admission_reason": entry.admission_reason,
+                "source_family_id": entry.source_family_id,
             }
             for entry in catalog.entries
         ]

@@ -80,6 +80,40 @@ def _matches_rp_project(entry: SourceCatalogEntry) -> bool:
     )
 
 
+def _matches_germany_legal_or_legislative(entry: SourceCatalogEntry) -> bool:
+    if entry.jurisdiction != "DE":
+        return False
+    lowered = f"{entry.source_id} {entry.title}".lower()
+    return any(
+        token in lowered
+        for token in [
+            "de_law_",
+            "de_parliament_",
+            "bundestag",
+            "drucksache",
+            "gesetz",
+            "durchfuehrungsgesetz",
+        ]
+    )
+
+
+def _matches_germany_wallet_delivery(entry: SourceCatalogEntry) -> bool:
+    if entry.jurisdiction != "DE":
+        return False
+    lowered = f"{entry.source_id} {entry.title}".lower()
+    return entry.source_kind == SourceKind.PROJECT_ARTIFACT or any(
+        token in lowered
+        for token in [
+            "de_sprind_",
+            "sprind",
+            "wallet",
+            "eudi",
+            "digitale identitat",
+            "digitale brieftasche",
+        ]
+    )
+
+
 def build_corpus_coverage_report(
     catalog_path: Path,
     bundle: IngestionBundle,
@@ -132,6 +166,21 @@ def build_corpus_coverage_report(
             _matches_rp_project,
         ),
     ]
+    if any(entry.jurisdiction == "DE" for entry in bundle.catalog.entries):
+        families.extend(
+            [
+                family(
+                    "germany_legislative_or_legal_sources",
+                    2,
+                    _matches_germany_legal_or_legislative,
+                ),
+                family(
+                    "germany_wallet_delivery_sources",
+                    2,
+                    _matches_germany_wallet_delivery,
+                ),
+            ]
+        )
 
     passed = all(not family_report.missing for family_report in families)
     return CorpusCoverageReport(

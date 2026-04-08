@@ -44,6 +44,14 @@ class CitationQuality(str, Enum):
     DOCUMENT_ONLY = "document_only"
 
 
+class DocumentStatus(str, Enum):
+    FINAL = "final"
+    ADOPTED_PENDING_EFFECTIVE_DATE = "adopted_pending_effective_date"
+    DRAFT = "draft"
+    PROPOSAL = "proposal"
+    INFORMATIONAL = "informational"
+
+
 class AnchorQuality(str, Enum):
     STRONG = "strong"
     WEAK = "weak"
@@ -78,9 +86,11 @@ class SourceCatalogEntry:
     publication_date: Optional[str]
     local_path: Optional[Path]
     canonical_url: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchorability_hints: List[str] = field(default_factory=list)
     admission_reason: Optional[str] = None
+    source_family_id: Optional[str] = None
 
 
 @dataclass
@@ -118,6 +128,7 @@ class Citation:
     citation_quality: CitationQuality
     document_path: Optional[Path]
     canonical_url: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchor_label: Optional[str] = None
     structure_poor: bool = False
@@ -144,6 +155,7 @@ class SourceChunk:
     jurisdiction: str
     text: str
     citation: Citation
+    document_status: DocumentStatus = DocumentStatus.FINAL
     technical_anchor_failure: bool = False
     anchor_quality: AnchorQuality = AnchorQuality.MISSING
     extracted_anchor_label: Optional[str] = None
@@ -179,6 +191,7 @@ class IngestionReportEntry:
     anchor_audit_note: str
     chunk_count: int
     local_path: Optional[Path]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     normalization_status: NormalizationStatus = NormalizationStatus.SUCCESS
     normalization_format: Optional[str] = None
     normalization_note: Optional[str] = None
@@ -209,6 +222,7 @@ class WebDomainPolicy:
     allowed_path_prefixes: List[str] = field(default_factory=list)
     blocked_url_keywords: List[str] = field(default_factory=list)
     allowed_cross_domain_domains: List[str] = field(default_factory=list)
+    allowed_intent_types: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -243,16 +257,34 @@ class WebAllowlistConfig:
                 return policy
         return None
 
-    def seed_urls_for_kind(self, source_kind: SourceKind) -> List[str]:
+    def seed_urls_for_kind(
+        self,
+        source_kind: SourceKind,
+        *,
+        intent_type: Optional[str] = None,
+    ) -> List[str]:
         urls: List[str] = []
         for policy in self.domain_policies:
+            if policy.source_kind != source_kind:
+                continue
+            if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
+                continue
             if policy.source_kind == source_kind:
                 urls.extend(policy.seed_urls)
         return urls
 
-    def discovery_urls_for_kind(self, source_kind: SourceKind) -> List[str]:
+    def discovery_urls_for_kind(
+        self,
+        source_kind: SourceKind,
+        *,
+        intent_type: Optional[str] = None,
+    ) -> List[str]:
         urls: List[str] = []
         for policy in self.domain_policies:
+            if policy.source_kind != source_kind:
+                continue
+            if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
+                continue
             if policy.source_kind == source_kind:
                 urls.extend(policy.discovery_urls)
         return urls
@@ -268,9 +300,12 @@ class ArchiveSourceSelection:
     jurisdiction: str
     publication_status: Optional[str]
     publication_date: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchorability_hints: List[str] = field(default_factory=list)
     admission_reason: Optional[str] = None
+    source_family_id: Optional[str] = None
+    successor_candidate_urls: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -298,6 +333,9 @@ class ArchiveRefreshResult:
     content_type: Optional[str] = None
     stage_path: Optional[str] = None
     applied: bool = False
+    checked_successor_candidate_urls: List[str] = field(default_factory=list)
+    matching_successor_candidate_urls: List[str] = field(default_factory=list)
+    selected_successor_candidate_url: Optional[str] = None
 
 
 @dataclass
@@ -474,6 +512,7 @@ class LedgerEvidence:
     on_point_score: int
     admissible: bool
     citation_quality: CitationQuality
+    document_status: DocumentStatus = DocumentStatus.FINAL
     anchor_audit_note: Optional[str] = None
 
 
@@ -505,6 +544,8 @@ class LedgerEntry:
     contradicting_evidence: List[LedgerEvidence]
     governing_evidence: List[LedgerEvidence]
     rationale: str
+    governing_document_status: Optional[DocumentStatus] = None
+    source_document_statuses: List[DocumentStatus] = field(default_factory=list)
 
 
 @dataclass
@@ -566,6 +607,7 @@ class ManualReviewReport:
     answer_evidence_alignment_verdict: str = "not_assessed"
     product_output_self_sufficiency_verdict: str = "not_assessed"
     approved_fetched_source_evidence: List[ApprovedFetchedSourceEvidence] = field(default_factory=list)
+    germany_dependency_summary: Dict[str, List[str]] = field(default_factory=dict)
     report_type: str = "automated_review_prefill"
     human_reviewed: bool = False
 
@@ -603,6 +645,7 @@ class PinpointEvidenceRecord:
     locator_precision: str
     document_path: Optional[Path]
     canonical_url: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     limitation_note: Optional[str] = None
 
 

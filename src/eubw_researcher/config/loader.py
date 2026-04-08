@@ -10,6 +10,7 @@ from eubw_researcher.models import (
     ArchiveCorpusConfig,
     ArchiveSourceSelection,
     ClaimState,
+    DocumentStatus,
     EvaluationScenario,
     RealQuestionPack,
     RealQuestionPackQuestion,
@@ -65,6 +66,7 @@ def load_web_allowlist(path: Path) -> WebAllowlistConfig:
             source_kind=SourceKind(item["source_kind"]),
             source_role_level=SourceRoleLevel(item["source_role_level"]),
             jurisdiction=item["jurisdiction"],
+            allowed_intent_types=list(item.get("allowed_intent_types", [])),
             seed_urls=list(item.get("seed_urls", [])),
             discovery_urls=list(item.get("discovery_urls", [])),
             allowed_path_prefixes=list(item.get("allowed_path_prefixes", [])),
@@ -95,9 +97,12 @@ def load_archive_corpus_config(path: Path) -> ArchiveCorpusConfig:
                 jurisdiction=item["jurisdiction"],
                 publication_status=item.get("publication_status"),
                 publication_date=item.get("publication_date"),
+                document_status=DocumentStatus(item.get("document_status", "final")),
                 source_origin=SourceOrigin(item.get("source_origin", "local")),
                 anchorability_hints=list(item.get("anchorability_hints", [])),
                 admission_reason=item.get("admission_reason"),
+                source_family_id=item.get("source_family_id"),
+                successor_candidate_urls=list(item.get("successor_candidate_urls", [])),
             )
             for item in payload["sources"]
         ],

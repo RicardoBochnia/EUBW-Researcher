@@ -230,3 +230,12 @@ class RetrievalTests(unittest.TestCase):
             intent.clarification_note,
             "Broad question: continue with an EU-first first-pass answer.",
         )
+
+    def test_analyze_query_classifies_germany_wallet_question_with_umlauts(self) -> None:
+        intent = analyze_query(
+            "Wie ist der Stand der SPRIND-EUDI-Wallet und des eIDAS-Durchführungsgesetzes in Deutschland?"
+        )
+        self.assertEqual(intent.intent_type, "germany_wallet_implementation_status")
+        self.assertTrue(intent.eu_first)
+        self.assertIn(SourceKind.NATIONAL_IMPLEMENTATION, intent.preferred_kinds)
+        self.assertIn(SourceKind.PROJECT_ARTIFACT, intent.preferred_kinds)

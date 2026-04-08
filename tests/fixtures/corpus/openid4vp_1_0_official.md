@@ -1,4 +1,4 @@
-# OpenID for Verifiable Presentations 1.0 Draft 18
+# OpenID for Verifiable Presentations 1.0
 
 ## Section 3.2 Verifier-initiated presentation request
 The Verifier sends an authorization request or presentation request directly to the Wallet.

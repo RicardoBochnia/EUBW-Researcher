@@ -27,9 +27,9 @@ class IngestionTests(unittest.TestCase):
     def test_anchor_quality_and_role_visibility_are_reported(self) -> None:
         report_by_id = {entry.source_id: entry for entry in self.bundle.report}
 
-        self.assertEqual(report_by_id["openid4vci_draft13"].anchor_quality, AnchorQuality.STRONG)
+        self.assertEqual(report_by_id["openid4vci_1_0_official"].anchor_quality, AnchorQuality.STRONG)
         self.assertEqual(
-            report_by_id["openid4vci_draft13"].citation_quality,
+            report_by_id["openid4vci_1_0_official"].citation_quality,
             CitationQuality.ANCHOR_GROUNDED,
         )
         self.assertEqual(

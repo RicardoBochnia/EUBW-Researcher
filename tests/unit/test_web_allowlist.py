@@ -44,6 +44,38 @@ class WebAllowlistTests(unittest.TestCase):
             self.allowlist.discovery_urls_for_kind(SourceKind.REGULATION),
             ["https://eur-lex.europa.eu/homepage.html"],
         )
+        self.assertEqual(
+            self.allowlist.discovery_urls_for_kind(SourceKind.NATIONAL_IMPLEMENTATION),
+            [],
+        )
+        self.assertEqual(
+            self.allowlist.discovery_urls_for_kind(
+                SourceKind.PROJECT_ARTIFACT,
+                intent_type="germany_wallet_implementation_status",
+            ),
+            [
+                "https://eudi-walletconsortium.org/",
+                "https://www.sprind.org/eudi-wallet",
+            ],
+        )
+
+    def test_germany_seed_urls_are_intent_gated(self) -> None:
+        self.assertEqual(
+            self.allowlist.seed_urls_for_kind(SourceKind.NATIONAL_IMPLEMENTATION),
+            [],
+        )
+        germany_seeds = self.allowlist.seed_urls_for_kind(
+            SourceKind.NATIONAL_IMPLEMENTATION,
+            intent_type="germany_wallet_implementation_status",
+        )
+        self.assertIn(
+            "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+            germany_seeds,
+        )
+        self.assertIn(
+            "https://dserver.bundestag.de/btd/21/041/2104115.pdf",
+            germany_seeds,
+        )
 
     def test_admissible_document_policy_enforces_path_prefixes_and_blocked_keywords(self) -> None:
         policy = self.allowlist.policy_for_domain("openid.net")
@@ -76,6 +108,27 @@ class WebAllowlistTests(unittest.TestCase):
                 "https://openid.net/certification/openid4vp",
                 policy,
                 self.allowlist,
+            )
+        )
+
+    def test_admissible_document_policy_rejects_germany_pages_without_matching_intent(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        self.assertIsNone(
+            _admissible_document_policy(
+                "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+                policy,
+                self.allowlist,
+            )
+        )
+        self.assertIsNotNone(
+            _admissible_document_policy(
+                "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+                policy,
+                self.allowlist,
+                intent_type="germany_wallet_implementation_status",
             )
         )
 

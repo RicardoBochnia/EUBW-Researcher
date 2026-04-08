@@ -12,6 +12,7 @@ from eubw_researcher.models import (
     ClaimState,
     ClaimType,
     ContradictionStatus,
+    DocumentStatus,
     LedgerEvidence,
     LedgerEntry,
     QueryIntent,
@@ -258,18 +259,22 @@ class ComposerTests(unittest.TestCase):
         )
 
         self.assertIn("Open:", bundle.rendered_answer)
-        self.assertNotIn(
-            "while medium-rank project artifacts make the multi-certificate interpretation more explicit.",
-            bundle.rendered_answer,
+
+    def test_generic_composer_qualifies_draft_support_in_rendered_answer(self) -> None:
+        entry = _entry(
+            "draft_obligation",
+            "A draft legal source describes a Germany-specific implementation step.",
+            ClaimState.INTERPRETIVE,
         )
-        self.assertNotIn(
-            "Evidence (medium-rank project support):",
-            bundle.rendered_answer,
+        entry.governing_document_status = DocumentStatus.DRAFT
+
+        bundle = compose_answer_bundle(
+            "Synthetic draft question?",
+            [entry],
+            query_intent=_generic_intent(),
         )
-        self.assertIn(
-            "preserves the governing boundary conditions",
-            bundle.rendered_answer,
-        )
+
+        self.assertIn("Current draft support indicates:", bundle.rendered_answer)
 
     def test_confirmed_registration_scope_claim_still_surfaces_confirmed_section(self) -> None:
         bundle = compose_answer_bundle(

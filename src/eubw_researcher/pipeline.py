@@ -49,13 +49,19 @@ class ResearchPipeline:
             SourceRoleLevel.LOW: 1,
         }[role_level]
 
-    def _allowed_web_kinds(self, target, ledger_entry) -> List[SourceKind]:
+    def _allowed_web_kinds(
+        self,
+        target,
+        ledger_entry,
+        *,
+        intent_type: str | None = None,
+    ) -> List[SourceKind]:
         available_kinds = [
             kind
             for kind in target.preferred_kinds
             if (
-                self.allowlist.seed_urls_for_kind(kind)
-                or self.allowlist.discovery_urls_for_kind(kind)
+                self.allowlist.seed_urls_for_kind(kind, intent_type=intent_type)
+                or self.allowlist.discovery_urls_for_kind(kind, intent_type=intent_type)
             )
             and self._role_weight(self.hierarchy.role_for(kind))
             <= self._role_weight(target.required_source_role_level)
@@ -90,8 +96,8 @@ class ResearchPipeline:
             return same_rank_kinds
         return lower_rank_kinds
 
-    def _next_allowed_action(self, target, ledger_entry) -> str:
-        if self._allowed_web_kinds(target, ledger_entry):
+    def _next_allowed_action(self, target, ledger_entry, *, intent_type: str | None = None) -> str:
+        if self._allowed_web_kinds(target, ledger_entry, intent_type=intent_type):
             return "official_web_search"
         return "stop_local_only"
 
@@ -219,7 +225,11 @@ class ResearchPipeline:
                     retrieval_methods_used=["lexical", "semantic"],
                     candidate_sources_inspected=list(trace["candidate_sources_inspected"]),
                     reason_local_evidence_insufficient=reason,
-                    next_allowed_action=self._next_allowed_action(target, ledger_entry),
+                    next_allowed_action=self._next_allowed_action(
+                        target,
+                        ledger_entry,
+                        intent_type=query_intent.intent_type,
+                    ),
                     web_source_kinds_considered=[],
                     web_discovery_urls_attempted=[],
                     web_fetch_urls_attempted=[],
@@ -251,7 +261,11 @@ class ResearchPipeline:
             ledger_entry = ledger_by_claim.get(gap_record.sub_question)
             if ledger_entry is None:
                 continue
-            allowed_web_kinds = self._allowed_web_kinds(target, ledger_entry)
+            allowed_web_kinds = self._allowed_web_kinds(
+                target,
+                ledger_entry,
+                intent_type=query_intent.intent_type,
+            )
             if not allowed_web_kinds:
                 continue
             LOGGER.info(
@@ -264,6 +278,7 @@ class ResearchPipeline:
                 source_kinds=allowed_web_kinds,
                 allowlist=self.allowlist,
                 runtime_config=self.runtime_config,
+                intent_type=query_intent.intent_type,
             )
             web_fetch_records.extend(fetch_records)
             web_ingestion_reports.extend(reports)

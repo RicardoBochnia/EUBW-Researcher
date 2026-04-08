@@ -13,6 +13,7 @@ from eubw_researcher.models import (
     ArchiveCorpusConfig,
     ArchiveRefreshReport,
     ArchiveRefreshResult,
+    DocumentStatus,
     RuntimeConfig,
     dataclass_to_dict,
 )
@@ -120,6 +121,116 @@ def _record_current_result(
             remote_last_modified=remote_last_modified,
             content_type=content_type,
         )
+    )
+
+
+def _should_check_successor_candidates(selection) -> bool:
+    return (
+        selection.document_status
+        in {
+            DocumentStatus.DRAFT,
+            DocumentStatus.PROPOSAL,
+            DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE,
+        }
+        and bool(selection.successor_candidate_urls)
+    )
+
+
+def _stage_successor_candidate(
+    stage_root: Path,
+    archive_root: Path,
+    local_path: Path,
+    raw_bytes: bytes,
+) -> Path:
+    stage_path = stage_root / "successors" / _relative_archive_path(archive_root, local_path)
+    stage_path.parent.mkdir(parents=True, exist_ok=True)
+    stage_path.write_bytes(raw_bytes)
+    return stage_path
+
+
+def _maybe_stage_successor_result(
+    *,
+    selection,
+    runtime_config: RuntimeConfig,
+    stage_root: Path,
+    archive_root: Path,
+    local_path: Path,
+    canonical_url: str,
+    checked_at: str,
+    local_exists: bool,
+    local_content_digest: Optional[str],
+) -> ArchiveRefreshResult | None:
+    if not _should_check_successor_candidates(selection):
+        return None
+
+    checked_urls: list[str] = []
+    matches: dict[str, tuple[bytes, str, str, Optional[str], Optional[str]]] = {}
+    for candidate_url in selection.successor_candidate_urls:
+        checked_urls.append(candidate_url)
+        try:
+            raw_bytes, content_type, remote_etag, remote_last_modified, _ = _request_remote_source(
+                candidate_url,
+                runtime_config.web_timeout_seconds,
+            )
+        except Exception:
+            continue
+        if raw_bytes is None:
+            continue
+        matches[candidate_url] = (
+            raw_bytes,
+            content_type or "application/octet-stream",
+            hashlib.sha256(raw_bytes).hexdigest(),
+            remote_etag,
+            remote_last_modified,
+        )
+
+    if not matches:
+        return None
+    if len(matches) > 1:
+        return ArchiveRefreshResult(
+            archive_source_id=selection.archive_source_id,
+            source_id=selection.source_id,
+            title=selection.title,
+            canonical_url=canonical_url,
+            local_path=str(local_path),
+            checked_at=checked_at,
+            status="ambiguous_successor_candidates",
+            reason=(
+                "Multiple configured successor candidate URLs returned content; "
+                "manual successor selection is required."
+            ),
+            local_exists=local_exists,
+            local_content_digest=local_content_digest,
+            checked_successor_candidate_urls=checked_urls,
+            matching_successor_candidate_urls=sorted(matches),
+        )
+
+    selected_url = next(iter(matches))
+    raw_bytes, content_type, remote_digest, remote_etag, remote_last_modified = matches[selected_url]
+    stage_path = _stage_successor_candidate(stage_root, archive_root, local_path, raw_bytes)
+    return ArchiveRefreshResult(
+        archive_source_id=selection.archive_source_id,
+        source_id=selection.source_id,
+        title=selection.title,
+        canonical_url=canonical_url,
+        local_path=str(local_path),
+        checked_at=checked_at,
+        status="staged_successor",
+        reason=(
+            "A configured successor candidate URL returned content for this draft or provisional "
+            "source; review and replace the archive entry manually."
+        ),
+        local_exists=local_exists,
+        local_content_digest=local_content_digest,
+        remote_content_digest=remote_digest,
+        remote_etag=remote_etag,
+        remote_last_modified=remote_last_modified,
+        content_type=content_type,
+        stage_path=str(stage_path),
+        applied=False,
+        checked_successor_candidate_urls=checked_urls,
+        matching_successor_candidate_urls=[selected_url],
+        selected_successor_candidate_url=selected_url,
     )
 
 
@@ -269,6 +380,19 @@ def refresh_archive_sources(
                     remote_etag=remote_etag,
                     remote_last_modified=remote_last_modified,
                 )
+                successor_result = _maybe_stage_successor_result(
+                    selection=selection,
+                    runtime_config=runtime_config,
+                    stage_root=stage_root,
+                    archive_root=config.archive_root,
+                    local_path=local_path,
+                    canonical_url=canonical_url,
+                    checked_at=checked_at,
+                    local_exists=local_exists,
+                    local_content_digest=local_content_digest,
+                )
+                if successor_result is not None:
+                    results[-1] = successor_result
                 continue
 
             try:
@@ -320,6 +444,19 @@ def refresh_archive_sources(
                 remote_last_modified=remote_last_modified,
                 content_type=content_type,
             )
+            successor_result = _maybe_stage_successor_result(
+                selection=selection,
+                runtime_config=runtime_config,
+                stage_root=stage_root,
+                archive_root=config.archive_root,
+                local_path=local_path,
+                canonical_url=canonical_url,
+                checked_at=checked_at,
+                local_exists=local_exists,
+                local_content_digest=local_content_digest,
+            )
+            if successor_result is not None:
+                results[-1] = successor_result
             continue
 
         stage_path = _stage_candidate(stage_root, config.archive_root, local_path, raw_bytes)
@@ -374,7 +511,15 @@ def refresh_archive_sources(
         _write_archive_rows(config.archive_catalog, archive_rows)
 
     current_sources = sum(1 for item in results if item.status == "current")
-    changed_sources = sum(1 for item in results if "update" in item.status or "missing_local" in item.status)
+    changed_sources = sum(
+        1
+        for item in results
+        if (
+            "update" in item.status
+            or "missing_local" in item.status
+            or item.status in {"staged_successor", "ambiguous_successor_candidates"}
+        )
+    )
     staged_sources = sum(1 for item in results if item.status.startswith("staged_"))
     applied_sources = sum(1 for item in results if item.applied)
     skipped_sources = sum(1 for item in results if item.status.startswith("skipped_"))
@@ -433,6 +578,20 @@ def render_archive_refresh_report_markdown(report: ArchiveRefreshReport) -> str:
             lines.append(f"  canonical_url: `{item.canonical_url}`")
         if item.stage_path:
             lines.append(f"  stage_path: `{item.stage_path}`")
+        if item.selected_successor_candidate_url:
+            lines.append(
+                f"  selected_successor_candidate_url: `{item.selected_successor_candidate_url}`"
+            )
+        if item.checked_successor_candidate_urls:
+            lines.append(
+                "  checked_successor_candidate_urls: "
+                + ", ".join(f"`{url}`" for url in item.checked_successor_candidate_urls)
+            )
+        if item.matching_successor_candidate_urls:
+            lines.append(
+                "  matching_successor_candidate_urls: "
+                + ", ".join(f"`{url}`" for url in item.matching_successor_candidate_urls)
+            )
         if item.local_content_digest or item.remote_content_digest:
             lines.append(
                 "  digests: "
