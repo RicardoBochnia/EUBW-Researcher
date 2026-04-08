@@ -37,6 +37,12 @@ class RetrievalTests(unittest.TestCase):
         self.assertTrue(any(target.grouping_label for target in intent.claim_targets))
         self.assertGreaterEqual(len(intent.claim_targets), 4)
 
+    def test_business_wallet_requirements_route_is_not_shadowed_by_specific_registration_paths(self) -> None:
+        intent = analyze_query(
+            "What requirements apply to a business wallet relying party?"
+        )
+        self.assertEqual(intent.intent_type, "wallet_requirements_summary")
+
     def test_build_retrieval_plan_uses_hierarchy_config_role_levels(self) -> None:
         intent = analyze_query(
             "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?"

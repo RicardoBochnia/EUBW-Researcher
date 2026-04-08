@@ -243,9 +243,6 @@ def _infer_document_status(
             marker in combined
             for marker in [
                 "referentenentwurf",
-                " refe ",
-                "refe ",
-                "refe)",
                 "draft law",
                 "draft bill",
             ]
@@ -261,7 +258,12 @@ def _infer_document_status(
             ]
         ):
             return DocumentStatus.PROPOSAL
-        if any(marker in combined for marker in ["in kraft", "entered into force", "verkuendet", "verkundet"]):
+        if any(marker in combined for marker in ["nicht in kraft", "not in force", "nicht wirksam"]):
+            return DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE
+        if (
+            "in kraft" in combined
+            and "nicht in kraft" not in combined
+        ) or any(marker in combined for marker in ["entered into force", "verkuendet", "verkundet"]):
             return DocumentStatus.FINAL
 
     return DocumentStatus.INFORMATIONAL

@@ -112,6 +112,34 @@ class WebAllowlistTests(unittest.TestCase):
 
         self.assertEqual(status, DocumentStatus.PROPOSAL)
 
+    def test_infer_document_status_does_not_treat_reference_as_refe_draft_signal(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://www.bmv.de/DE/Themen/Digitales/reference-note.html",
+            policy,
+            "Reference Note",
+            "See the reference document for background material.",
+        )
+
+        self.assertEqual(status, DocumentStatus.INFORMATIONAL)
+
+    def test_infer_document_status_treats_not_in_kraft_language_as_not_final(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+            policy,
+            "eIDAS-Durchführungsgesetz",
+            "Das Gesetz ist bisher nicht in Kraft getreten.",
+        )
+
+        self.assertEqual(status, DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE)
+
     def test_admissible_document_policy_enforces_path_prefixes_and_blocked_keywords(self) -> None:
         policy = self.allowlist.policy_for_domain("openid.net")
         self.assertIsNotNone(policy)
