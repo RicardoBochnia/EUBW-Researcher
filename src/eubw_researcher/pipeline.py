@@ -19,6 +19,7 @@ from eubw_researcher.models import (
     SourceCatalog,
     SourceKind,
     SourceRoleLevel,
+    TerminologyConfig,
     WebAllowlistConfig,
     WebFetchRecord,
 )
@@ -36,11 +37,13 @@ class ResearchPipeline:
         hierarchy,
         allowlist: WebAllowlistConfig,
         ingestion_bundle: IngestionBundle,
+        terminology: TerminologyConfig,
     ) -> None:
         self.runtime_config = runtime_config
         self.hierarchy = hierarchy
         self.allowlist = allowlist
         self.ingestion_bundle = ingestion_bundle
+        self.terminology = terminology
 
     def _role_weight(self, role_level: SourceRoleLevel) -> int:
         return {
@@ -101,18 +104,6 @@ class ResearchPipeline:
             return "official_web_search"
         return "stop_local_only"
 
-    def _target_query_text(self, question: str, target) -> str:
-        support_terms = [" ".join(group) for group in target.support_groups]
-        return " ".join(
-            [
-                question,
-                target.claim_text,
-                " ".join(target.scope_terms),
-                " ".join(target.primary_terms),
-                " ".join(support_terms),
-            ]
-        )
-
     def _merge_candidates(self, candidate_groups: List[List[RetrievalCandidate]]) -> List[RetrievalCandidate]:
         by_chunk_id: Dict[str, RetrievalCandidate] = {}
         for candidates in candidate_groups:
@@ -143,7 +134,11 @@ class ResearchPipeline:
             query_intent=query_intent,
             hierarchy=self.hierarchy,
             runtime_config=self.runtime_config,
+            terminology=self.terminology,
         )
+        target_queries_by_id = {
+            target_query.target_id: target_query for target_query in retrieval_plan.target_queries
+        }
 
         candidates_by_step: Dict[str, List[RetrievalCandidate]] = {}
         target_traces = {
@@ -161,8 +156,9 @@ class ResearchPipeline:
                 trace = target_traces[target.target_id]
                 if trace["resolved"]:
                     continue
+                target_query = target_queries_by_id[target.target_id]
                 target_candidates = retrieve_candidates(
-                    question=self._target_query_text(question, target),
+                    question=target_query.normalized_query,
                     step=step,
                     bundle=self.ingestion_bundle,
                     hierarchy=self.hierarchy,
@@ -240,8 +236,8 @@ class ResearchPipeline:
 
     def _fetch_web_candidates(
         self,
-        question: str,
         query_intent,
+        retrieval_plan,
         gap_records: List[GapRecord],
         target_traces,
         ledger_entries,
@@ -251,6 +247,9 @@ class ResearchPipeline:
         web_ingestion_reports: List = []
 
         target_by_claim = {target.claim_text: target for target in query_intent.claim_targets}
+        target_queries_by_id = {
+            target_query.target_id: target_query for target_query in retrieval_plan.target_queries
+        }
         ledger_by_claim = {entry.claim_text: entry for entry in ledger_entries}
         for gap_record in gap_records:
             if gap_record.next_allowed_action != "official_web_search":
@@ -307,8 +306,9 @@ class ResearchPipeline:
                     inspection_depth=self.runtime_config.retrieval_top_k,
                     reason="Gap-driven official web expansion.",
                 )
+                target_query = target_queries_by_id[target.target_id]
                 web_candidates = retrieve_candidates(
-                    question=self._target_query_text(question, target),
+                    question=target_query.normalized_query,
                     step=step,
                     bundle=web_bundle,
                     hierarchy=self.hierarchy,
@@ -326,7 +326,7 @@ class ResearchPipeline:
         return web_candidates_by_step, web_fetch_records, web_ingestion_reports
 
     def answer_question(self, question: str) -> AnswerResult:
-        query_intent = analyze_query(question)
+        query_intent = analyze_query(question, self.terminology)
         retrieval_plan, local_candidates_by_step, target_traces = self._local_retrieval(
             question=question,
             query_intent=query_intent,
@@ -348,8 +348,8 @@ class ResearchPipeline:
         web_ingestion_reports: List = []
         if any(gap.next_allowed_action == "official_web_search" for gap in initial_gap_records):
             web_candidates_by_step, web_fetch_records, web_ingestion_reports = self._fetch_web_candidates(
-                question=question,
                 query_intent=query_intent,
+                retrieval_plan=retrieval_plan,
                 gap_records=initial_gap_records,
                 target_traces=target_traces,
                 ledger_entries=local_ledger_entries,

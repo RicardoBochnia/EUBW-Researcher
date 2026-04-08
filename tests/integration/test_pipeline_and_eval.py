@@ -14,6 +14,7 @@ from eubw_researcher.config import (
     load_archive_corpus_config,
     load_runtime_config,
     load_source_hierarchy,
+    load_terminology_config,
     load_web_allowlist,
 )
 from eubw_researcher.corpus import (
@@ -66,6 +67,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml")
         hierarchy = load_source_hierarchy(REPO_ROOT / "configs" / "source_hierarchy.yaml")
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
         allowlist = load_web_allowlist(REPO_ROOT / "configs" / "web_allowlist.yaml")
         catalog = load_source_catalog(
             REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
@@ -76,10 +78,12 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             hierarchy=hierarchy,
             allowlist=allowlist,
             ingestion_bundle=bundle,
+            terminology=terminology,
         )
         self.catalog = catalog
         self.runtime = runtime
         self.hierarchy = hierarchy
+        self.terminology = terminology
         self.allowlist = allowlist
 
     def _build_real_corpus_pipeline(self) -> tuple[ResearchPipeline, object]:
@@ -93,6 +97,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             hierarchy=self.hierarchy,
             allowlist=self.allowlist,
             ingestion_bundle=real_bundle,
+            terminology=self.terminology,
         )
         return pipeline, real_catalog
 
@@ -226,6 +231,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             hierarchy=self.hierarchy,
             allowlist=self.allowlist,
             ingestion_bundle=filtered_bundle,
+            terminology=self.terminology,
         )
 
         result = filtered_pipeline.answer_question(
@@ -292,6 +298,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=self.allowlist,
                 ingestion_bundle=temp_bundle,
+                terminology=self.terminology,
             )
 
             result = temp_pipeline.answer_question(
@@ -387,6 +394,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=filtered_bundle,
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -494,6 +502,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -589,6 +598,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -650,6 +660,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -720,6 +731,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -791,6 +803,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                 hierarchy=self.hierarchy,
                 allowlist=custom_allowlist,
                 ingestion_bundle=ingest_catalog(filtered_catalog),
+                terminology=self.terminology,
             )
 
             result = pipeline.answer_question(
@@ -981,6 +994,47 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             self.assertTrue((Path(tmp_dir) / "answer_alignment.json").exists())
             self.assertTrue((Path(tmp_dir) / "blind_validation_report.json").exists())
 
+    def test_retrieval_plan_bundle_records_normalized_question_and_target_queries(self) -> None:
+        question = "What requirements apply to the EUBW, and how can they be provisionally structured?"
+        result = self.pipeline.answer_question(question)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            write_artifact_bundle(
+                Path(tmp_dir),
+                result,
+                verdict=ScenarioVerdict(
+                    scenario_id="synthetic_alias_direct_run",
+                    passed=True,
+                    checks=[],
+                ),
+                scenario_id="synthetic_alias_direct_run",
+                catalog_path=REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml",
+                corpus_state_id="synthetic-state",
+            )
+            retrieval_plan = json.loads(
+                (Path(tmp_dir) / "retrieval_plan.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(retrieval_plan["question"], question)
+        self.assertEqual(
+            retrieval_plan["normalized_question"],
+            "What requirements apply to the business wallet, and how can they be provisionally structured?",
+        )
+        self.assertEqual(
+            retrieval_plan["question_term_normalizations"],
+            [{"source_term": "eubw", "canonical_term": "business wallet"}],
+        )
+        self.assertTrue(retrieval_plan["target_queries"])
+        self.assertTrue(
+            any("EUBW" in target_query["raw_query"] for target_query in retrieval_plan["target_queries"])
+        )
+        self.assertTrue(
+            all(
+                "business wallet" in target_query["normalized_query"].lower()
+                for target_query in retrieval_plan["target_queries"]
+            )
+        )
+
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),
         "Real corpus archive is not available in this workspace.",
@@ -1100,6 +1154,16 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     "--validator-command",
                     f"{shlex.quote(sys.executable)} -c \"print('noop')\"",
                 ],
+                "run_spawned_validator_gate.py": [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_spawned_validator_gate.py"),
+                    "--scenario",
+                    "high_risk_failure_pattern",
+                    "--catalog",
+                    str(missing_catalog),
+                    "--validator-command",
+                    f"{shlex.quote(sys.executable)} -c \"print('noop')\"",
+                ],
             }
 
             for script_name, command in commands.items():
@@ -1114,6 +1178,67 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
                     self.assertNotEqual(completed.returncode, 0)
                     self.assertIn("Catalog file not found:", completed.stderr)
                     self.assertIn(str(missing_catalog.resolve()), completed.stderr)
+
+    def test_run_spawned_validator_gate_cli_writes_manifest_for_high_risk_scenario(self) -> None:
+        fake_validator = (
+            f"{shlex.quote(sys.executable)} "
+            f"{shlex.quote(str(REPO_ROOT / 'tests_closeout' / 'fixtures' / 'fake_spawned_validator.py'))}"
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir) / "spawned_validator_gate_runs"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_spawned_validator_gate.py"),
+                    "--scenario",
+                    "high_risk_failure_pattern",
+                    "--catalog",
+                    str(REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"),
+                    "--validator-command",
+                    f"{fake_validator} --mode assert_bundle_ready",
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+            )
+            manifest_path = output_dir / "spawned_validator_gate_manifest.json"
+            self.assertTrue(manifest_path.is_file())
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertTrue(payload["overall_passed"])
+            self.assertEqual(payload["gate_target"], "named_scenarios")
+            self.assertEqual(
+                payload["scenario_runs"][0]["scenario_id"],
+                "high_risk_failure_pattern",
+            )
+            self.assertTrue(payload["scenario_runs"][0]["spawned_validator_invoked"])
+            request_payload = json.loads(
+                (
+                    output_dir
+                    / "high_risk_failure_pattern"
+                    / "spawned_validator_request.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertNotIn("facet_coverage.json", request_payload["required_artifacts"])
+            blind_validation_payload = json.loads(
+                (
+                    output_dir
+                    / "high_risk_failure_pattern"
+                    / "blind_validation_report.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                blind_validation_payload["validation_mode"],
+                "structural_plus_spawned_validator_gate",
+            )
 
     def test_answer_question_cli_rejects_invalid_output_dir_values(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1326,6 +1451,109 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
             self.assertEqual(payload["eval_manifest_path"], str(manifest_path.resolve()))
             self.assertTrue(
                 (current_state_output_dir / "corpus_selection_summary.md").is_file()
+            )
+
+    def test_validated_current_state_cli_records_supplemental_spawned_validator_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            catalog_path = self._build_bounded_test_catalog(tmp_root)
+            scenarios_path = tmp_root / "synthetic_scenarios.json"
+            scenarios_path.write_text(
+                json.dumps(
+                    {
+                        "scenarios": [
+                            {
+                                "scenario_id": "synthetic_real_corpus_backstop",
+                                "question": "What does the regulation say about the Business Wallet compliance record?",
+                                "expectation": "Synthetic bounded real-corpus coverage gate backstop."
+                            }
+                        ]
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            eval_output_dir = tmp_root / "eval_runs_real_corpus"
+            current_state_output_dir = tmp_root / "current_state"
+
+            eval_completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "run_eval.py"),
+                    "--all",
+                    "--catalog",
+                    str(catalog_path),
+                    "--scenarios-config",
+                    str(scenarios_path),
+                    "--output-dir",
+                    str(eval_output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertNotEqual(eval_completed.returncode, 0)
+            manifest_path = eval_output_dir / "eval_run_manifest.json"
+            spawned_manifest_path = tmp_root / "spawned_validator_gate_manifest.json"
+            spawned_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "run_timestamp": "2026-04-04T00:00:00+00:00",
+                        "scenario_config_path": str(scenarios_path.resolve()),
+                        "catalog_path": str(catalog_path.resolve()),
+                        "corpus_state_id": json.loads(
+                            manifest_path.read_text(encoding="utf-8")
+                        )["corpus_state_id"],
+                        "runtime_contract_version": "option_a_runtime.v2",
+                        "gate_target": "release_gate",
+                        "validator_command": "python3 validator.py",
+                        "overall_passed": True,
+                        "scenario_runs": [],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            report_completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "report_validated_current_state.py"),
+                    "--catalog",
+                    str(catalog_path),
+                    "--eval-manifest",
+                    str(manifest_path),
+                    "--spawned-validator-manifest",
+                    str(spawned_manifest_path),
+                    "--output-dir",
+                    str(current_state_output_dir),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                report_completed.returncode,
+                0,
+                msg=f"stdout:\n{report_completed.stdout}\n\nstderr:\n{report_completed.stderr}",
+            )
+            payload = json.loads(
+                (current_state_output_dir / "validated_current_state_report.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                payload["release_validation_mode"],
+                "deterministic_eval_plus_supplemental_spawned_validator",
+            )
+            self.assertFalse(payload["spawned_validator_gate_passed"])
+            self.assertEqual(
+                payload["spawned_validator_gate_manifest_path"],
+                str(spawned_manifest_path.resolve()),
             )
 
     def test_run_eval_cli_single_scenario_clears_stale_authoritative_eval_artifacts(self) -> None:

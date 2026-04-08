@@ -33,6 +33,21 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--spawned-validator-manifest",
+        help=(
+            "Optional explicit spawned_validator_gate_manifest.json path to record "
+            "as supplemental or binding release evidence."
+        ),
+    )
+    parser.add_argument(
+        "--promote-spawned-validator-gate",
+        action="store_true",
+        help=(
+            "Treat the provided spawned-validator manifest as a binding part of the "
+            "validated current-state decision instead of supplemental evidence."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         default="artifacts/current_state",
         help="Directory where the validated current-state artifacts are written.",
@@ -55,7 +70,10 @@ def main() -> int:
         write_corpus_coverage_report,
         write_corpus_state_snapshot,
     )
-    from eubw_researcher.evaluation import load_eval_run_manifest
+    from eubw_researcher.evaluation import (
+        load_eval_run_manifest,
+        load_spawned_validator_gate_manifest,
+    )
     from eubw_researcher.evaluation.git_metadata import collect_git_metadata
     from eubw_researcher.models import dataclass_to_dict
     from eubw_researcher.runtime_facade import ResearchRuntimeFacade
@@ -108,6 +126,25 @@ def main() -> int:
             )
         pack_manifest = json.loads(pack_manifest_path.read_text(encoding="utf-8"))
 
+    spawned_validator_manifest = None
+    spawned_validator_manifest_path = None
+    if args.spawned_validator_manifest:
+        spawned_validator_manifest_path = (
+            repo_root / args.spawned_validator_manifest
+        ).resolve()
+        if not spawned_validator_manifest_path.is_file():
+            raise SystemExit(
+                "Spawned-validator manifest not found: "
+                f"{spawned_validator_manifest_path}"
+            )
+        spawned_validator_manifest = load_spawned_validator_gate_manifest(
+            spawned_validator_manifest_path
+        )
+    elif args.promote_spawned_validator_gate:
+        raise SystemExit(
+            "--promote-spawned-validator-gate requires --spawned-validator-manifest."
+        )
+
     report = build_validated_current_state_report(
         snapshot,
         eval_manifest=eval_manifest,
@@ -119,6 +156,9 @@ def main() -> int:
         corpus_state_snapshot_path=snapshot_path,
         real_question_pack_manifest=pack_manifest,
         real_question_pack_manifest_path=pack_manifest_path,
+        spawned_validator_gate_manifest=spawned_validator_manifest,
+        spawned_validator_gate_manifest_path=spawned_validator_manifest_path,
+        promote_spawned_validator_gate=args.promote_spawned_validator_gate,
         git_metadata=collect_git_metadata(repo_root),
     )
 

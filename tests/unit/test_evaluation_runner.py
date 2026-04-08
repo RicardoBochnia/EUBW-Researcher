@@ -373,6 +373,26 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(merged.raw_document_dependency, "central_reconstruction")
         self.assertIn("structural blind-validation precondition did not pass", merged.summary)
 
+    def test_merge_spawned_validator_result_allows_custom_validation_mode(self) -> None:
+        structural_report = build_blind_validation_report(_minimal_result("fetch"))
+        spawned_validator = SpawnedValidatorResult(
+            passed=True,
+            context_inherited=False,
+            artifacts_used=["manual_review_report.md"],
+            raw_document_dependency="none",
+            product_output_self_sufficient=True,
+            summary="Validator reused the bundle without raw document reads.",
+            validator_answer="Synthetic validator answer.",
+        )
+
+        merged = merge_spawned_validator_result(
+            structural_report,
+            spawned_validator,
+            validation_mode="structural_plus_spawned_validator_gate",
+        )
+
+        self.assertEqual(merged.validation_mode, "structural_plus_spawned_validator_gate")
+
     def test_required_web_fetch_count_counts_fetch_records_only(self) -> None:
         scenario = EvaluationScenario(
             scenario_id="synthetic_fetch_gate",
@@ -679,7 +699,11 @@ class WriteArtifactBundleCoverageTests(unittest.TestCase):
         result.query_intent = SimpleNamespace(intent_type="synthetic_intent", claim_targets=[])
         # write_artifact_bundle serializes retrieval_plan via dataclass_to_dict;
         # replace the SimpleNamespace with a proper serializable dataclass
-        result.retrieval_plan = RetrievalPlan(question="Synthetic question?", steps=[])
+        result.retrieval_plan = RetrievalPlan(
+            question="Synthetic question?",
+            normalized_question="Synthetic question?",
+            steps=[],
+        )
         result.ledger_entries = []
         result.approved_entries = []
         result.ingestion_report = []

@@ -8,6 +8,7 @@ from typing import Optional, Union
 from eubw_researcher.config import (
     load_runtime_config,
     load_source_hierarchy,
+    load_terminology_config,
     load_web_allowlist,
 )
 from eubw_researcher.corpus import load_or_build_ingestion_bundle
@@ -85,7 +86,7 @@ class ResearchRuntimeFacade:
     """Stable agent-facing runtime facade for Option A."""
 
     CONTRACT_VERSION = "option_a_runtime.v2"
-    RESULT_SCHEMA_VERSION = "agent_runtime_result.v1"
+    RESULT_SCHEMA_VERSION = "agent_runtime_result.v2"
     DEFAULT_CATALOG_PATH = Path("artifacts/real_corpus/curated_catalog.json")
 
     def __init__(self, repo_root: RuntimePath) -> None:
@@ -181,6 +182,9 @@ class ResearchRuntimeFacade:
                 self.repo_root / "configs" / "web_allowlist.yaml"
             ),
             ingestion_bundle=bundle,
+            terminology=load_terminology_config(
+                self.repo_root / "configs" / "terminology.yaml"
+            ),
         )
         result = pipeline.answer_question(question)
         result.corpus_coverage_report = coverage_report

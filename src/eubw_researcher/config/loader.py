@@ -12,6 +12,7 @@ from eubw_researcher.models import (
     ClaimState,
     DocumentStatus,
     EvaluationScenario,
+    TerminologyAlias,
     RealQuestionPack,
     RealQuestionPackQuestion,
     HierarchyRule,
@@ -20,6 +21,8 @@ from eubw_researcher.models import (
     SourceKind,
     SourceOrigin,
     SourceRoleLevel,
+    TerminologyConfig,
+    TerminologyMapping,
     WebDomainPolicy,
     WebAllowlistConfig,
 )
@@ -40,6 +43,28 @@ def _optional_stripped(value: object) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _validate_safe_config_id(
+    *,
+    raw_id: str,
+    id_label: str,
+    path: Path,
+) -> str:
+    normalized = raw_id.strip()
+    if not normalized:
+        raise ValueError(f"{id_label} contains a blank id: {path}")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", normalized):
+        raise ValueError(
+            f"{id_label} must use only letters, numbers, periods, underscores, or hyphens: "
+            f"{normalized}"
+        )
+    if normalized.startswith("."):
+        raise ValueError(
+            f"{id_label} must not be '.' or '..' and must not start with a period: "
+            f"{normalized}"
+        )
+    return normalized
 
 
 def load_source_hierarchy(path: Path) -> SourceHierarchyConfig:
@@ -132,11 +157,181 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
     )
 
 
+def load_terminology_config(path: Path) -> TerminologyConfig:
+    payload = _load_json_yaml(path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Terminology config must be a JSON/YAML object: {path}")
+    raw_mappings = payload.get("mappings")
+    if not isinstance(raw_mappings, list):
+        raise ValueError(f"Terminology config must define a list 'mappings': {path}")
+
+    generator_owned = payload.get("generator_owned", False)
+    if not isinstance(generator_owned, bool):
+        raise ValueError(f"Terminology config field 'generator_owned' must be a bool: {path}")
+
+    policy_version = payload.get("policy_version")
+    if policy_version is not None and not isinstance(policy_version, str):
+        raise ValueError(f"Terminology config field 'policy_version' must be a string: {path}")
+
+    archive_catalog_path = payload.get("archive_catalog_path")
+    if archive_catalog_path is not None and not isinstance(archive_catalog_path, str):
+        raise ValueError(
+            f"Terminology config field 'archive_catalog_path' must be a string: {path}"
+        )
+
+    curated_catalog_path = payload.get("curated_catalog_path")
+    if curated_catalog_path is not None and not isinstance(curated_catalog_path, str):
+        raise ValueError(
+            f"Terminology config field 'curated_catalog_path' must be a string: {path}"
+        )
+
+    seen_canonical_terms: dict[str, str] = {}
+    seen_trigger_terms: dict[str, str] = {}
+    mappings: list[TerminologyMapping] = []
+
+    for index, item in enumerate(raw_mappings, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"Terminology mapping #{index} must be an object with canonical_term and aliases: {path}"
+            )
+        canonical_term = _optional_stripped(item.get("canonical_term"))
+        if canonical_term is None:
+            raise ValueError(f"Terminology mapping #{index} is missing canonical_term: {path}")
+
+        canonical_key = canonical_term.casefold()
+        if canonical_key in seen_canonical_terms:
+            raise ValueError(
+                f"Terminology config contains duplicate canonical_term '{canonical_term}': {path}"
+            )
+        seen_canonical_terms[canonical_key] = canonical_term
+
+        raw_aliases = item.get("aliases")
+        if not isinstance(raw_aliases, list):
+            raise ValueError(
+                f"Terminology mapping '{canonical_term}' must define a list 'aliases': {path}"
+            )
+        alias_rules: list[TerminologyAlias] = []
+        seen_mapping_aliases: set[str] = set()
+        for raw_alias in raw_aliases:
+            if isinstance(raw_alias, dict):
+                alias = _optional_stripped(raw_alias.get("term"))
+                raw_alias_contexts = raw_alias.get("context_aliases", [])
+                if not isinstance(raw_alias_contexts, list):
+                    raise ValueError(
+                        f"Terminology alias object for '{canonical_term}' must define list context_aliases when present: {path}"
+                    )
+            elif isinstance(raw_alias, str):
+                alias = _optional_stripped(raw_alias)
+                raw_alias_contexts = []
+            else:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' aliases must be strings or alias objects: {path}"
+                )
+            if alias is None:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains a blank alias: {path}"
+                )
+            alias_key = alias.casefold()
+            if alias_key == canonical_key:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' must not repeat the canonical term as an alias: {path}"
+                )
+            if alias_key in seen_mapping_aliases:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains duplicate alias '{alias}': {path}"
+                )
+            seen_mapping_aliases.add(alias_key)
+            alias_context_aliases: list[str] = []
+            seen_alias_contexts: set[str] = set()
+            for raw_alias_context in raw_alias_contexts:
+                if not isinstance(raw_alias_context, str):
+                    raise ValueError(
+                        f"Terminology alias '{alias}' for '{canonical_term}' context aliases must be strings: {path}"
+                    )
+                alias_context = _optional_stripped(raw_alias_context)
+                if alias_context is None:
+                    raise ValueError(
+                        f"Terminology alias '{alias}' for '{canonical_term}' contains a blank context alias: {path}"
+                    )
+                alias_context_key = alias_context.casefold()
+                if alias_context_key in seen_alias_contexts:
+                    raise ValueError(
+                        f"Terminology alias '{alias}' for '{canonical_term}' contains duplicate context alias '{alias_context}': {path}"
+                    )
+                seen_alias_contexts.add(alias_context_key)
+                alias_context_aliases.append(alias_context)
+            alias_rules.append(
+                TerminologyAlias(
+                    term=alias,
+                    context_aliases=tuple(alias_context_aliases),
+                )
+            )
+
+        if not alias_rules:
+            raise ValueError(
+                f"Terminology mapping '{canonical_term}' must define at least one alias: {path}"
+            )
+
+        raw_context_aliases = item.get("context_aliases", [])
+        if not isinstance(raw_context_aliases, list):
+            raise ValueError(
+                f"Terminology mapping '{canonical_term}' must define list context_aliases when present: {path}"
+            )
+        context_aliases: list[str] = []
+        seen_context_aliases: set[str] = set()
+        for raw_context_alias in raw_context_aliases:
+            if not isinstance(raw_context_alias, str):
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' context_aliases must contain only strings: {path}"
+                )
+            context_alias = _optional_stripped(raw_context_alias)
+            if context_alias is None:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains a blank context alias: {path}"
+                )
+            context_key = context_alias.casefold()
+            if context_key in seen_context_aliases:
+                raise ValueError(
+                    f"Terminology mapping '{canonical_term}' contains duplicate context alias '{context_alias}': {path}"
+                )
+            seen_context_aliases.add(context_key)
+            context_aliases.append(context_alias)
+
+        for trigger_term in [canonical_term, *(alias.term for alias in alias_rules)]:
+            trigger_key = trigger_term.casefold()
+            existing = seen_trigger_terms.get(trigger_key)
+            if existing is not None and existing != canonical_term:
+                raise ValueError(
+                    f"Terminology config reuses trigger term '{trigger_term}' for both '{existing}' and '{canonical_term}': {path}"
+                )
+            seen_trigger_terms[trigger_key] = canonical_term
+
+        mappings.append(
+            TerminologyMapping(
+                canonical_term=canonical_term,
+                alias_rules=tuple(alias_rules),
+                context_aliases=tuple(context_aliases),
+            )
+        )
+
+    return TerminologyConfig(
+        mappings=tuple(mappings),
+        generator_owned=generator_owned,
+        policy_version=policy_version,
+        archive_catalog_path=archive_catalog_path,
+        curated_catalog_path=curated_catalog_path,
+    )
+
+
 def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
     payload = _load_json_yaml(path)
-    return [
+    scenarios = [
         EvaluationScenario(
-            scenario_id=item["scenario_id"],
+            scenario_id=_validate_safe_config_id(
+                raw_id=str(item["scenario_id"]),
+                id_label="Evaluation scenario scenario_id",
+                path=path,
+            ),
             question=item["question"],
             expectation=item["expectation"],
             required_intent_type=item.get("required_intent_type"),
@@ -156,11 +351,33 @@ def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
             required_web_fetch_count=int(item.get("required_web_fetch_count", 0)),
             require_provisional_grouping=bool(item.get("require_provisional_grouping", False)),
             require_manual_review_accept=bool(item.get("require_manual_review_accept", False)),
+            spawned_validator_gate_eligible=bool(
+                item.get("spawned_validator_gate_eligible", False)
+            ),
+            spawned_validator_release_gate=bool(
+                item.get("spawned_validator_release_gate", False)
+            ),
             min_gap_records=int(item.get("min_gap_records", 0)),
             min_ledger_entries=int(item.get("min_ledger_entries", 1)),
         )
         for item in payload["scenarios"]
     ]
+    seen_scenario_ids: set[str] = set()
+    for scenario in scenarios:
+        if scenario.scenario_id in seen_scenario_ids:
+            raise ValueError(
+                f"Evaluation scenarios contain duplicate scenario_id '{scenario.scenario_id}': {path}"
+            )
+        if (
+            scenario.spawned_validator_release_gate
+            and not scenario.spawned_validator_gate_eligible
+        ):
+            raise ValueError(
+                "Evaluation scenario marked for spawned-validator release gate must also be "
+                f"spawned-validator eligible: {scenario.scenario_id}"
+            )
+        seen_scenario_ids.add(scenario.scenario_id)
+    return scenarios
 
 
 def load_real_question_pack(path: Path) -> RealQuestionPack:
@@ -185,18 +402,11 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
 
     seen_question_ids: set[str] = set()
     for question in questions:
-        if not question.question_id:
-            raise ValueError(f"Real-question pack contains a blank question_id: {path}")
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", question.question_id):
-            raise ValueError(
-                "Real-question pack question_id must use only letters, numbers, "
-                f"periods, underscores, or hyphens: {question.question_id}"
-            )
-        if question.question_id.startswith("."):
-            raise ValueError(
-                "Real-question pack question_id must not be '.' or '..' and must not "
-                f"start with a period: {question.question_id}"
-            )
+        _validate_safe_config_id(
+            raw_id=question.question_id,
+            id_label="Real-question pack question_id",
+            path=path,
+        )
         if question.question_id in seen_question_ids:
             raise ValueError(
                 f"Real-question pack contains duplicate question_id '{question.question_id}': {path}"

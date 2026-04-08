@@ -83,6 +83,7 @@
       "required_answer_substrings": ["Interpretive"],
       "forbidden_answer_substrings": ["Blocked:"],
       "required_retrieval_prefix_kinds": ["technical_standard", "project_artifact"],
+      "spawned_validator_gate_eligible": true,
       "min_ledger_entries": 2
     }
   ]
