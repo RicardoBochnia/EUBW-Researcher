@@ -38,8 +38,23 @@ class CiTestRoutingTests(unittest.TestCase):
     def test_shared_closeout_dependencies_route_closeout_suite(self) -> None:
         decision = classify_changed_files(
             [
-                "src/eubw_researcher/models.py",
+                "src/eubw_researcher/models/__init__.py",
                 "src/eubw_researcher/trust.py",
+            ]
+        )
+
+        self.assertTrue(decision.run_ci)
+        self.assertTrue(decision.run_integration)
+        self.assertTrue(decision.run_closeout)
+
+    def test_transitive_closeout_runtime_packages_route_closeout_suite(self) -> None:
+        decision = classify_changed_files(
+            [
+                "src/eubw_researcher/answering/composer.py",
+                "src/eubw_researcher/config/loader.py",
+                "src/eubw_researcher/evidence/ledger.py",
+                "src/eubw_researcher/retrieval/planner.py",
+                "src/eubw_researcher/web/fetch.py",
             ]
         )
 
