@@ -535,11 +535,13 @@ class EvaluationRunnerTests(unittest.TestCase):
 
     def test_review_report_surfaces_digest_and_provenance_for_approved_web_sources(self) -> None:
         result = _minimal_result("fetch")
+        result.web_fetch_records[0].source_id = "synthetic-web-source"
         result.ledger_entries[0].citations = [
             SimpleNamespace(
                 source_id="synthetic-web-source",
                 canonical_url="https://example.test/source",
                 source_origin=SourceOrigin.WEB,
+                source_kind=SourceKind.TECHNICAL_STANDARD,
                 source_role_level=SourceRoleLevel.HIGH,
                 citation_quality=CitationQuality.ANCHOR_GROUNDED,
             )
@@ -579,6 +581,90 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("discovery_query=`n/a`", markdown)
         self.assertIn("Pinpoint traceability verdict", markdown)
         self.assertIn("Reusable without raw-document reconstruction", markdown)
+
+    def test_review_report_prefers_source_id_for_shared_url_governance_metadata(self) -> None:
+        result = _minimal_result("fetch")
+        shared_url = "https://example.test/shared-source"
+        result.web_fetch_records = [
+            WebFetchRecord(
+                sub_question="test",
+                canonical_url=shared_url,
+                domain="example.test",
+                allowed=True,
+                source_kind=SourceKind.REGULATION,
+                source_role_level=SourceRoleLevel.HIGH,
+                jurisdiction="EU",
+                retrieval_timestamp="2026-04-01T00:00:00+00:00",
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                metadata_complete=True,
+                reason="synthetic regulation fetch",
+                record_type="fetch",
+                content_type="text/html",
+                normalization_status=NormalizationStatus.SUCCESS,
+                content_digest="digest-reg",
+                provenance_record="configured_seed_url",
+                policy_id="reg_policy",
+                entrypoint_id="reg_entry",
+                discovery_strategy="official_search",
+                admission_rule="admission_path_prefixes",
+                discovery_query="regulation query",
+                source_id="web::regulation::shared",
+            ),
+            WebFetchRecord(
+                sub_question="test",
+                canonical_url=shared_url,
+                domain="example.test",
+                allowed=True,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                source_role_level=SourceRoleLevel.HIGH,
+                jurisdiction="EU",
+                retrieval_timestamp="2026-04-01T00:00:01+00:00",
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                metadata_complete=True,
+                reason="synthetic implementing-act fetch",
+                record_type="fetch",
+                content_type="text/html",
+                normalization_status=NormalizationStatus.SUCCESS,
+                content_digest="digest-impl",
+                provenance_record="discovered_from=https://example.test/search",
+                policy_id="impl_policy",
+                entrypoint_id="impl_entry",
+                discovery_strategy="official_search",
+                admission_rule="admission_path_prefixes",
+                discovery_query="implementing query",
+                source_id="web::implementing_act::shared",
+            ),
+        ]
+        result.ledger_entries[0].citations = [
+            SimpleNamespace(
+                source_id="web::regulation::shared",
+                canonical_url=shared_url,
+                source_origin=SourceOrigin.WEB,
+                source_kind=SourceKind.REGULATION,
+                source_role_level=SourceRoleLevel.HIGH,
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+            )
+        ]
+        result.approved_entries = result.ledger_entries
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_shared_url_governance",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_shared_url_governance",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+        markdown = build_manual_review_report_markdown(report)
+
+        self.assertIn("`web::regulation::shared`", markdown)
+        self.assertIn("policy_id=`reg_policy`", markdown)
+        self.assertIn("entrypoint_id=`reg_entry`", markdown)
+        self.assertIn("discovery_query=`regulation query`", markdown)
+        self.assertNotIn("policy_id=`impl_policy`", markdown)
 
     def test_certificate_topology_eval_requires_facet_coverage(self) -> None:
         result = _minimal_result("fetch")

@@ -120,6 +120,46 @@ class _CandidateOrigin:
     discovery_query: Optional[str] = None
 
 
+def _representative_candidate_kind(candidate_kinds: Set[SourceKind]) -> SourceKind:
+    return sorted(candidate_kinds, key=lambda kind: kind.value)[0]
+
+
+def _infer_fetched_source_kind(
+    url: str,
+    title: str,
+    normalized_text: str,
+    candidate_kinds: Set[SourceKind],
+) -> Optional[SourceKind]:
+    if not candidate_kinds:
+        return None
+    if len(candidate_kinds) == 1:
+        return next(iter(candidate_kinds))
+
+    normalized = normalize_text_for_matching(f"{url} {title} {normalized_text}")
+    implementing_markers = [
+        "implementing act",
+        "implementing regulation",
+        "implementing decision",
+        "commission implementing",
+    ]
+    regulation_markers = [
+        " regulation ",
+        "regulation (eu)",
+        "regulation eu",
+    ]
+    if (
+        SourceKind.IMPLEMENTING_ACT in candidate_kinds
+        and any(marker in normalized for marker in implementing_markers)
+    ):
+        return SourceKind.IMPLEMENTING_ACT
+    if (
+        SourceKind.REGULATION in candidate_kinds
+        and any(marker in normalized for marker in regulation_markers)
+    ):
+        return SourceKind.REGULATION
+    return None
+
+
 def _slug_from_url(url: str) -> str:
     return hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]
 
@@ -683,17 +723,19 @@ def fetch_and_normalize_official_sources(
     documents: List[SourceDocument] = []
     reports: List[IngestionReportEntry] = []
     fetch_records: List[WebFetchRecord] = []
-    seen_candidates: Set[Tuple[str, SourceKind]] = set()
+    candidate_urls: Dict[str, Dict[SourceKind, _CandidateOrigin]] = {}
     discovery_request_cache: Dict[str, Tuple[bytes, str]] = {}
     admitted_per_domain: Dict[str, int] = {}
     admitted_total = 0
 
     for source_kind in source_kinds:
-        candidate_urls: Dict[str, _CandidateOrigin] = {}
         for url in allowlist.seed_urls_for_kind(source_kind, intent_type=intent_type):
-            candidate_urls[url] = _CandidateOrigin(
-                provenance_record="configured_seed_url",
-                source_kind=source_kind,
+            candidate_urls.setdefault(url, {}).setdefault(
+                source_kind,
+                _CandidateOrigin(
+                    provenance_record="configured_seed_url",
+                    source_kind=source_kind,
+                ),
             )
 
         policies = [
@@ -724,8 +766,8 @@ def fetch_and_normalize_official_sources(
                         ),
                         None,
                     )
-                    candidate_urls.setdefault(
-                        discovered_url,
+                    candidate_urls.setdefault(discovered_url, {}).setdefault(
+                        discovery_record.source_kind if discovery_record is not None else source_kind,
                         _CandidateOrigin(
                             discovered_from=(
                                 discovery_record.discovered_from if discovery_record is not None else None
@@ -751,322 +793,303 @@ def fetch_and_normalize_official_sources(
                         ),
                     )
 
-        for url, origin in candidate_urls.items():
-            effective_source_kind = origin.source_kind or source_kind
-            candidate_key = (url, effective_source_kind)
-            if candidate_key in seen_candidates:
-                continue
-            seen_candidates.add(candidate_key)
-            domain = normalize_domain(url)
-            allowed = validate_domain(url, allowlist)
-            policy = allowlist.policy_for_domain_and_kind(domain, effective_source_kind)
-            now = datetime.now(timezone.utc).isoformat()
-
-            if not allowed or policy is None or policy.source_kind not in source_kinds:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=False,
-                        source_kind=None,
-                        source_role_level=None,
-                        jurisdiction=None,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason="Domain is not allowlisted or lacks a domain policy.",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        normalization_status=NormalizationStatus.FAILED,
-                        policy_id=origin.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            if _admissible_document_policy(
-                url,
-                policy,
-                allowlist,
-                intent_type=intent_type,
-            ) is None:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason="Fetched URL failed the document-admission policy for this official domain.",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        normalization_status=NormalizationStatus.FAILED,
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            if admitted_total >= runtime_config.web_max_admitted_per_run:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason="Per-run admitted web-document cap reached before this candidate could be admitted.",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        normalization_status=NormalizationStatus.FAILED,
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            if admitted_per_domain.get(domain, 0) >= runtime_config.web_max_admitted_per_domain:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason="Per-domain admitted web-document cap reached before this candidate could be admitted.",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        normalization_status=NormalizationStatus.FAILED,
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            try:
-                raw_bytes, content_type = _request_url(url, runtime_config.web_timeout_seconds)
-            except Exception as exc:  # pragma: no cover
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason=f"Fetch failed: {exc}",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        normalization_status=NormalizationStatus.FAILED,
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            supported, normalization_reason = _supports_web_normalization(
-                url=url,
-                content_type=content_type,
-                raw_bytes=raw_bytes,
-            )
-            if not supported:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason=normalization_reason,
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        content_type=content_type,
-                        normalization_status=NormalizationStatus.FAILED,
-                        content_digest=_content_digest(raw_bytes),
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            try:
-                (
-                    normalized_text,
-                    title_from_content,
-                    normalization_format,
-                    normalization_note,
-                ) = _normalize_fetched_content(
-                    raw_bytes,
-                    content_type,
-                    url,
-                )
-            except Exception as exc:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason=f"Normalization failed: {exc}",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        content_type=content_type,
-                        normalization_status=NormalizationStatus.FAILED,
-                        content_digest=_content_digest(raw_bytes),
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
-                )
-                continue
-
-            title = title_from_content or _default_title_for_url(url)
-            entry = SourceCatalogEntry(
-                source_id=f"web::{policy.source_kind.value}::{_slug_from_url(url)}",
-                title=title,
-                source_kind=policy.source_kind,
-                source_role_level=policy.source_role_level,
-                jurisdiction=policy.jurisdiction,
-                publication_status="fetched",
-                publication_date=None,
-                local_path=None,
-                canonical_url=url,
-                document_status=_infer_document_status(
+    for url, origins_by_kind in candidate_urls.items():
+        candidate_kinds = set(origins_by_kind)
+        representative_kind = _representative_candidate_kind(candidate_kinds)
+        representative_origin = origins_by_kind[representative_kind]
+        domain = normalize_domain(url)
+        allowed = validate_domain(url, allowlist)
+        admissible_policies: Dict[SourceKind, WebDomainPolicy] = {}
+        for candidate_kind in candidate_kinds:
+            policy = allowlist.policy_for_domain_and_kind(domain, candidate_kind)
+            if (
+                policy is not None
+                and _admissible_document_policy(
                     url,
                     policy,
-                    title,
-                    normalized_text,
-                ),
-                source_origin=SourceOrigin.WEB,
-                anchorability_hints=_anchorability_hints_for_web_content(content_type, url),
-            )
-            metadata_complete = all(
-                [
-                    entry.canonical_url,
-                    entry.title,
-                    domain,
-                    entry.source_role_level,
-                    entry.source_kind,
-                    entry.jurisdiction,
-                ]
-            ) and bool(normalized_text.strip())
-            if not metadata_complete:
-                fetch_records.append(
-                    WebFetchRecord(
-                        sub_question=sub_question,
-                        canonical_url=url,
-                        domain=domain,
-                        allowed=True,
-                        source_kind=policy.source_kind,
-                        source_role_level=policy.source_role_level,
-                        jurisdiction=policy.jurisdiction,
-                        retrieval_timestamp=now,
-                        citation_quality=None,
-                        metadata_complete=False,
-                        reason="Normalized web source metadata was incomplete.",
-                        record_type="fetch",
-                        discovered_from=origin.discovered_from,
-                        content_type=content_type,
-                        normalization_status=NormalizationStatus.FAILED,
-                        content_digest=_content_digest(raw_bytes),
-                        policy_id=policy.policy_id,
-                        entrypoint_id=origin.entrypoint_id,
-                        discovery_strategy=origin.discovery_strategy,
-                        admission_rule=_admission_rule_label(policy),
-                        discovery_query=origin.discovery_query,
-                        provenance_record=(
-                            origin.provenance_record or "configured_seed_url"
-                        ),
-                    )
+                    allowlist,
+                    intent_type=intent_type,
                 )
-                continue
+                is not None
+            ):
+                admissible_policies[candidate_kind] = policy
+        now = datetime.now(timezone.utc).isoformat()
 
-            document, report = ingest_text_entry(
-                entry,
-                normalized_text,
-                normalization_format=normalization_format,
-                normalization_note=normalization_note
-                or (
-                    "Fetched from allowlisted official discovery result."
-                    if origin.discovered_from
-                    else "Fetched from allowlisted configured source."
-                ),
+        if not allowed or not admissible_policies:
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=False,
+                    source_kind=None,
+                    source_role_level=None,
+                    jurisdiction=None,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason="Domain is not allowlisted or lacks an admissible domain policy.",
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    normalization_status=NormalizationStatus.FAILED,
+                    policy_id=representative_origin.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                )
             )
-            documents.append(document)
-            reports.append(report)
-            admitted_per_domain[domain] = admitted_per_domain.get(domain, 0) + 1
-            admitted_total += 1
+            continue
+
+        representative_policy = admissible_policies.get(representative_kind) or admissible_policies[
+            _representative_candidate_kind(set(admissible_policies))
+        ]
+        representative_source_id = f"web::{representative_policy.source_kind.value}::{_slug_from_url(url)}"
+
+        if admitted_total >= runtime_config.web_max_admitted_per_run:
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=True,
+                    source_kind=representative_policy.source_kind,
+                    source_role_level=representative_policy.source_role_level,
+                    jurisdiction=representative_policy.jurisdiction,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason="Per-run admitted web-document cap reached before this candidate could be admitted.",
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    normalization_status=NormalizationStatus.FAILED,
+                    policy_id=representative_policy.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    admission_rule=_admission_rule_label(representative_policy),
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                    source_id=representative_source_id,
+                )
+            )
+            continue
+
+        if admitted_per_domain.get(domain, 0) >= runtime_config.web_max_admitted_per_domain:
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=True,
+                    source_kind=representative_policy.source_kind,
+                    source_role_level=representative_policy.source_role_level,
+                    jurisdiction=representative_policy.jurisdiction,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason="Per-domain admitted web-document cap reached before this candidate could be admitted.",
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    normalization_status=NormalizationStatus.FAILED,
+                    policy_id=representative_policy.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    admission_rule=_admission_rule_label(representative_policy),
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                    source_id=representative_source_id,
+                )
+            )
+            continue
+
+        try:
+            raw_bytes, content_type = _request_url(url, runtime_config.web_timeout_seconds)
+        except Exception as exc:  # pragma: no cover
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=True,
+                    source_kind=representative_policy.source_kind,
+                    source_role_level=representative_policy.source_role_level,
+                    jurisdiction=representative_policy.jurisdiction,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason=f"Fetch failed: {exc}",
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    normalization_status=NormalizationStatus.FAILED,
+                    policy_id=representative_policy.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    admission_rule=_admission_rule_label(representative_policy),
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                    source_id=representative_source_id,
+                )
+            )
+            continue
+
+        supported, normalization_reason = _supports_web_normalization(
+            url=url,
+            content_type=content_type,
+            raw_bytes=raw_bytes,
+        )
+        if not supported:
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=True,
+                    source_kind=representative_policy.source_kind,
+                    source_role_level=representative_policy.source_role_level,
+                    jurisdiction=representative_policy.jurisdiction,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason=normalization_reason,
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    content_type=content_type,
+                    normalization_status=NormalizationStatus.FAILED,
+                    content_digest=_content_digest(raw_bytes),
+                    policy_id=representative_policy.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    admission_rule=_admission_rule_label(representative_policy),
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                    source_id=representative_source_id,
+                )
+            )
+            continue
+
+        try:
+            (
+                normalized_text,
+                title_from_content,
+                normalization_format,
+                normalization_note,
+            ) = _normalize_fetched_content(
+                raw_bytes,
+                content_type,
+                url,
+            )
+        except Exception as exc:
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=True,
+                    source_kind=representative_policy.source_kind,
+                    source_role_level=representative_policy.source_role_level,
+                    jurisdiction=representative_policy.jurisdiction,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason=f"Normalization failed: {exc}",
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    content_type=content_type,
+                    normalization_status=NormalizationStatus.FAILED,
+                    content_digest=_content_digest(raw_bytes),
+                    policy_id=representative_policy.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    admission_rule=_admission_rule_label(representative_policy),
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                    source_id=representative_source_id,
+                )
+            )
+            continue
+
+        title = title_from_content or _default_title_for_url(url)
+        effective_source_kind = _infer_fetched_source_kind(
+            url,
+            title,
+            normalized_text,
+            set(admissible_policies),
+        )
+        if effective_source_kind is None:
+            fetch_records.append(
+                WebFetchRecord(
+                    sub_question=sub_question,
+                    canonical_url=url,
+                    domain=domain,
+                    allowed=True,
+                    source_kind=None,
+                    source_role_level=None,
+                    jurisdiction=None,
+                    retrieval_timestamp=now,
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason="Fetched URL matched multiple source kinds and could not be classified to a single official source kind.",
+                    record_type="fetch",
+                    discovered_from=representative_origin.discovered_from,
+                    content_type=content_type,
+                    normalization_status=NormalizationStatus.FAILED,
+                    content_digest=_content_digest(raw_bytes),
+                    policy_id=representative_origin.policy_id,
+                    entrypoint_id=representative_origin.entrypoint_id,
+                    discovery_strategy=representative_origin.discovery_strategy,
+                    discovery_query=representative_origin.discovery_query,
+                    provenance_record=(
+                        representative_origin.provenance_record or "configured_seed_url"
+                    ),
+                )
+            )
+            continue
+
+        policy = admissible_policies[effective_source_kind]
+        origin = origins_by_kind.get(effective_source_kind, representative_origin)
+        source_id = f"web::{policy.source_kind.value}::{_slug_from_url(url)}"
+        entry = SourceCatalogEntry(
+            source_id=source_id,
+            title=title,
+            source_kind=policy.source_kind,
+            source_role_level=policy.source_role_level,
+            jurisdiction=policy.jurisdiction,
+            publication_status="fetched",
+            publication_date=None,
+            local_path=None,
+            canonical_url=url,
+            document_status=_infer_document_status(
+                url,
+                policy,
+                title,
+                normalized_text,
+            ),
+            source_origin=SourceOrigin.WEB,
+            anchorability_hints=_anchorability_hints_for_web_content(content_type, url),
+        )
+        metadata_complete = all(
+            [
+                entry.canonical_url,
+                entry.title,
+                domain,
+                entry.source_role_level,
+                entry.source_kind,
+                entry.jurisdiction,
+            ]
+        ) and bool(normalized_text.strip())
+        if not metadata_complete:
             fetch_records.append(
                 WebFetchRecord(
                     sub_question=sub_question,
@@ -1077,17 +1100,13 @@ def fetch_and_normalize_official_sources(
                     source_role_level=policy.source_role_level,
                     jurisdiction=policy.jurisdiction,
                     retrieval_timestamp=now,
-                    citation_quality=document.chunks[0].citation_quality,
-                    metadata_complete=True,
-                    reason=(
-                        "Fetched and normalized official source discovered from allowlisted index."
-                        if origin.discovered_from
-                        else "Fetched and normalized official source for gap-driven expansion."
-                    ),
+                    citation_quality=None,
+                    metadata_complete=False,
+                    reason="Normalized web source metadata was incomplete.",
                     record_type="fetch",
                     discovered_from=origin.discovered_from,
                     content_type=content_type,
-                    normalization_status=NormalizationStatus.SUCCESS,
+                    normalization_status=NormalizationStatus.FAILED,
                     content_digest=_content_digest(raw_bytes),
                     policy_id=policy.policy_id,
                     entrypoint_id=origin.entrypoint_id,
@@ -1097,7 +1116,58 @@ def fetch_and_normalize_official_sources(
                     provenance_record=(
                         origin.provenance_record or "configured_seed_url"
                     ),
+                    source_id=source_id,
                 )
             )
+            continue
+
+        document, report = ingest_text_entry(
+            entry,
+            normalized_text,
+            normalization_format=normalization_format,
+            normalization_note=normalization_note
+            or (
+                "Fetched from allowlisted official discovery result."
+                if origin.discovered_from
+                else "Fetched from allowlisted configured source."
+            ),
+        )
+        documents.append(document)
+        reports.append(report)
+        admitted_per_domain[domain] = admitted_per_domain.get(domain, 0) + 1
+        admitted_total += 1
+        fetch_records.append(
+            WebFetchRecord(
+                sub_question=sub_question,
+                canonical_url=url,
+                domain=domain,
+                allowed=True,
+                source_kind=policy.source_kind,
+                source_role_level=policy.source_role_level,
+                jurisdiction=policy.jurisdiction,
+                retrieval_timestamp=now,
+                citation_quality=document.chunks[0].citation_quality,
+                metadata_complete=True,
+                reason=(
+                    "Fetched and normalized official source discovered from allowlisted index."
+                    if origin.discovered_from
+                    else "Fetched and normalized official source for gap-driven expansion."
+                ),
+                record_type="fetch",
+                discovered_from=origin.discovered_from,
+                content_type=content_type,
+                normalization_status=NormalizationStatus.SUCCESS,
+                content_digest=_content_digest(raw_bytes),
+                policy_id=policy.policy_id,
+                entrypoint_id=origin.entrypoint_id,
+                discovery_strategy=origin.discovery_strategy,
+                admission_rule=_admission_rule_label(policy),
+                discovery_query=origin.discovery_query,
+                provenance_record=(
+                    origin.provenance_record or "configured_seed_url"
+                ),
+                source_id=source_id,
+            )
+        )
 
     return documents, reports, fetch_records

@@ -184,10 +184,15 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
 
 
 def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvidence]:
-    fetch_records_by_url: Dict[str, object] = {
-        record.canonical_url: record
+    fetch_records_by_source_id: Dict[str, object] = {
+        record.source_id: record
         for record in result.web_fetch_records
-        if record.record_type == "fetch" and record.canonical_url
+        if record.record_type == "fetch" and record.source_id
+    }
+    fetch_records_by_url_and_kind: Dict[Tuple[str, object], object] = {
+        (record.canonical_url, record.source_kind): record
+        for record in result.web_fetch_records
+        if record.record_type == "fetch" and record.canonical_url and record.source_kind is not None
     }
     evidence_items: Dict[Tuple[str, str], ApprovedFetchedSourceEvidence] = {}
 
@@ -195,7 +200,14 @@ def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvide
         for citation in entry.citations:
             if citation.source_origin.value != "web" or not citation.canonical_url:
                 continue
-            fetch_record = fetch_records_by_url.get(citation.canonical_url)
+            fetch_record = fetch_records_by_source_id.get(citation.source_id)
+            if fetch_record is None:
+                citation_source_kind = getattr(citation, "source_kind", None)
+                if citation_source_kind is None:
+                    continue
+                fetch_record = fetch_records_by_url_and_kind.get(
+                    (citation.canonical_url, citation_source_kind)
+                )
             if fetch_record is None:
                 continue
             evidence = ApprovedFetchedSourceEvidence(

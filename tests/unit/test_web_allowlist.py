@@ -489,7 +489,7 @@ class WebAllowlistTests(unittest.TestCase):
                 [],
             )
 
-    def test_fetch_preserves_shared_discovery_urls_per_source_kind_and_caches_duplicate_search_requests(self) -> None:
+    def test_fetch_deduplicates_shared_discovery_urls_before_assigning_source_kind(self) -> None:
         runtime = replace(
             load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml"),
             web_discovery_max_pages=1,
@@ -552,9 +552,9 @@ class WebAllowlistTests(unittest.TestCase):
             if url == shared_document_url:
                 return (
                     (
-                        "<html><head><title>Shared Registration Certificate Act</title></head>"
-                        "<body><h1>Shared Registration Certificate Act</h1>"
-                        "<p>The registration certificate is mandatory under the act.</p>"
+                        "<html><head><title>Commission Implementing Regulation on Registration Certificates</title></head>"
+                        "<body><h1>Commission Implementing Regulation on Registration Certificates</h1>"
+                        "<p>The registration certificate is mandatory under this implementing regulation.</p>"
                         "</body></html>"
                     ).encode("utf-8"),
                     "text/html; charset=utf-8",
@@ -570,12 +570,9 @@ class WebAllowlistTests(unittest.TestCase):
                 runtime_config=runtime,
             )
 
-        self.assertEqual(len(documents), 2)
-        self.assertEqual(len(reports), 2)
-        self.assertEqual(
-            sorted(document.entry.source_kind for document in documents),
-            [SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
-        )
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(len(reports), 1)
+        self.assertEqual(documents[0].entry.source_kind, SourceKind.IMPLEMENTING_ACT)
         successful_fetches = [
             record
             for record in records
@@ -583,9 +580,16 @@ class WebAllowlistTests(unittest.TestCase):
             and record.normalization_status.value == "success"
             and record.canonical_url == shared_document_url
         ]
+        self.assertEqual(len(successful_fetches), 1)
+        self.assertEqual(successful_fetches[0].source_kind, SourceKind.IMPLEMENTING_ACT)
         self.assertEqual(
-            sorted(record.source_kind for record in successful_fetches),
-            [SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+            {
+                record.source_kind
+                for record in records
+                if record.record_type == "discovered_link"
+                and record.canonical_url == shared_document_url
+            },
+            {SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT},
         )
         self.assertEqual(request_counts[discovery_url], 1)
-        self.assertEqual(request_counts[shared_document_url], 2)
+        self.assertEqual(request_counts[shared_document_url], 1)

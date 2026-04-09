@@ -613,6 +613,7 @@ class WebFetchRecord:
     discovery_strategy: Optional[str] = None
     admission_rule: Optional[str] = None
     discovery_query: Optional[str] = None
+    source_id: Optional[str] = None
 
 
 @dataclass
