@@ -1,4 +1,4 @@
-# OpenID for Verifiable Credential Issuance 1.0 Draft 13
+# OpenID for Verifiable Credential Issuance 1.0
 
 ## Section 5.1 Authorization Server and access token issuance
 The Credential Issuer can rely on an Authorization Server to issue the access token used at the Credential Endpoint.

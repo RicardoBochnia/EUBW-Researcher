@@ -44,6 +44,14 @@ class CitationQuality(str, Enum):
     DOCUMENT_ONLY = "document_only"
 
 
+class DocumentStatus(str, Enum):
+    FINAL = "final"
+    ADOPTED_PENDING_EFFECTIVE_DATE = "adopted_pending_effective_date"
+    DRAFT = "draft"
+    PROPOSAL = "proposal"
+    INFORMATIONAL = "informational"
+
+
 class AnchorQuality(str, Enum):
     STRONG = "strong"
     WEAK = "weak"
@@ -78,9 +86,11 @@ class SourceCatalogEntry:
     publication_date: Optional[str]
     local_path: Optional[Path]
     canonical_url: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchorability_hints: List[str] = field(default_factory=list)
     admission_reason: Optional[str] = None
+    source_family_id: Optional[str] = None
 
 
 @dataclass
@@ -118,6 +128,7 @@ class Citation:
     citation_quality: CitationQuality
     document_path: Optional[Path]
     canonical_url: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchor_label: Optional[str] = None
     structure_poor: bool = False
@@ -144,6 +155,7 @@ class SourceChunk:
     jurisdiction: str
     text: str
     citation: Citation
+    document_status: DocumentStatus = DocumentStatus.FINAL
     technical_anchor_failure: bool = False
     anchor_quality: AnchorQuality = AnchorQuality.MISSING
     extracted_anchor_label: Optional[str] = None
@@ -179,6 +191,7 @@ class IngestionReportEntry:
     anchor_audit_note: str
     chunk_count: int
     local_path: Optional[Path]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     normalization_status: NormalizationStatus = NormalizationStatus.SUCCESS
     normalization_format: Optional[str] = None
     normalization_note: Optional[str] = None
@@ -227,6 +240,7 @@ class WebDomainPolicy:
     admission_path_prefixes: List[str] = field(default_factory=list)
     blocked_url_keywords: List[str] = field(default_factory=list)
     allowed_cross_domain_domains: List[str] = field(default_factory=list)
+    allowed_intent_types: List[str] = field(default_factory=list)
     policy_id: Optional[str] = None
     discovery_urls: List[str] = field(default_factory=list)
     allowed_path_prefixes: List[str] = field(default_factory=list)
@@ -292,19 +306,53 @@ class WebAllowlistConfig:
                 return policy
         return None
 
-    def seed_urls_for_kind(self, source_kind: SourceKind) -> List[str]:
+    def seed_urls_for_kind(
+        self,
+        source_kind: SourceKind,
+        *,
+        intent_type: Optional[str] = None,
+    ) -> List[str]:
         urls: List[str] = []
         for policy in self.domain_policies:
-            if policy.source_kind == source_kind:
-                urls.extend(policy.seed_urls)
+            if policy.source_kind != source_kind:
+                continue
+            if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
+                continue
+            urls.extend(policy.seed_urls)
         return urls
 
-    def discovery_entrypoints_for_kind(self, source_kind: SourceKind) -> List[DiscoveryEntrypoint]:
+    def discovery_entrypoints_for_kind(
+        self,
+        source_kind: SourceKind,
+        *,
+        intent_type: Optional[str] = None,
+    ) -> List[DiscoveryEntrypoint]:
         entrypoints: List[DiscoveryEntrypoint] = []
         for policy in self.domain_policies:
-            if policy.source_kind == source_kind:
-                entrypoints.extend(policy.discovery_entrypoints)
+            if policy.source_kind != source_kind:
+                continue
+            if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
+                continue
+            entrypoints.extend(policy.discovery_entrypoints)
         return entrypoints
+
+    def discovery_urls_for_kind(
+        self,
+        source_kind: SourceKind,
+        *,
+        intent_type: Optional[str] = None,
+    ) -> List[str]:
+        urls: List[str] = []
+        for policy in self.domain_policies:
+            if policy.source_kind != source_kind:
+                continue
+            if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
+                continue
+            if policy.discovery_urls:
+                urls.extend(policy.discovery_urls)
+            else:
+                urls.extend(entrypoint.url_template for entrypoint in policy.discovery_entrypoints)
+        return urls
 
 
 @dataclass
@@ -317,9 +365,12 @@ class ArchiveSourceSelection:
     jurisdiction: str
     publication_status: Optional[str]
     publication_date: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     source_origin: SourceOrigin = SourceOrigin.LOCAL
     anchorability_hints: List[str] = field(default_factory=list)
     admission_reason: Optional[str] = None
+    source_family_id: Optional[str] = None
+    successor_candidate_urls: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -347,6 +398,9 @@ class ArchiveRefreshResult:
     content_type: Optional[str] = None
     stage_path: Optional[str] = None
     applied: bool = False
+    checked_successor_candidate_urls: List[str] = field(default_factory=list)
+    matching_successor_candidate_urls: List[str] = field(default_factory=list)
+    selected_successor_candidate_url: Optional[str] = None
 
 
 @dataclass
@@ -405,6 +459,8 @@ class EvaluationScenario:
     required_web_domains: List[str] = field(default_factory=list)
     require_provisional_grouping: bool = False
     require_manual_review_accept: bool = False
+    spawned_validator_gate_eligible: bool = False
+    spawned_validator_release_gate: bool = False
     min_gap_records: int = 0
     min_ledger_entries: int = 1
 
@@ -440,6 +496,38 @@ class ClaimTarget:
     grouping_label: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class TerminologyAlias:
+    term: str
+    context_aliases: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class TerminologyMapping:
+    canonical_term: str
+    alias_rules: tuple[TerminologyAlias, ...]
+    context_aliases: tuple[str, ...] = field(default_factory=tuple)
+
+    @property
+    def aliases(self) -> tuple[str, ...]:
+        return tuple(alias.term for alias in self.alias_rules)
+
+
+@dataclass(frozen=True)
+class TerminologyConfig:
+    mappings: tuple[TerminologyMapping, ...]
+    generator_owned: bool = False
+    policy_version: Optional[str] = None
+    archive_catalog_path: Optional[str] = None
+    curated_catalog_path: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AppliedTermNormalization:
+    source_term: str
+    canonical_term: str
+
+
 @dataclass
 class QueryIntent:
     question: str
@@ -462,9 +550,20 @@ class RetrievalPlanStep:
 
 
 @dataclass
+class RetrievalTargetQuery:
+    target_id: str
+    raw_query: str
+    normalized_query: str
+    applied_term_normalizations: List[AppliedTermNormalization] = field(default_factory=list)
+
+
+@dataclass
 class RetrievalPlan:
     question: str
-    steps: List[RetrievalPlanStep]
+    normalized_question: str
+    question_term_normalizations: List[AppliedTermNormalization] = field(default_factory=list)
+    target_queries: List[RetrievalTargetQuery] = field(default_factory=list)
+    steps: List[RetrievalPlanStep] = field(default_factory=list)
 
 
 @dataclass
@@ -530,6 +629,7 @@ class LedgerEvidence:
     on_point_score: int
     admissible: bool
     citation_quality: CitationQuality
+    document_status: DocumentStatus = DocumentStatus.FINAL
     anchor_audit_note: Optional[str] = None
 
 
@@ -561,6 +661,8 @@ class LedgerEntry:
     contradicting_evidence: List[LedgerEvidence]
     governing_evidence: List[LedgerEvidence]
     rationale: str
+    governing_document_status: Optional[DocumentStatus] = None
+    source_document_statuses: List[DocumentStatus] = field(default_factory=list)
 
 
 @dataclass
@@ -627,6 +729,7 @@ class ManualReviewReport:
     answer_evidence_alignment_verdict: str = "not_assessed"
     product_output_self_sufficiency_verdict: str = "not_assessed"
     approved_fetched_source_evidence: List[ApprovedFetchedSourceEvidence] = field(default_factory=list)
+    germany_dependency_summary: Dict[str, List[str]] = field(default_factory=dict)
     report_type: str = "automated_review_prefill"
     human_reviewed: bool = False
 
@@ -664,6 +767,7 @@ class PinpointEvidenceRecord:
     locator_precision: str
     document_path: Optional[Path]
     canonical_url: Optional[str]
+    document_status: DocumentStatus = DocumentStatus.FINAL
     limitation_note: Optional[str] = None
 
 
@@ -876,6 +980,34 @@ class EvalRunManifest:
 
 
 @dataclass
+class SpawnedValidatorGateScenarioRunSummary:
+    scenario_id: str
+    deterministic_passed: bool
+    spawned_validator_invoked: bool
+    spawned_validator_contract_passed: Optional[bool]
+    spawned_validator_passed: Optional[bool]
+    final_passed: bool
+    output_dir: str
+    verdict_path: str
+    blind_validation_report_path: str
+    spawned_validator_request_path: Optional[str] = None
+    spawned_validator_result_path: Optional[str] = None
+
+
+@dataclass
+class SpawnedValidatorGateManifest:
+    run_timestamp: str
+    scenario_config_path: str
+    catalog_path: str
+    corpus_state_id: str
+    runtime_contract_version: str
+    gate_target: str
+    validator_command: str
+    overall_passed: bool
+    scenario_runs: List[SpawnedValidatorGateScenarioRunSummary] = field(default_factory=list)
+
+
+@dataclass
 class ValidatedBindingReviewSample:
     scenario_id: str
     manual_review_accept_required: bool
@@ -888,6 +1020,7 @@ class ValidatedBindingReviewSample:
 class ValidatedCurrentStateReport:
     report_version: str
     binding_gate_surface: str
+    release_validation_mode: str
     validated: bool
     catalog_path: str
     corpus_state_id: str
@@ -907,7 +1040,10 @@ class ValidatedCurrentStateReport:
     corpus_coverage_report_path: Optional[str]
     corpus_coverage_summary_path: Optional[str]
     corpus_selection_summary_path: Optional[str]
+    spawned_validator_gate_passed: Optional[bool]
     binding_review_samples: List[ValidatedBindingReviewSample] = field(default_factory=list)
+    spawned_validator_gate_manifest_path: Optional[str] = None
+    spawned_validator_gate_matches_state: Optional[bool] = None
     supplemental_real_question_pack_manifest_path: Optional[str] = None
     supplemental_real_question_pack_matches_state: Optional[bool] = None
     supplemental_real_question_pack_run_id: Optional[str] = None

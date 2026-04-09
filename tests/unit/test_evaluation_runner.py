@@ -373,6 +373,26 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(merged.raw_document_dependency, "central_reconstruction")
         self.assertIn("structural blind-validation precondition did not pass", merged.summary)
 
+    def test_merge_spawned_validator_result_allows_custom_validation_mode(self) -> None:
+        structural_report = build_blind_validation_report(_minimal_result("fetch"))
+        spawned_validator = SpawnedValidatorResult(
+            passed=True,
+            context_inherited=False,
+            artifacts_used=["manual_review_report.md"],
+            raw_document_dependency="none",
+            product_output_self_sufficient=True,
+            summary="Validator reused the bundle without raw document reads.",
+            validator_answer="Synthetic validator answer.",
+        )
+
+        merged = merge_spawned_validator_result(
+            structural_report,
+            spawned_validator,
+            validation_mode="structural_plus_spawned_validator_gate",
+        )
+
+        self.assertEqual(merged.validation_mode, "structural_plus_spawned_validator_gate")
+
     def test_required_web_fetch_count_counts_fetch_records_only(self) -> None:
         scenario = EvaluationScenario(
             scenario_id="synthetic_fetch_gate",
@@ -671,6 +691,30 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
 
+    def test_manual_review_report_includes_germany_dependency_summary_for_germany_intent(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="germany_wallet_implementation_status")
+        result.approved_entries[0].citations[0].jurisdiction = "DE"
+        result.approved_entries[0].citations[0].source_role_level = SourceRoleLevel.MEDIUM
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_germany_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_germany_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+        markdown = build_manual_review_report_markdown(report)
+
+        self.assertEqual(report.germany_dependency_summary["used_source_ids"], ["synthetic-local-source"])
+        self.assertEqual(report.germany_dependency_summary["claims_with_de_support"], ["synthetic-claim"])
+        self.assertEqual(report.germany_dependency_summary["medium_rank_only_claim_ids"], ["synthetic-claim"])
+        self.assertIn("## Germany Dependency Summary", markdown)
+
 
 class WriteArtifactBundleCoverageTests(unittest.TestCase):
     def _make_coverage_report(self) -> CorpusCoverageReport:
@@ -699,7 +743,11 @@ class WriteArtifactBundleCoverageTests(unittest.TestCase):
         result.query_intent = SimpleNamespace(intent_type="synthetic_intent", claim_targets=[])
         # write_artifact_bundle serializes retrieval_plan via dataclass_to_dict;
         # replace the SimpleNamespace with a proper serializable dataclass
-        result.retrieval_plan = RetrievalPlan(question="Synthetic question?", steps=[])
+        result.retrieval_plan = RetrievalPlan(
+            question="Synthetic question?",
+            normalized_question="Synthetic question?",
+            steps=[],
+        )
         result.ledger_entries = []
         result.approved_entries = []
         result.ingestion_report = []

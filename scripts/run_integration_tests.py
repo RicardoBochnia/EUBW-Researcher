@@ -4,7 +4,7 @@ from _test_runner import run_suites
 
 
 def main() -> int:
-    return run_suites("tests", "tests_closeout")
+    return run_suites("tests/integration")
 
 
 if __name__ == "__main__":

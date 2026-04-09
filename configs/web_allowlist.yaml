@@ -10,7 +10,12 @@
     "eudi-walletconsortium.org",
     "eudi.dev",
     "docs.eudi.dev",
-    "eu-digital-identity-wallet.github.io"
+    "eu-digital-identity-wallet.github.io",
+    "www.sprind.org",
+    "www.bmv.de",
+    "dserver.bundestag.de",
+    "www.bundestag.de",
+    "www.lobbyregister.bundestag.de"
   ],
   "domain_policies": [
     {
@@ -236,6 +241,78 @@
       "crawl_path_prefixes": ["/eudi-doc-architecture-and-reference-framework/"],
       "admission_path_prefixes": ["/eudi-doc-architecture-and-reference-framework/"],
       "blocked_url_keywords": ["/issues", "/pull", "/releases"]
+    },
+    {
+      "domain": "www.sprind.org",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "DE",
+      "allowed_intent_types": ["germany_wallet_implementation_status"],
+      "seed_urls": [
+        "https://www.sprind.org/eudi-wallet",
+        "https://www.sprind.org/taten/strategische-projekte/eudi-wallet"
+      ],
+      "discovery_urls": ["https://www.sprind.org/eudi-wallet"],
+      "allowed_path_prefixes": ["/eudi-wallet", "/taten/strategische-projekte/eudi-wallet"],
+      "blocked_url_keywords": ["/news", "/events", "/press", "/blog", "/jobs"]
+    },
+    {
+      "domain": "www.bmv.de",
+      "source_kind": "national_implementation",
+      "source_role_level": "medium",
+      "jurisdiction": "DE",
+      "allowed_intent_types": ["germany_wallet_implementation_status"],
+      "seed_urls": [
+        "https://www.bmv.de/DE/Themen/Digitales/Digitale-Dienste-Plattformen-Sicherheit/eIDAS-Verordnung-und-Vertrauensdienste/eidas-verordnung-und-vertrauensdienste.html?editorSupport=true",
+        "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+        "https://www.bmv.de/SharedDocs/DE/Anlage/Gesetze/Gesetze-20/eIDAS-durchfuehrungsgesetz-stellungnahme-6.pdf?__blob=publicationFile"
+      ],
+      "discovery_urls": [],
+      "allowed_path_prefixes": [
+        "/DE/Themen/Digitales/",
+        "/SharedDocs/DE/Gesetze-20/",
+        "/SharedDocs/DE/Anlage/Gesetze/Gesetze-20/"
+      ],
+      "blocked_url_keywords": ["/Video/", "/Presse/", "/karriere", "/service/"]
+    },
+    {
+      "domain": "dserver.bundestag.de",
+      "source_kind": "national_implementation",
+      "source_role_level": "medium",
+      "jurisdiction": "DE",
+      "allowed_intent_types": ["germany_wallet_implementation_status"],
+      "seed_urls": [
+        "https://dserver.bundestag.de/btd/20/135/2013511.pdf",
+        "https://dserver.bundestag.de/btd/20/082/2008201.pdf",
+        "https://dserver.bundestag.de/btd/21/041/2104115.pdf"
+      ],
+      "discovery_urls": [],
+      "allowed_path_prefixes": ["/btd/"],
+      "blocked_url_keywords": []
+    },
+    {
+      "domain": "www.bundestag.de",
+      "source_kind": "national_implementation",
+      "source_role_level": "medium",
+      "jurisdiction": "DE",
+      "allowed_intent_types": ["germany_wallet_implementation_status"],
+      "seed_urls": [],
+      "discovery_urls": [],
+      "allowed_path_prefixes": ["/dokumente/textarchiv/"],
+      "blocked_url_keywords": ["/suche", "/presse", "/services"]
+    },
+    {
+      "domain": "www.lobbyregister.bundestag.de",
+      "source_kind": "commentary",
+      "source_role_level": "low",
+      "jurisdiction": "unknown",
+      "allowed_intent_types": ["germany_wallet_implementation_status"],
+      "seed_urls": [
+        "https://www.lobbyregister.bundestag.de/inhalte-der-interessenvertretung/stellungnahmengutachtensuche/SG2507180006"
+      ],
+      "discovery_urls": [],
+      "allowed_path_prefixes": ["/inhalte-der-interessenvertretung/stellungnahmengutachtensuche/"],
+      "blocked_url_keywords": []
     }
   ]
 }

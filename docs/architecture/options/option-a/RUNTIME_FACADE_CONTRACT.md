@@ -11,7 +11,7 @@ The stable agent-facing package-root surface for the current Option A runtime is
 ## Contract version
 
 - runtime contract id: `option_a_runtime.v2`
-- result schema id: `agent_runtime_result.v1`
+- result schema id: `agent_runtime_result.v2`
 
 The runtime contract version covers the facade entrypoints and response envelope.
 The result schema version covers the narrowed `AgentRuntimeResult` payload carried in `AgentRuntimeResponse.result`.
@@ -75,6 +75,7 @@ Each facade call returns `AgentRuntimeResponse` with:
 - `question`
 - `query_intent`
 - `retrieval_plan`
+  - includes `normalized_question`, `question_term_normalizations`, and `target_queries` for reviewable query normalization traceability
 - `gap_records`
 - `web_fetch_records`
 - `ingestion_report`

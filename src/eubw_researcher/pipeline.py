@@ -19,10 +19,16 @@ from eubw_researcher.models import (
     SourceCatalog,
     SourceKind,
     SourceRoleLevel,
+    TerminologyConfig,
     WebAllowlistConfig,
     WebFetchRecord,
 )
-from eubw_researcher.retrieval import analyze_query, build_retrieval_plan, retrieve_candidates
+from eubw_researcher.retrieval import (
+    analyze_query,
+    build_retrieval_plan,
+    build_target_query_text,
+    retrieve_candidates,
+)
 from eubw_researcher.trust import build_blind_validation_report
 from eubw_researcher.web import fetch_and_normalize_official_sources
 
@@ -36,11 +42,13 @@ class ResearchPipeline:
         hierarchy,
         allowlist: WebAllowlistConfig,
         ingestion_bundle: IngestionBundle,
+        terminology: TerminologyConfig,
     ) -> None:
         self.runtime_config = runtime_config
         self.hierarchy = hierarchy
         self.allowlist = allowlist
         self.ingestion_bundle = ingestion_bundle
+        self.terminology = terminology
 
     def _role_weight(self, role_level: SourceRoleLevel) -> int:
         return {
@@ -49,13 +57,22 @@ class ResearchPipeline:
             SourceRoleLevel.LOW: 1,
         }[role_level]
 
-    def _allowed_web_kinds(self, target, ledger_entry) -> List[SourceKind]:
+    def _allowed_web_kinds(
+        self,
+        target,
+        ledger_entry,
+        *,
+        intent_type: str | None = None,
+    ) -> List[SourceKind]:
         available_kinds = [
             kind
             for kind in target.preferred_kinds
             if (
-                self.allowlist.seed_urls_for_kind(kind)
-                or self.allowlist.discovery_entrypoints_for_kind(kind)
+                self.allowlist.seed_urls_for_kind(kind, intent_type=intent_type)
+                or self.allowlist.discovery_entrypoints_for_kind(
+                    kind,
+                    intent_type=intent_type,
+                )
             )
             and self._role_weight(self.hierarchy.role_for(kind))
             <= self._role_weight(target.required_source_role_level)
@@ -90,22 +107,10 @@ class ResearchPipeline:
             return same_rank_kinds
         return lower_rank_kinds
 
-    def _next_allowed_action(self, target, ledger_entry) -> str:
-        if self._allowed_web_kinds(target, ledger_entry):
+    def _next_allowed_action(self, target, ledger_entry, *, intent_type: str | None = None) -> str:
+        if self._allowed_web_kinds(target, ledger_entry, intent_type=intent_type):
             return "official_web_search"
         return "stop_local_only"
-
-    def _target_query_text(self, question: str, target) -> str:
-        support_terms = [" ".join(group) for group in target.support_groups]
-        return " ".join(
-            [
-                question,
-                target.claim_text,
-                " ".join(target.scope_terms),
-                " ".join(target.primary_terms),
-                " ".join(support_terms),
-            ]
-        )
 
     def _merge_candidates(self, candidate_groups: List[List[RetrievalCandidate]]) -> List[RetrievalCandidate]:
         by_chunk_id: Dict[str, RetrievalCandidate] = {}
@@ -132,12 +137,19 @@ class ResearchPipeline:
             or target.claim_type.value == "synthesis"
         )
 
+    def _target_query_text(self, question: str, target) -> str:
+        return build_target_query_text(question, target)
+
     def _local_retrieval(self, question: str, query_intent):
         retrieval_plan = build_retrieval_plan(
             query_intent=query_intent,
             hierarchy=self.hierarchy,
             runtime_config=self.runtime_config,
+            terminology=self.terminology,
         )
+        target_queries_by_id = {
+            target_query.target_id: target_query for target_query in retrieval_plan.target_queries
+        }
 
         candidates_by_step: Dict[str, List[RetrievalCandidate]] = {}
         target_traces = {
@@ -155,8 +167,9 @@ class ResearchPipeline:
                 trace = target_traces[target.target_id]
                 if trace["resolved"]:
                     continue
+                target_query = target_queries_by_id[target.target_id]
                 target_candidates = retrieve_candidates(
-                    question=self._target_query_text(question, target),
+                    question=target_query.normalized_query,
                     step=step,
                     bundle=self.ingestion_bundle,
                     hierarchy=self.hierarchy,
@@ -219,7 +232,11 @@ class ResearchPipeline:
                     retrieval_methods_used=["lexical", "semantic"],
                     candidate_sources_inspected=list(trace["candidate_sources_inspected"]),
                     reason_local_evidence_insufficient=reason,
-                    next_allowed_action=self._next_allowed_action(target, ledger_entry),
+                    next_allowed_action=self._next_allowed_action(
+                        target,
+                        ledger_entry,
+                        intent_type=query_intent.intent_type,
+                    ),
                     web_source_kinds_considered=[],
                     web_discovery_urls_attempted=[],
                     web_fetch_urls_attempted=[],
@@ -232,6 +249,7 @@ class ResearchPipeline:
         self,
         question: str,
         query_intent,
+        retrieval_plan,
         gap_records: List[GapRecord],
         target_traces,
         ledger_entries,
@@ -241,6 +259,9 @@ class ResearchPipeline:
         web_ingestion_reports: List = []
 
         target_by_claim = {target.claim_text: target for target in query_intent.claim_targets}
+        target_queries_by_id = {
+            target_query.target_id: target_query for target_query in retrieval_plan.target_queries
+        }
         ledger_by_claim = {entry.claim_text: entry for entry in ledger_entries}
         for gap_record in gap_records:
             if gap_record.next_allowed_action != "official_web_search":
@@ -251,7 +272,11 @@ class ResearchPipeline:
             ledger_entry = ledger_by_claim.get(gap_record.sub_question)
             if ledger_entry is None:
                 continue
-            allowed_web_kinds = self._allowed_web_kinds(target, ledger_entry)
+            allowed_web_kinds = self._allowed_web_kinds(
+                target,
+                ledger_entry,
+                intent_type=query_intent.intent_type,
+            )
             if not allowed_web_kinds:
                 continue
             LOGGER.info(
@@ -266,6 +291,7 @@ class ResearchPipeline:
                 discovery_query=discovery_query,
                 allowlist=self.allowlist,
                 runtime_config=self.runtime_config,
+                intent_type=query_intent.intent_type,
             )
             web_fetch_records.extend(fetch_records)
             web_ingestion_reports.extend(reports)
@@ -294,8 +320,9 @@ class ResearchPipeline:
                     inspection_depth=self.runtime_config.retrieval_top_k,
                     reason="Gap-driven official web expansion.",
                 )
+                target_query = target_queries_by_id[target.target_id]
                 web_candidates = retrieve_candidates(
-                    question=self._target_query_text(question, target),
+                    question=target_query.normalized_query,
                     step=step,
                     bundle=web_bundle,
                     hierarchy=self.hierarchy,
@@ -313,7 +340,7 @@ class ResearchPipeline:
         return web_candidates_by_step, web_fetch_records, web_ingestion_reports
 
     def answer_question(self, question: str) -> AnswerResult:
-        query_intent = analyze_query(question)
+        query_intent = analyze_query(question, self.terminology)
         retrieval_plan, local_candidates_by_step, target_traces = self._local_retrieval(
             question=question,
             query_intent=query_intent,
@@ -337,6 +364,7 @@ class ResearchPipeline:
             web_candidates_by_step, web_fetch_records, web_ingestion_reports = self._fetch_web_candidates(
                 question=question,
                 query_intent=query_intent,
+                retrieval_plan=retrieval_plan,
                 gap_records=initial_gap_records,
                 target_traces=target_traces,
                 ledger_entries=local_ledger_entries,

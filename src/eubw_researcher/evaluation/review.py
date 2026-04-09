@@ -10,6 +10,7 @@ from eubw_researcher.models import (
     ManualReviewArtifact,
     ManualReviewCheck,
     ManualReviewReport,
+    SourceRoleLevel,
 )
 from eubw_researcher.trust import (
     answer_alignment_status,
@@ -221,6 +222,30 @@ def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvide
     )
 
 
+def _germany_dependency_summary(result) -> dict[str, list[str]]:
+    if result.query_intent.intent_type != "germany_wallet_implementation_status":
+        return {}
+
+    used_source_ids: set[str] = set()
+    claims_with_de_support: set[str] = set()
+    medium_rank_only_claim_ids: set[str] = set()
+
+    for entry in result.approved_entries:
+        de_citations = [citation for citation in entry.citations if citation.jurisdiction == "DE"]
+        if not de_citations:
+            continue
+        used_source_ids.update(citation.source_id for citation in de_citations)
+        claims_with_de_support.add(entry.claim_id)
+        if all(citation.source_role_level == SourceRoleLevel.MEDIUM for citation in de_citations):
+            medium_rank_only_claim_ids.add(entry.claim_id)
+
+    return {
+        "used_source_ids": sorted(used_source_ids),
+        "claims_with_de_support": sorted(claims_with_de_support),
+        "medium_rank_only_claim_ids": sorted(medium_rank_only_claim_ids),
+    }
+
+
 def build_manual_review_report(
     result,
     verdict,
@@ -349,6 +374,7 @@ def build_manual_review_report(
         answer_evidence_alignment_verdict=alignment_verdict,
         product_output_self_sufficiency_verdict=self_sufficiency_verdict,
         approved_fetched_source_evidence=_approved_fetched_source_evidence(result),
+        germany_dependency_summary=_germany_dependency_summary(result),
     )
 
 
@@ -409,6 +435,37 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
             )
     else:
         lines.append("- No approved fetched web sources in this run.")
+    if report.germany_dependency_summary:
+        lines.extend(
+            [
+                "",
+                "## Germany Dependency Summary",
+                "",
+                "- Used DE source ids: "
+                + (
+                    ", ".join(
+                        f"`{item}`" for item in report.germany_dependency_summary["used_source_ids"]
+                    )
+                    or "none"
+                ),
+                "- Claims with DE support: "
+                + (
+                    ", ".join(
+                        f"`{item}`"
+                        for item in report.germany_dependency_summary["claims_with_de_support"]
+                    )
+                    or "none"
+                ),
+                "- Claims relying only on medium-rank DE sources: "
+                + (
+                    ", ".join(
+                        f"`{item}`"
+                        for item in report.germany_dependency_summary["medium_rank_only_claim_ids"]
+                    )
+                    or "none"
+                ),
+            ]
+        )
     lines.extend(
         [
             "",

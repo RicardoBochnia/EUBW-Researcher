@@ -106,6 +106,8 @@
       "forbidden_answer_substrings": ["Blocked:"],
       "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
       "require_manual_review_accept": true,
+      "spawned_validator_gate_eligible": true,
+      "spawned_validator_release_gate": true,
       "min_ledger_entries": 4
     },
     {
@@ -127,6 +129,8 @@
       ],
       "required_gap_actions": ["stop_local_only"],
       "required_retrieval_prefix_kinds": ["technical_standard", "project_artifact"],
+      "spawned_validator_gate_eligible": true,
+      "spawned_validator_release_gate": true,
       "min_gap_records": 2,
       "min_ledger_entries": 2
     }

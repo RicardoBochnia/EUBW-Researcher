@@ -9,6 +9,8 @@ from eubw_researcher.models import (
     Citation,
     CitationQuality,
     ClaimState,
+    ClaimType,
+    DocumentStatus,
     FacetCoverageFacet,
     FacetCoverageReport,
     LedgerEntry,
@@ -280,6 +282,7 @@ def _document_citations(documents: Sequence[SourceDocument], *, limit: Optional[
                     source_role_level=document.entry.source_role_level,
                     source_kind=document.entry.source_kind,
                     jurisdiction=document.entry.jurisdiction,
+                    document_status=document.entry.document_status,
                     citation_quality=CitationQuality.DOCUMENT_ONLY,
                     document_path=document.entry.local_path,
                     canonical_url=document.entry.canonical_url,
@@ -294,6 +297,22 @@ def _document_citations(documents: Sequence[SourceDocument], *, limit: Optional[
     if limit is not None:
         return deduped[:limit]
     return deduped
+
+
+def _status_qualified_claim_text(entry: LedgerEntry) -> str:
+    status = entry.governing_document_status
+    if status == DocumentStatus.DRAFT:
+        return f"Current draft support indicates: {entry.claim_text}"
+    if status == DocumentStatus.PROPOSAL:
+        return f"Current proposal-stage support indicates: {entry.claim_text}"
+    if status == DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE:
+        return f"Adopted but not yet effective: {entry.claim_text}"
+    if status == DocumentStatus.INFORMATIONAL and entry.claim_type in {
+        ClaimType.SYNTHESIS,
+        ClaimType.PROTOCOL_BEHAVIOR,
+    }:
+        return f"Informational source support indicates: {entry.claim_text}"
+    return entry.claim_text
 
 
 def _generic_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
@@ -311,7 +330,7 @@ def _generic_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
     return _AnswerBullet(
         bullet_id=entry.claim_id,
         section=section,
-        text=entry.claim_text,
+        text=_status_qualified_claim_text(entry),
         rationale=entry.rationale,
         wording_category=wording_category,
         claim_ids=[entry.claim_id],
@@ -748,6 +767,7 @@ def _build_pinpoint_evidence_report(
                     answer_claim_text=bullet.text,
                     source_id=citation.source_id,
                     source_role_level=citation.source_role_level,
+                    document_status=citation.document_status,
                     citation_quality=citation.citation_quality,
                     locator_type=locator_type,
                     locator_value=locator_value,

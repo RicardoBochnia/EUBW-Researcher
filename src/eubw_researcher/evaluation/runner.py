@@ -10,6 +10,7 @@ from eubw_researcher.config import (
     load_evaluation_scenarios,
     load_runtime_config,
     load_source_hierarchy,
+    load_terminology_config,
     load_web_allowlist,
 )
 from eubw_researcher.corpus import (
@@ -486,6 +487,7 @@ def _run_pipeline(repo_root: Path, catalog_path: Optional[Path] = None):
     runtime = load_runtime_config(repo_root / "configs" / "runtime.yaml")
     hierarchy = load_source_hierarchy(repo_root / "configs" / "source_hierarchy.yaml")
     allowlist = load_web_allowlist(repo_root / "configs" / "web_allowlist.yaml")
+    terminology = load_terminology_config(repo_root / "configs" / "terminology.yaml")
     resolved_catalog_path = (
         catalog_path or repo_root / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
     )
@@ -495,6 +497,7 @@ def _run_pipeline(repo_root: Path, catalog_path: Optional[Path] = None):
         hierarchy=hierarchy,
         allowlist=allowlist,
         ingestion_bundle=bundle,
+        terminology=terminology,
     )
     return pipeline, coverage_report, corpus_state_id, resolved_catalog_path
 

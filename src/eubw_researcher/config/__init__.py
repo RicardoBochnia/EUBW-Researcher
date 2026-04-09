@@ -7,6 +7,7 @@ from .loader import (
     load_real_question_pack,
     load_runtime_config,
     load_source_hierarchy,
+    load_terminology_config,
     load_web_allowlist,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "load_real_question_pack",
     "load_runtime_config",
     "load_source_hierarchy",
+    "load_terminology_config",
     "load_web_allowlist",
 ]

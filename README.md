@@ -5,10 +5,14 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 ## Local commands
 
 - Programmatic agent use should use the facade contract exported from `eubw_researcher` (`ResearchRuntimeFacade`, `AgentRuntimeRequest`, `AgentRuntimeResponse`, `AgentRuntimeResult`, `AgentRuntimeMode`); see `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
+- Run the unit test suite used by the default pull-request CI path: `python3 scripts/run_unit_tests.py`
+- Run the integration-heavy pipeline/eval suite used by conditional pull-request CI jobs: `python3 scripts/run_integration_tests.py`
 - Run the full local test suite, including Scenario D closeout coverage: `python3 scripts/run_tests.py`
 - Run only the separate Scenario D closeout harness tests: `python3 scripts/run_closeout_tests.py`
 - Ingest the sample curated corpus: `python3 scripts/ingest_sample_corpus.py`
 - Build the internal catalog for the local real corpus archive: `python3 scripts/build_real_corpus_catalog.py`
+- Regenerate the generator-owned terminology config from the local real corpus archive: `python3 scripts/update_terminology_from_corpus.py`
+- Verify that the committed terminology config matches the current local archive: `python3 scripts/update_terminology_from_corpus.py --check`
 - Check the configured real-corpus archive against the stored canonical source URLs and stage changed candidates: `python3 scripts/refresh_real_corpus.py`
 - Apply staged refresh candidates into the accepted local archive and update archive-catalog metadata: `python3 scripts/refresh_real_corpus.py --apply`
 - Ingest the generated real corpus catalog: `python3 scripts/ingest_sample_corpus.py --catalog artifacts/real_corpus/curated_catalog.json`
@@ -23,6 +27,9 @@ Inspectable Python research prototype for the Option A evidence-first pipeline.
 - Run eval against a non-fixture catalog: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Run the real-corpus review gate: `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Generate the validated current-state report from the real-corpus eval gate: `python3 scripts/report_validated_current_state.py`
+- Generate the validated current-state report with optional spawned-validator evidence: `python3 scripts/report_validated_current_state.py --spawned-validator-manifest artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json`
+- Run the optional spawned-validator gate for one configured high-risk scenario: `python3 scripts/run_spawned_validator_gate.py --scenario high_risk_failure_pattern --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
+- Run the optional spawned-validator release gate subset: `python3 scripts/run_spawned_validator_gate.py --release-gate --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 - Add a real-question-pack manifest as supplemental evidence for that report: `python3 scripts/report_validated_current_state.py --real-question-pack-manifest artifacts/real_question_pack_runs/<run-id>/pack_run_manifest.json`
 - Run the separate Scenario D closeout harness with a spawned validator: `python3 scripts/run_scenario_d_closeout.py --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 
@@ -33,8 +40,10 @@ Validator contract for the closeout harness:
 ## Notes
 
 - The repository is V2-backend-only by design: no UI, no persistent provenance graph, and no multi-agent orchestration.
+- Pull-request CI now uses a cheap routing step on every PR, pins Python 3.12 for that routing step, runs the unit suite only when runtime-relevant files changed, lets the heavier integration and closeout suites proceed only after unit tests pass, and reserves `python3 scripts/run_tests.py` for every push to `main`, scheduled validation, or manual dispatch.
 - Real-corpus refresh is user-triggered: `scripts/refresh_real_corpus.py` checks configured archive entries against their stored canonical source URLs, stages changed candidates under `artifacts/real_corpus/refresh_staging`, and only updates the accepted archive when run with `--apply`.
 - Refresh governance decision: refresh is intentionally not governed by the open-web discovery allowlist. Discovery stays allowlist-only and path-gated for finding new sources; refresh is limited to already accepted corpus entries and may only re-check the exact stored `canonical_url` for those entries. No discovery, link-following, alternate-source search, or silent source replacement is allowed in the refresh workflow.
+- `configs/terminology.yaml` is generator-owned output from `scripts/update_terminology_from_corpus.py`; regenerate it after archive or curated-catalog changes instead of editing it by hand.
 - Config files under `configs/` use YAML-compatible JSON so no separate YAML parser dependency is required; PDF extraction uses `pypdf`.
 - Manual artifact review guidance lives in `docs/architecture/options/option-a/MANUAL_REVIEW_CHECKLIST.md`.
 - A compact reviewer entrypoint lives in `docs/architecture/options/option-a/REVIEW_GUIDE.md`.
@@ -43,6 +52,8 @@ Validator contract for the closeout harness:
 - Top-level eval output directories now include `eval_run_manifest.json`; for real-corpus eval they also include top-level `corpus_coverage_report.json` and `corpus_coverage_summary.md` as the compact validated-gate surface.
 - `eval_run_manifest.json` is only authoritative when produced by `python3 scripts/run_eval.py --all`; single-scenario eval runs do not write or preserve the top-level authoritative manifest/coverage artifacts in the target output directory.
 - `scripts/report_validated_current_state.py` writes a compact validated-state bundle under `artifacts/current_state`, including `validated_current_state_report.json` and `validated_current_state_report.md`; it consumes the real-corpus `eval_run_manifest.json` from `run_eval.py --all`, and real-question-pack evidence is supplemental only when passed explicitly with `--real-question-pack-manifest`.
+- `scripts/run_spawned_validator_gate.py` writes optional validator-gated scenario bundles plus `spawned_validator_gate_manifest.json`; this is separate from the deterministic eval gate and is intended for configured high-risk scenarios or the configured release-gate subset.
+- `scripts/report_validated_current_state.py` can record a spawned-validator manifest as supplemental evidence, or treat it as binding only when explicitly asked with `--promote-spawned-validator-gate`.
 - Reviewable bundles include `retrieval_plan.json`, `gap_records.json`, `ingestion_report.json`, `ledger_entries.json`, `approved_ledger.json`, `web_fetch_records.json`, `final_answer.txt`, `manual_review.json`, `manual_review_report.md`, `pinpoint_evidence.json`, `answer_alignment.json`, and `blind_validation_report.json`; grouping-capable runs additionally emit `provisional_grouping.json`.
 - Corpus-backed bundles additionally emit `corpus_coverage_report.json`, and the real-corpus ingestion bundle is cached under `artifacts/real_corpus/cache/` so repeated review runs do not re-normalize the full archive.
 - `manual_review.json` is an automated prefill artifact; `manual_review_report.md` is the primary human-readable review surface.
@@ -52,6 +63,7 @@ Validator contract for the closeout harness:
 - `answer_alignment.json` records the structural answer-to-evidence alignment check used by the V2.2 topology gate.
 - `blind_validation_report.json` records the product-output-first self-sufficiency gate for whether the generated artifacts should be reusable without raw-document reconstruction.
 - Scenario D closeout runs additionally persist `spawned_validator_request.json` and `spawned_validator_result.json`; these are review-harness artifacts, not part of the normal deterministic eval gate.
+- Optional spawned-validator gate runs also persist `spawned_validator_request.json` and `spawned_validator_result.json` per gated scenario, plus a top-level `spawned_validator_gate_manifest.json` describing which scenarios were gated and whether the validator changed the final outcome.
 - The binding real-corpus review samples are `primary_success_scenario` and `scenario_b_registration_certificate_mandatory`; their `manual_review_report.md` must end in `accept`.
 - `scenario_d_certificate_topology_anchor` is the maintained Option A closeout proof case; use the separate closeout harness rather than the normal eval gate when a fresh no-context validator proof is required.
 - Approved fetched web sources are surfaced in `manual_review_report.md` with digest and provenance evidence for reviewability.

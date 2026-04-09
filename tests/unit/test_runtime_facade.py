@@ -49,7 +49,13 @@ class RuntimeFacadeTests(unittest.TestCase):
         return SimpleNamespace(
             question="Synthetic question?",
             query_intent=SimpleNamespace(intent_type="synthetic_intent"),
-            retrieval_plan=SimpleNamespace(steps=[]),
+            retrieval_plan=SimpleNamespace(
+                question="Synthetic question?",
+                normalized_question="Synthetic question?",
+                question_term_normalizations=[],
+                target_queries=[],
+                steps=[],
+            ),
             gap_records=[],
             web_fetch_records=[],
             ingestion_report=[],
@@ -93,6 +99,9 @@ class RuntimeFacadeTests(unittest.TestCase):
                 "eubw_researcher.runtime_facade.load_source_hierarchy",
                 return_value="hierarchy",
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
+                "eubw_researcher.runtime_facade.load_terminology_config",
+                return_value="terminology",
+            ), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", coverage_report, "state-123"),
             ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch.object(
@@ -107,11 +116,12 @@ class RuntimeFacadeTests(unittest.TestCase):
                 hierarchy="hierarchy",
                 allowlist="allowlist",
                 ingestion_bundle="bundle",
+                terminology="terminology",
             )
             pipeline_cls.return_value.answer_question.assert_called_once_with("Synthetic question?")
             write_bundle.assert_not_called()
             self.assertEqual(response.contract_version, "option_a_runtime.v2")
-            self.assertEqual(response.result_schema_version, "agent_runtime_result.v1")
+            self.assertEqual(response.result_schema_version, "agent_runtime_result.v2")
             self.assertEqual(response.mode, AgentRuntimeMode.ANSWER_QUESTION)
             self.assertEqual(response.catalog_path, catalog_path.resolve())
             self.assertIsNone(response.output_dir)
@@ -133,6 +143,9 @@ class RuntimeFacadeTests(unittest.TestCase):
                 "eubw_researcher.runtime_facade.load_source_hierarchy",
                 return_value="hierarchy",
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
+                "eubw_researcher.runtime_facade.load_terminology_config",
+                return_value="terminology",
+            ), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", None, "state-456"),
             ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch.object(
@@ -168,6 +181,9 @@ class RuntimeFacadeTests(unittest.TestCase):
                 "eubw_researcher.runtime_facade.load_source_hierarchy",
                 return_value="hierarchy",
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
+                "eubw_researcher.runtime_facade.load_terminology_config",
+                return_value="terminology",
+            ), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", coverage_report, "state-789"),
             ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls, patch.object(
@@ -287,6 +303,9 @@ class RuntimeFacadeTests(unittest.TestCase):
                 "eubw_researcher.runtime_facade.load_source_hierarchy",
                 return_value="hierarchy",
             ), patch("eubw_researcher.runtime_facade.load_web_allowlist", return_value="allowlist"), patch(
+                "eubw_researcher.runtime_facade.load_terminology_config",
+                return_value="terminology",
+            ), patch(
                 "eubw_researcher.runtime_facade.load_or_build_ingestion_bundle",
                 return_value=(None, "bundle", None, "state-321"),
             ), patch("eubw_researcher.runtime_facade.ResearchPipeline") as pipeline_cls:

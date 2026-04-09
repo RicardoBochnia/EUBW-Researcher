@@ -7,7 +7,9 @@ from eubw_researcher.models import (
     CitationQuality,
     ClaimState,
     ClaimTarget,
+    ClaimType,
     ContradictionStatus,
+    DocumentStatus,
     EvidenceMatch,
     LedgerEntry,
     LedgerEvidence,
@@ -139,6 +141,7 @@ def _to_ledger_evidence(
         source_kind_rank=hierarchy.rank_for(match.candidate.chunk.source_kind),
         source_origin=match.candidate.chunk.source_origin,
         jurisdiction=match.candidate.chunk.jurisdiction,
+        document_status=match.candidate.chunk.document_status,
         support_directness=match.support_directness,
         term_overlap=match.term_overlap,
         scope_overlap=match.scope_overlap,
@@ -311,6 +314,47 @@ def _final_claim_state(
     return ClaimState.INTERPRETIVE
 
 
+def _apply_document_status_cap(
+    target: ClaimTarget,
+    final_state: ClaimState,
+    governing_matches: Sequence[EvidenceMatch],
+    support_matches: Sequence[EvidenceMatch],
+) -> ClaimState:
+    if final_state != ClaimState.CONFIRMED:
+        return final_state
+    if target.claim_type not in {ClaimType.OBLIGATION, ClaimType.ALLOWANCE}:
+        return final_state
+    if not governing_matches and not support_matches:
+        return final_state
+    governing_support = governing_matches[0] if governing_matches else support_matches[0]
+    if governing_support.candidate.chunk.document_status in {
+        DocumentStatus.DRAFT,
+        DocumentStatus.PROPOSAL,
+    }:
+        return ClaimState.INTERPRETIVE
+    return final_state
+
+
+def _governing_document_status(
+    governing_evidence: Sequence[LedgerEvidence],
+    supporting_evidence: Sequence[LedgerEvidence],
+) -> DocumentStatus | None:
+    if governing_evidence:
+        return governing_evidence[0].document_status
+    if supporting_evidence:
+        return supporting_evidence[0].document_status
+    return None
+
+
+def _collect_document_statuses(*evidence_groups: Sequence[LedgerEvidence]) -> List[DocumentStatus]:
+    statuses: List[DocumentStatus] = []
+    for group in evidence_groups:
+        for item in group:
+            if item.document_status not in statuses:
+                statuses.append(item.document_status)
+    return statuses
+
+
 def build_ledger(
     query_intent: QueryIntent,
     candidates_by_step: Dict[str, List[RetrievalCandidate]],
@@ -351,6 +395,17 @@ def build_ledger(
             contradiction_matches,
             hierarchy,
         )
+        final_state = _apply_document_status_cap(
+            target,
+            final_state,
+            _choose_governing_matches(
+                target,
+                support_matches,
+                contradiction_matches,
+                hierarchy,
+            ),
+            support_matches,
+        )
         contradiction_status = (
             ContradictionStatus.CONFLICTING
             if contradiction_matches and final_state == ClaimState.OPEN
@@ -372,6 +427,15 @@ def build_ledger(
             support_directness = SupportDirectness.INDIRECT
             citation_quality = CitationQuality.DOCUMENT_ONLY
             citations = []
+        governing_document_status = _governing_document_status(
+            governing_evidence,
+            supporting_evidence,
+        )
+        source_document_statuses = _collect_document_statuses(
+            governing_evidence,
+            supporting_evidence,
+            contradicting_evidence,
+        )
 
         if final_state == ClaimState.CONFIRMED:
             rationale = "Direct high-rank support survived the hierarchy gate and is anchor-grounded or audit-confirmable."
@@ -381,6 +445,13 @@ def build_ledger(
             rationale = "Same-rank admissible evidence conflicts closely enough that the structural tie-break leaves the claim unresolved."
         else:
             rationale = "No admissible support exists for the core claim after the inspected ranked search path."
+
+        if governing_document_status == DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE:
+            rationale += " The governing source is adopted but not yet effective, so downstream wording must preserve that qualifier."
+        elif governing_document_status == DocumentStatus.DRAFT:
+            rationale += " The governing source remains at draft status, so the claim cannot be treated as final law."
+        elif governing_document_status == DocumentStatus.PROPOSAL:
+            rationale += " The governing source remains at proposal status, so the claim cannot be treated as final law."
 
         ledger_entries.append(
             LedgerEntry(
@@ -394,6 +465,8 @@ def build_ledger(
                 citation_quality=citation_quality,
                 contradiction_status=contradiction_status,
                 final_claim_state=final_state,
+                governing_document_status=governing_document_status,
+                source_document_statuses=source_document_statuses,
                 citations=citations,
                 supporting_evidence=supporting_evidence,
                 contradicting_evidence=contradicting_evidence,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections import Counter
 from typing import Dict, Iterable, List
 
@@ -11,12 +10,11 @@ from eubw_researcher.models import (
     RuntimeConfig,
     SourceHierarchyConfig,
 )
-
-TOKEN_RE = re.compile(r"[a-z0-9]+")
+from eubw_researcher.retrieval.text_normalization import tokenize_normalized_text
 
 
 def _tokenize(text: str) -> List[str]:
-    return TOKEN_RE.findall(text.lower())
+    return tokenize_normalized_text(text)
 
 
 def _expand_tokens(tokens: Iterable[str], expansions: Dict[str, List[str]]) -> List[str]:

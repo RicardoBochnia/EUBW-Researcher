@@ -10,6 +10,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -21,6 +22,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -32,6 +34,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -43,6 +46,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -54,6 +58,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -65,6 +70,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -76,6 +82,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -87,6 +94,7 @@
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
@@ -98,6 +106,7 @@
       "source_role_level": "high",
       "jurisdiction": "international",
       "publication_status": "standard",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
     },
@@ -109,6 +118,7 @@
       "source_role_level": "high",
       "jurisdiction": "international",
       "publication_status": "standard",
+      "document_status": "final",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
     },
@@ -120,6 +130,7 @@
       "source_role_level": "medium",
       "jurisdiction": "EU",
       "publication_status": "living_document",
+      "document_status": "informational",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "section_level"]
     },
@@ -131,6 +142,7 @@
       "source_role_level": "medium",
       "jurisdiction": "EU",
       "publication_status": "technical_spec",
+      "document_status": "informational",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
     },
@@ -142,6 +154,7 @@
       "source_role_level": "medium",
       "jurisdiction": "EU",
       "publication_status": "technical_spec",
+      "document_status": "informational",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
     },
@@ -153,6 +166,7 @@
       "source_role_level": "medium",
       "jurisdiction": "EU",
       "publication_status": "discussion_topic",
+      "document_status": "informational",
       "publication_date": null,
       "anchorability_hints": ["expect_anchors", "section_level"],
       "admission_reason": "Admit the most relevant already-archived official project artifact for certificate-topology questions about multiple access or registration certificates, relying party instances, and intended-use scoping."

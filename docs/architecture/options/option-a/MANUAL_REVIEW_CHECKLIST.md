@@ -15,6 +15,7 @@ Use this checklist when reviewing the stored evaluation artifacts under `artifac
 ## Retrieval and gap checks
 
 - Review `retrieval_plan.json` to verify EU-first ranked traversal for regulation-heavy questions.
+- When wording normalization is relevant, review `retrieval_plan.json.target_queries` to confirm the stored normalized query still reflects the user's intended claim-target search.
 - Review `gap_records.json` to confirm that unresolved or contradictory claims keep a traceable audit record.
 - For any `official_web_search` action, confirm that the local ranked layers were exhausted first.
 - For any unresolved contradiction, confirm that the gap reason explains why the point stayed unresolved.

@@ -50,9 +50,11 @@ def build_catalog_from_archive(config: ArchiveCorpusConfig) -> SourceCatalog:
                 publication_date=selection.publication_date,
                 local_path=local_path,
                 canonical_url=archive_row.get("source_url"),
+                document_status=selection.document_status,
                 source_origin=selection.source_origin,
                 anchorability_hints=list(selection.anchorability_hints),
                 admission_reason=selection.admission_reason,
+                source_family_id=selection.source_family_id,
             )
         )
 

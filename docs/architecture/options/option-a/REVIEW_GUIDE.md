@@ -32,6 +32,14 @@ This is a V2 research-version review target, not a production-readiness claim.
   `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - Generate the validated current-state report from the real-corpus gate:
   `python3 scripts/report_validated_current_state.py`
+- Add optional spawned-validator evidence to the validated current-state report:
+  `python3 scripts/report_validated_current_state.py --spawned-validator-manifest artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json`
+- Promote that spawned-validator evidence into the release decision explicitly:
+  `python3 scripts/report_validated_current_state.py --spawned-validator-manifest artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json --promote-spawned-validator-gate`
+- Run the optional spawned-validator gate for one configured high-risk scenario:
+  `python3 scripts/run_spawned_validator_gate.py --scenario high_risk_failure_pattern --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
+- Run the configured spawned-validator release-gate subset:
+  `python3 scripts/run_spawned_validator_gate.py --release-gate --catalog artifacts/real_corpus/curated_catalog.json --validator-command "<validator command>"`
 - Add a real-question-pack manifest as supplemental context:
   `python3 scripts/report_validated_current_state.py --real-question-pack-manifest artifacts/real_question_pack_runs/<run-id>/pack_run_manifest.json`
 - Run the Scenario D closeout harness with a spawned validator:
@@ -45,6 +53,7 @@ By default, fixture eval writes to `artifacts/eval_runs` and real-corpus eval wr
 The real-corpus gate also reuses the cached normalized bundle under `artifacts/real_corpus/cache/`, writes `corpus_coverage_report.json` into each scenario bundle, and writes a top-level `eval_run_manifest.json` plus top-level `corpus_coverage_report.json` / `corpus_coverage_summary.md` into the eval output directory.
 The real-question pack writes to `artifacts/real_question_pack_runs/<run-id>/...` and adds a top-level `pack_run_manifest.json` that records baseline repo state, whether the run wrote repo-local artifacts, runtime contract, corpus state, and compact per-question review signals.
 The validated current-state report lives outside per-run bundles under `artifacts/current_state/`; it treats the real-corpus eval manifest from `run_eval.py --all` as the authoritative binding gate surface and only records real-question-pack evidence as supplemental context when a pack manifest is provided explicitly with `--real-question-pack-manifest`.
+If a spawned-validator manifest is provided, the report records whether release validation is deterministic-only, deterministic plus supplemental spawned-validator evidence, or deterministic plus an explicitly promoted binding spawned-validator gate.
 Single-scenario eval runs are intentionally non-authoritative: they do not write a top-level eval manifest and they clear any stale top-level authoritative eval artifacts in the chosen output directory.
 
 ## What should be green
@@ -83,6 +92,7 @@ For validated current-state review, inspect:
 - `artifacts/current_state/validated_current_state_report.json`
 - `artifacts/current_state/validated_current_state_report.md`
 - the referenced `eval_run_manifest.json`
+- the referenced `spawned_validator_gate_manifest.json` when optional validator evidence was supplied
 The manifest is reviewer-oriented rather than benchmark-oriented. It should stay compact, but it should let a reviewer quickly see:
 
 - baseline git attribution (`git_commit`, `git_branch`, `git_dirty`) captured before the run creates in-repo output
@@ -94,6 +104,10 @@ Scenario D closeout runs additionally include:
 
 - `spawned_validator_request.json`
 - `spawned_validator_result.json`
+
+Optional spawned-validator gate runs additionally include:
+
+- `spawned_validator_gate_manifest.json`
 
 ## Highest-value things to verify manually
 
@@ -110,6 +124,7 @@ Scenario D closeout runs additionally include:
 - `pinpoint_evidence.json` maps each cited answer claim to a concrete local locator and is explicit when only approximate traceability is available.
 - `answer_alignment.json` shows no blocking wording-to-evidence alignment violations.
 - `blind_validation_report.json` passes and records that the run should be reusable without raw-document reconstruction.
+- For optional spawned-validator gate runs, `spawned_validator_gate_manifest.json` should show which scenarios were gated, whether the validator contract passed, and whether the validator was actually invoked or skipped after a deterministic failure.
 - For Scenario D closeout, `blind_validation_report.json` should show `validation_mode="structural_plus_spawned_validator_closeout"` and a nested `spawned_validator` result with `context_inherited=false`.
 - Any approved fetched web source is surfaced in `manual_review_report.md` with digest and provenance evidence.
 - `ledger_entries.json` shows weak anchors as `document_only`.
@@ -134,12 +149,13 @@ Suggested closeout sample:
 
 - `artifacts/scenario_d_closeout/scenario_d_certificate_topology_anchor`
 
-The V2 release gate treats the real-corpus `primary_success_scenario` and `scenario_b_registration_certificate_mandatory` bundles as binding review samples; their `manual_review_report.md` should end in `accept`.
+The deterministic V2 release gate treats the real-corpus `primary_success_scenario` and `scenario_b_registration_certificate_mandatory` bundles as binding review samples; their `manual_review_report.md` should end in `accept`.
+The optional spawned-validator release gate is separate and only becomes binding when the validated current-state report is generated with `--promote-spawned-validator-gate`.
 Scenario D is the maintained closeout proof case; run its separate harness when a fresh no-context validator proof is needed without destabilizing the deterministic eval gate.
 
 If the real-corpus eval directory is regenerated under a different output path, inspect the latest scenario directory with the same scenario id.
 For the real-question pack, use `pack_run_manifest.json` to see which question bundles were produced, which questions required follow-up, which ones triggered discovery or fetch activity, what review focus each question is meant to cover, and which review-signal verdicts changed, without treating the pack as a benchmark percentage gate.
-For validated current-state review, treat the real-corpus eval manifest as authoritative; the real-question pack and Scenario D closeout remain supplemental evidence unless explicitly promoted into the gate definition later.
+For validated current-state review, treat the real-corpus eval manifest as authoritative by default; the real-question pack, optional spawned-validator gate runs, and Scenario D closeout remain supplemental evidence unless explicitly promoted into the gate definition.
 
 ## Current V2 boundary
 

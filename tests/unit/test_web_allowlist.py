@@ -10,6 +10,7 @@ from unittest.mock import patch
 from eubw_researcher.config import load_runtime_config, load_web_allowlist
 from eubw_researcher.models import (
     DiscoveryEntrypoint,
+    DocumentStatus,
     SourceKind,
     SourceRoleLevel,
     WebAllowlistConfig,
@@ -20,6 +21,8 @@ from eubw_researcher.web.fetch import (
     _admissible_document_policy,
     _discover_candidate_urls,
     _followable_discovery_link,
+    _infer_document_status,
+    fetch_and_normalize_official_sources,
 )
 
 
@@ -82,6 +85,99 @@ class WebAllowlistTests(unittest.TestCase):
                 )
             ],
         )
+        self.assertEqual(
+            self.allowlist.discovery_urls_for_kind(SourceKind.NATIONAL_IMPLEMENTATION),
+            [],
+        )
+        self.assertEqual(
+            self.allowlist.discovery_urls_for_kind(
+                SourceKind.PROJECT_ARTIFACT,
+                intent_type="germany_wallet_implementation_status",
+            ),
+            [
+                "https://commission.europa.eu/topics/digital-economy-and-society/european-digital-identity_en",
+                "https://digital-strategy.ec.europa.eu/en/policies/eudi-wallet-implementation",
+                "https://eudi-walletconsortium.org/",
+                "https://eudi.dev/latest/technical-specifications/",
+                "https://docs.eudi.dev/latest/",
+                "https://eu-digital-identity-wallet.github.io/eudi-doc-architecture-and-reference-framework/latest/",
+                "https://www.sprind.org/eudi-wallet",
+            ],
+        )
+
+    def test_germany_seed_urls_are_intent_gated(self) -> None:
+        self.assertEqual(
+            self.allowlist.seed_urls_for_kind(SourceKind.NATIONAL_IMPLEMENTATION),
+            [],
+        )
+        germany_seeds = self.allowlist.seed_urls_for_kind(
+            SourceKind.NATIONAL_IMPLEMENTATION,
+            intent_type="germany_wallet_implementation_status",
+        )
+        self.assertIn(
+            "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+            germany_seeds,
+        )
+        self.assertIn(
+            "https://dserver.bundestag.de/btd/21/041/2104115.pdf",
+            germany_seeds,
+        )
+
+    def test_infer_document_status_marks_bmv_refe_page_as_draft(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+            policy,
+            "Referentenentwurf eIDAS-Durchführungsgesetz",
+            "Der Referentenentwurf befindet sich in der Ressortabstimmung.",
+        )
+
+        self.assertEqual(status, DocumentStatus.DRAFT)
+
+    def test_infer_document_status_marks_bundestag_bill_as_proposal(self) -> None:
+        policy = self.allowlist.policy_for_domain("dserver.bundestag.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://dserver.bundestag.de/btd/21/041/2104115.pdf",
+            policy,
+            "Gesetzentwurf zur digitalen Identität",
+            "Entwurf eines Gesetzes zur digitalen Identität in Deutschland.",
+        )
+
+        self.assertEqual(status, DocumentStatus.PROPOSAL)
+
+    def test_infer_document_status_does_not_treat_reference_as_refe_draft_signal(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://www.bmv.de/DE/Themen/Digitales/reference-note.html",
+            policy,
+            "Reference Note",
+            "See the reference document for background material.",
+        )
+
+        self.assertEqual(status, DocumentStatus.INFORMATIONAL)
+
+    def test_infer_document_status_treats_not_in_kraft_language_as_not_final(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+            policy,
+            "eIDAS-Durchführungsgesetz",
+            "Das Gesetz ist bisher nicht in Kraft getreten.",
+        )
+
+        self.assertEqual(status, DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE)
 
     def test_admissible_document_policy_enforces_path_prefixes_and_blocked_keywords(self) -> None:
         policy = self.allowlist.policy_for_domain("openid.net")
@@ -114,6 +210,27 @@ class WebAllowlistTests(unittest.TestCase):
                 "https://openid.net/certification/openid4vp",
                 policy,
                 self.allowlist,
+            )
+        )
+
+    def test_admissible_document_policy_rejects_germany_pages_without_matching_intent(self) -> None:
+        policy = self.allowlist.policy_for_domain("www.bmv.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        self.assertIsNone(
+            _admissible_document_policy(
+                "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+                policy,
+                self.allowlist,
+            )
+        )
+        self.assertIsNotNone(
+            _admissible_document_policy(
+                "https://www.bmv.de/SharedDocs/DE/Gesetze-20/eIDAS-durchfuehrungsgesetz.html",
+                policy,
+                self.allowlist,
+                intent_type="germany_wallet_implementation_status",
             )
         )
 
@@ -321,3 +438,137 @@ class WebAllowlistTests(unittest.TestCase):
                 r"official_search entrypoint 'broken_search' must contain \{query\}",
             ):
                 load_web_allowlist(config_path)
+
+    def test_loader_respects_explicit_empty_discovery_entrypoints_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "web_allowlist.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "allowed_domains": ["example.test"],
+                        "domain_policies": [
+                            {
+                                "policy_id": "empty_entrypoints_disable_legacy_fallback",
+                                "domain": "example.test",
+                                "source_kind": "project_artifact",
+                                "source_role_level": "medium",
+                                "jurisdiction": "EU",
+                                "seed_urls": [],
+                                "discovery_entrypoints": [],
+                                "discovery_urls": ["https://example.test/legacy-discovery"],
+                                "crawl_path_prefixes": ["/docs/"],
+                                "admission_path_prefixes": ["/docs/"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            allowlist = load_web_allowlist(config_path)
+
+            self.assertEqual(
+                allowlist.discovery_entrypoints_for_kind(SourceKind.PROJECT_ARTIFACT),
+                [],
+            )
+
+    def test_fetch_preserves_shared_discovery_urls_per_source_kind_and_caches_duplicate_search_requests(self) -> None:
+        runtime = replace(
+            load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml"),
+            web_discovery_max_pages=1,
+            web_discovery_max_depth=1,
+            web_discovery_max_candidates_per_kind=2,
+        )
+        allowlist = WebAllowlistConfig(
+            allowed_domains=["example.test"],
+            domain_policies=[
+                WebDomainPolicy(
+                    domain="example.test",
+                    source_kind=SourceKind.REGULATION,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    policy_id="example_regulation",
+                    discovery_entrypoints=[
+                        DiscoveryEntrypoint(
+                            entrypoint_id="shared_quick_search_regulation",
+                            url_template="https://example.test/search?text={query}",
+                            strategy="official_search",
+                        )
+                    ],
+                    crawl_path_prefixes=["/search", "/legal-content/"],
+                    admission_path_prefixes=["/legal-content/"],
+                ),
+                WebDomainPolicy(
+                    domain="example.test",
+                    source_kind=SourceKind.IMPLEMENTING_ACT,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    policy_id="example_implementing_act",
+                    discovery_entrypoints=[
+                        DiscoveryEntrypoint(
+                            entrypoint_id="shared_quick_search_implementing_act",
+                            url_template="https://example.test/search?text={query}",
+                            strategy="official_search",
+                        )
+                    ],
+                    crawl_path_prefixes=["/search", "/legal-content/"],
+                    admission_path_prefixes=["/legal-content/"],
+                ),
+            ],
+        )
+        request_counts: dict[str, int] = {}
+        discovery_url = "https://example.test/search?text=registration+certificate"
+        shared_document_url = "https://example.test/legal-content/shared-certificate-act"
+
+        def fake_request(url: str, timeout_seconds: int) -> tuple[bytes, str]:
+            del timeout_seconds
+            request_counts[url] = request_counts.get(url, 0) + 1
+            if url == discovery_url:
+                return (
+                    (
+                        "<html><body>"
+                        "<a href='/legal-content/shared-certificate-act'>Registration certificate implementing act</a>"
+                        "</body></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            if url == shared_document_url:
+                return (
+                    (
+                        "<html><head><title>Shared Registration Certificate Act</title></head>"
+                        "<body><h1>Shared Registration Certificate Act</h1>"
+                        "<p>The registration certificate is mandatory under the act.</p>"
+                        "</body></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            raise AssertionError(f"Unexpected URL fetched during test: {url}")
+
+        with patch("eubw_researcher.web.fetch._request_url", side_effect=fake_request):
+            documents, reports, records = fetch_and_normalize_official_sources(
+                sub_question="Is the registration certificate mandatory under the implementing act?",
+                source_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
+                discovery_query="registration certificate",
+                allowlist=allowlist,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual(len(documents), 2)
+        self.assertEqual(len(reports), 2)
+        self.assertEqual(
+            sorted(document.entry.source_kind for document in documents),
+            [SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+        )
+        successful_fetches = [
+            record
+            for record in records
+            if record.record_type == "fetch"
+            and record.normalization_status.value == "success"
+            and record.canonical_url == shared_document_url
+        ]
+        self.assertEqual(
+            sorted(record.source_kind for record in successful_fetches),
+            [SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+        )
+        self.assertEqual(request_counts[discovery_url], 1)
+        self.assertEqual(request_counts[shared_document_url], 2)

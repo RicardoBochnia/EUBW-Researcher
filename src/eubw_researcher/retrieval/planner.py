@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import List
 
 from eubw_researcher.models import (
@@ -9,27 +8,33 @@ from eubw_researcher.models import (
     QueryIntent,
     RetrievalPlan,
     RetrievalPlanStep,
+    RetrievalTargetQuery,
     RuntimeConfig,
     SourceHierarchyConfig,
     SourceKind,
     SourceRoleLevel,
+    TerminologyConfig,
 )
-from eubw_researcher.retrieval.terminology import normalize_query_terms
+from eubw_researcher.retrieval.terminology import (
+    normalize_query_terms,
+    normalize_query_terms_with_trace,
+)
+from eubw_researcher.retrieval.text_normalization import (
+    normalize_text_for_matching,
+    token_set,
+)
 
 
 def _contains_any(text: str, terms: List[str]) -> bool:
-    return any(term in text for term in terms)
-
-
-TOKEN_RE = re.compile(r"[a-z0-9]+")
-
-
-def _token_set(text: str) -> set[str]:
-    return set(TOKEN_RE.findall(text.lower()))
+    normalized_text = normalize_text_for_matching(text)
+    return any(normalize_text_for_matching(term) in normalized_text for term in terms)
 
 
 def _phrase_score(text: str, phrases: List[str]) -> int:
-    return sum(1 for phrase in phrases if phrase in text)
+    normalized_text = normalize_text_for_matching(text)
+    return sum(
+        1 for phrase in phrases if normalize_text_for_matching(phrase) in normalized_text
+    )
 
 
 def _token_overlap(tokens: set[str], expected: List[str]) -> int:
@@ -301,6 +306,90 @@ def _certificate_layer_targets() -> List[ClaimTarget]:
     ]
 
 
+def _germany_wallet_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="germany_eu_wallet_anchor",
+            claim_text=(
+                "EU law remains the governing layer for the digital identity wallet and "
+                "frames any Germany-specific implementation path."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["eu", "wallet", "germany", "implementation"],
+            primary_terms=["eu", "wallet", "governing", "implementation"],
+            support_groups=[
+                ["union", "wallet"],
+                ["regulation", "wallet"],
+            ],
+            contradiction_groups=[["germany overrides union law"]],
+            grouping_label="Governance and discretion",
+        ),
+        ClaimTarget(
+            target_id="germany_wallet_legal_path",
+            claim_text=(
+                "Germany is building its wallet implementation path through a national "
+                "legal and legislative track that is still provisional where draft material is used."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.MEDIUM,
+            preferred_kinds=[SourceKind.NATIONAL_IMPLEMENTATION],
+            scope_terms=["germany", "deutschland", "gesetz", "eidas", "durchführungsgesetz"],
+            primary_terms=["germany", "law", "draft", "wallet"],
+            support_groups=[
+                ["referentenentwurf", "eidas"],
+                ["gesetzentwurf", "eidas"],
+                ["durchführungsgesetz", "eidas"],
+                ["gesetz", "digitale identität"],
+                ["ressortabstimmung", "eidas"],
+            ],
+            contradiction_groups=[["final law already in force"]],
+            grouping_label="Germany implementation path",
+        ),
+        ClaimTarget(
+            target_id="germany_sprind_role",
+            claim_text=(
+                "SPRIND plays an official Germany-specific development or prototyping role in the "
+                "wallet ecosystem, but that role does not itself create binding legal requirements."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.MEDIUM,
+            preferred_kinds=[SourceKind.PROJECT_ARTIFACT, SourceKind.NATIONAL_IMPLEMENTATION],
+            scope_terms=["sprind", "wallet", "germany"],
+            primary_terms=["sprind", "prototype", "wallet", "development"],
+            support_groups=[
+                ["sprind", "wallet"],
+                ["sprind", "prototype"],
+                ["sprind", "digitale identität"],
+            ],
+            contradiction_groups=[["sprind creates binding law"]],
+            grouping_label="Germany implementation path",
+        ),
+        ClaimTarget(
+            target_id="germany_non_override_boundary",
+            claim_text=(
+                "Germany-specific guidance and implementation material may add delivery detail, "
+                "but it does not override governing EU wallet obligations."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.MEDIUM,
+            preferred_kinds=[SourceKind.NATIONAL_IMPLEMENTATION, SourceKind.REGULATION],
+            scope_terms=["germany", "implementation", "eu", "obligations"],
+            primary_terms=["override", "germany", "eu", "implementation"],
+            support_groups=[
+                ["does not override", "union"],
+                ["does not override", "eu"],
+                ["unionsrecht", "vorrang"],
+                ["eu-recht", "vorrang"],
+                ["union law", "implementation discretion"],
+            ],
+            contradiction_groups=[["germany overrides eu"]],
+            grouping_label="Governance and discretion",
+        ),
+    ]
+
+
 def _certificate_topology_targets() -> List[ClaimTarget]:
     return [
         ClaimTarget(
@@ -529,7 +618,7 @@ def _relying_party_certificate_targets() -> List[ClaimTarget]:
 
 
 def _is_relying_party_registration_information_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+    tokens = token_set(lowered)
     return (
         _has_business_wallet_subject(lowered, tokens)
         and ("registration" in tokens or "register" in tokens)
@@ -537,17 +626,29 @@ def _is_relying_party_registration_information_question(lowered: str) -> bool:
     )
 
 
-def _is_relying_party_certificate_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+def _is_relying_party_certificate_question(
+    lowered: str,
+    *,
+    original_lowered: str | None = None,
+) -> bool:
+    tokens = token_set(lowered)
+    original_tokens = token_set(original_lowered) if original_lowered is not None else tokens
     return (
-        _has_business_wallet_subject(lowered, tokens)
-        and _contains_any(lowered, ["registration certificate", "access certificate"])
+        _contains_any(lowered, ["registration certificate"])
+        and _contains_any(lowered, ["access certificate"])
         and _is_comparison_request(lowered, tokens)
+        and (
+            _has_business_wallet_subject(lowered, tokens)
+            or (
+                original_lowered is not None
+                and _has_business_wallet_subject(original_lowered, original_tokens)
+            )
+        )
     )
 
 
 def _is_certificate_topology_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+    tokens = token_set(lowered)
     certificate_context = _has_business_wallet_subject(lowered, tokens) or _contains_any(
         lowered,
         [
@@ -607,12 +708,12 @@ def _is_certificate_topology_question(lowered: str) -> bool:
 
 
 def _is_business_wallet_requirements_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+    tokens = token_set(lowered)
     return _has_business_wallet_subject(lowered, tokens) and _is_requirements_request(lowered, tokens)
 
 
 def _is_registration_scope_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+    tokens = token_set(lowered)
     return (
         "registration certificate" in lowered
         and (
@@ -626,7 +727,7 @@ def _is_registration_scope_question(lowered: str) -> bool:
 
 
 def _is_protocol_authorization_server_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+    tokens = token_set(lowered)
     return (
         _contains_any(lowered, ["openid4vci", "openid4vp"])
         and (
@@ -638,11 +739,40 @@ def _is_protocol_authorization_server_question(lowered: str) -> bool:
 
 
 def _is_arf_boundary_question(lowered: str) -> bool:
-    tokens = _token_set(lowered)
+    tokens = token_set(lowered)
     return "arf" in lowered and (
         _contains_any(lowered, ["authorization server", "verifier", "presentation flow"])
         or _token_overlap(tokens, ["authorization", "server", "verifier", "presentation", "flow"]) >= 3
     )
+
+
+def _is_germany_wallet_implementation_question(lowered: str) -> bool:
+    tokens = token_set(lowered)
+    has_germany_signal = _contains_any(
+        lowered,
+        [
+            "sprind",
+            "germany",
+            "german",
+            "deutschland",
+            "deutsch",
+            "digitale identitaet",
+            "digitale brieftasche",
+            "eidas-durchfuehrungsgesetz",
+            "durchfuehrungsgesetz",
+        ],
+    ) or _token_overlap(tokens, ["sprind", "germany", "deutschland", "deutsch"]) >= 1
+    has_wallet_signal = _contains_any(
+        lowered,
+        [
+            "wallet",
+            "business wallet",
+            "eudi",
+            "brieftasche",
+            "digitale identitaet",
+        ],
+    ) or _token_overlap(tokens, ["wallet", "eudi", "brieftasche"]) >= 1
+    return has_germany_signal and has_wallet_signal
 
 
 def _arf_boundary_targets() -> List[ClaimTarget]:
@@ -668,9 +798,11 @@ def _arf_boundary_targets() -> List[ClaimTarget]:
     ]
 
 
-def analyze_query(question: str) -> QueryIntent:
-    lowered = normalize_query_terms(question).lower()
-    tokens = _token_set(lowered)
+def analyze_query(question: str, terminology: TerminologyConfig) -> QueryIntent:
+    normalized_question = normalize_query_terms(question, terminology)
+    lowered = normalize_text_for_matching(normalized_question)
+    original_lowered = normalize_text_for_matching(question)
+    tokens = token_set(normalized_question)
     eu_first = True
 
     if _is_protocol_authorization_server_question(lowered):
@@ -695,6 +827,20 @@ def analyze_query(question: str) -> QueryIntent:
             ],
         )
 
+    if _is_germany_wallet_implementation_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="germany_wallet_implementation_status",
+            eu_first=eu_first,
+            claim_targets=_germany_wallet_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.NATIONAL_IMPLEMENTATION,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+        )
+
     if _is_certificate_topology_question(lowered):
         return QueryIntent(
             question=question,
@@ -714,15 +860,6 @@ def analyze_query(question: str) -> QueryIntent:
             ],
         )
 
-    if _is_business_wallet_requirements_question(lowered):
-        return QueryIntent(
-            question=question,
-            intent_type="wallet_requirements_summary",
-            eu_first=eu_first,
-            claim_targets=_wallet_requirements_targets(),
-            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
-        )
-
     if _is_relying_party_registration_information_question(lowered):
         return QueryIntent(
             question=question,
@@ -736,7 +873,10 @@ def analyze_query(question: str) -> QueryIntent:
             ],
         )
 
-    if _is_relying_party_certificate_question(lowered):
+    if _is_relying_party_certificate_question(
+        lowered,
+        original_lowered=original_lowered,
+    ):
         return QueryIntent(
             question=question,
             intent_type="relying_party_certificate_requirements",
@@ -764,6 +904,15 @@ def analyze_query(question: str) -> QueryIntent:
                 SourceKind.NATIONAL_IMPLEMENTATION,
                 SourceKind.SCIENTIFIC_LITERATURE,
             ],
+        )
+
+    if _is_business_wallet_requirements_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="wallet_requirements_summary",
+            eu_first=eu_first,
+            claim_targets=_wallet_requirements_targets(),
+            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
         )
 
     if _is_arf_boundary_question(lowered):
@@ -803,12 +952,45 @@ def analyze_query(question: str) -> QueryIntent:
     )
 
 
+def build_target_query_text(question: str, target: ClaimTarget) -> str:
+    support_terms = [" ".join(group) for group in target.support_groups]
+    return " ".join(
+        [
+            question,
+            target.claim_text,
+            " ".join(target.scope_terms),
+            " ".join(target.primary_terms),
+            " ".join(support_terms),
+        ]
+    )
+
+
 def build_retrieval_plan(
     query_intent: QueryIntent,
     hierarchy: SourceHierarchyConfig,
     runtime_config: RuntimeConfig,
+    terminology: TerminologyConfig,
 ) -> RetrievalPlan:
     hierarchy_kinds = [rule.source_kind for rule in sorted(hierarchy.rules, key=lambda item: item.rank)]
+    normalized_question, question_term_normalizations = normalize_query_terms_with_trace(
+        query_intent.question,
+        terminology,
+    )
+    target_queries: List[RetrievalTargetQuery] = []
+    for target in query_intent.claim_targets:
+        raw_query = build_target_query_text(query_intent.question, target)
+        normalized_target_query, applied_target_normalizations = normalize_query_terms_with_trace(
+            raw_query,
+            terminology,
+        )
+        target_queries.append(
+            RetrievalTargetQuery(
+                target_id=target.target_id,
+                raw_query=raw_query,
+                normalized_query=normalized_target_query,
+                applied_term_normalizations=applied_target_normalizations,
+            )
+        )
 
     if query_intent.eu_first:
         # In EU-first mode, query preferences must not pull lower-ranked material
@@ -832,4 +1014,10 @@ def build_retrieval_plan(
         )
         for index, kind in enumerate(kinds)
     ]
-    return RetrievalPlan(question=query_intent.question, steps=steps)
+    return RetrievalPlan(
+        question=query_intent.question,
+        normalized_question=normalized_question,
+        question_term_normalizations=question_term_normalizations,
+        target_queries=target_queries,
+        steps=steps,
+    )

@@ -69,6 +69,19 @@
         "Would a reviewer spot a regression in verification effort from this bundle alone?"
       ],
       "seed_from_scenario_id": "scenario_d_certificate_topology_anchor"
+    },
+    {
+      "question_id": "germany_wallet_implementation_status",
+      "title": "Germany Wallet Implementation Status",
+      "question": "Wie ist der Stand der SPRIND-EUDI-Wallet und des eIDAS-Durchfuehrungsgesetzes in Deutschland?",
+      "review_focus": "Catch regressions in Germany-specific implementation handling, draft-law qualification, and whether EU-governing versus DE-implementation material stays separated.",
+      "expected_intent_type": "germany_wallet_implementation_status",
+      "tags": ["germany", "sprind", "implementation", "draft-status"],
+      "review_prompts": [
+        "Does the answer keep EU-governing support separate from Germany-specific implementation status?",
+        "Are draft or provisional DE legal sources described as provisional rather than binding law?",
+        "Would a reviewer understand which parts of the answer depend on DE implementation sources?"
+      ]
     }
   ]
 }
