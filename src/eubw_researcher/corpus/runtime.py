@@ -101,8 +101,13 @@ def _matches_germany_legal_or_legislative(entry: SourceCatalogEntry) -> bool:
 def _matches_germany_wallet_delivery(entry: SourceCatalogEntry) -> bool:
     if entry.jurisdiction != "DE":
         return False
+    if entry.source_kind not in {
+        SourceKind.PROJECT_ARTIFACT,
+        SourceKind.NATIONAL_IMPLEMENTATION,
+    }:
+        return False
     lowered = normalize_text_for_matching(f"{entry.source_id} {entry.title}")
-    return entry.source_kind == SourceKind.PROJECT_ARTIFACT or any(
+    return any(
         token in lowered
         for token in [
             "de_sprind_",

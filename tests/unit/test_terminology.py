@@ -175,3 +175,18 @@ class TerminologyNormalizationTests(unittest.TestCase):
                 AppliedTermNormalization("wallet relying party", "wallet-relying party"),
             ],
         )
+
+    def test_umlaut_normalization_does_not_shift_alias_replacement_offsets(self) -> None:
+        question = "Wie ist das Durchführungsgesetz für EUBW und RPAC in Deutschland?"
+
+        self.assertEqual(
+            normalize_query_terms(question, self.terminology),
+            "Wie ist das Durchführungsgesetz für business wallet und access certificate in Deutschland?",
+        )
+        self.assertEqual(
+            explain_query_term_normalization(question, self.terminology),
+            [
+                AppliedTermNormalization("eubw", "business wallet"),
+                AppliedTermNormalization("rpac", "access certificate"),
+            ],
+        )
