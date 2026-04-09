@@ -246,8 +246,9 @@ def _infer_document_status(
     }:
         return DocumentStatus.FINAL
 
+    url_and_title = normalize_text_for_matching(f"{url} {title}")
     combined = normalize_text_for_matching(f"{url} {title} {normalized_text}")
-    if "lobbyregister" in combined or "stellungnahme" in combined:
+    if "lobbyregister" in url_and_title or "stellungnahme" in url_and_title:
         return DocumentStatus.INFORMATIONAL
 
     if policy.source_kind == SourceKind.NATIONAL_IMPLEMENTATION:

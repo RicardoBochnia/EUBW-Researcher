@@ -179,6 +179,23 @@ class WebAllowlistTests(unittest.TestCase):
 
         self.assertEqual(status, DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE)
 
+    def test_infer_document_status_does_not_treat_stellungnahme_in_body_as_informational(self) -> None:
+        policy = self.allowlist.policy_for_domain("dserver.bundestag.de")
+        self.assertIsNotNone(policy)
+        assert policy is not None
+
+        status = _infer_document_status(
+            "https://dserver.bundestag.de/btd/21/041/2104115.pdf",
+            policy,
+            "Gesetzentwurf zur digitalen Identität",
+            (
+                "Entwurf eines Gesetzes zur digitalen Identität in Deutschland. "
+                "Die Stellungnahme des Bundesrates ist als Anlage beigefügt."
+            ),
+        )
+
+        self.assertEqual(status, DocumentStatus.PROPOSAL)
+
     def test_admissible_document_policy_enforces_path_prefixes_and_blocked_keywords(self) -> None:
         policy = self.allowlist.policy_for_domain("openid.net")
         self.assertIsNotNone(policy)
