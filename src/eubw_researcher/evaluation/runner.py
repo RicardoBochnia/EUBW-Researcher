@@ -61,6 +61,17 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _is_successful_web_fetch_record(record: Any) -> bool:
+    normalization_status = getattr(record, "normalization_status", None)
+    return (
+        getattr(record, "record_type", None) == "fetch"
+        and bool(getattr(record, "allowed", False))
+        and bool(getattr(record, "metadata_complete", False))
+        and normalization_status is not None
+        and getattr(normalization_status, "value", None) == "success"
+    )
+
+
 def _evaluate_scenario_with_review_report(
     scenario: EvaluationScenario,
     result: Any,
@@ -169,7 +180,7 @@ def _evaluate_scenario_with_review_report(
         1 for record in result.web_fetch_records if record.record_type == "discovered_link"
     )
     fetch_count = sum(
-        1 for record in result.web_fetch_records if record.record_type == "fetch"
+        1 for record in result.web_fetch_records if _is_successful_web_fetch_record(record)
     )
 
     if discovery_count >= scenario.required_web_discovery_count:
@@ -199,6 +210,10 @@ def _evaluate_scenario_with_review_report(
             record.domain
             for record in result.web_fetch_records
             if record.domain
+            and (
+                record.record_type == "discovered_link"
+                or _is_successful_web_fetch_record(record)
+            )
         }
         missing_domains = [
             domain for domain in scenario.required_web_domains if domain not in observed_domains

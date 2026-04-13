@@ -393,7 +393,7 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertEqual(merged.validation_mode, "structural_plus_spawned_validator_gate")
 
-    def test_required_web_fetch_count_counts_fetch_records_only(self) -> None:
+    def test_required_web_fetch_count_counts_only_successful_allowed_fetches(self) -> None:
         scenario = EvaluationScenario(
             scenario_id="synthetic_fetch_gate",
             question="Synthetic question?",
@@ -405,6 +405,21 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertFalse(verdict.passed)
         self.assertIn("web_fetch_records>=1:fail", verdict.checks)
+
+        rejected_result = _minimal_result("fetch")
+        rejected_result.web_fetch_records[0].allowed = False
+
+        verdict = _evaluate_scenario(scenario, rejected_result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_fetch_records>=1:fail", verdict.checks)
+
+        successful_result = _minimal_result("fetch")
+
+        verdict = _evaluate_scenario(scenario, successful_result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_fetch_records>=1:ok", verdict.checks)
 
     def test_required_web_discovery_count_accepts_discovery_records(self) -> None:
         scenario = EvaluationScenario(
@@ -450,7 +465,15 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertFalse(verdict.passed)
         self.assertIn("web_domains:fail:eur-lex.europa.eu", verdict.checks)
 
-        result = _minimal_result("fetch")
+        discovery_only_result = _minimal_result("discovery")
+        discovery_only_result.web_fetch_records[0].domain = "eur-lex.europa.eu"
+
+        verdict = _evaluate_scenario(scenario, discovery_only_result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_domains:fail:eur-lex.europa.eu", verdict.checks)
+
+        result = _minimal_result("discovered_link")
         result.web_fetch_records[0].domain = "eur-lex.europa.eu"
 
         verdict = _evaluate_scenario(scenario, result)
