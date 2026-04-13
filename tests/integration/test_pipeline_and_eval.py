@@ -1083,6 +1083,7 @@ class PipelineAndEvalIntegrationTests(unittest.TestCase):
         self.assertTrue(
             any(
                 citation.source_role_level == SourceRoleLevel.MEDIUM
+                and citation.source_kind == SourceKind.PROJECT_ARTIFACT
                 for entry in result.approved_entries
                 for citation in entry.citations
             )

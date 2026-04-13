@@ -363,24 +363,6 @@ def _candidate_policies_for_url(
     return []
 
 
-def _policy_for_candidate_url(
-    candidate_url: str,
-    policy,
-    allowlist: WebAllowlistConfig,
-    *,
-    intent_type: str | None,
-):
-    candidate_policies = _candidate_policies_for_url(
-        candidate_url,
-        policy,
-        allowlist,
-        intent_type=intent_type,
-    )
-    if not candidate_policies:
-        return None
-    return candidate_policies[0]
-
-
 def _matches_path_prefixes(url: str, prefixes: List[str]) -> bool:
     if not prefixes:
         return False
