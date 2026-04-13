@@ -212,17 +212,55 @@ class HierarchyRule:
 
 
 @dataclass
+class DiscoveryEntrypoint:
+    entrypoint_id: str
+    url_template: str
+    strategy: str
+
+    def __post_init__(self) -> None:
+        if self.strategy not in {"index_crawl", "official_search"}:
+            raise ValueError(
+                f"Unsupported discovery strategy '{self.strategy}' for entrypoint '{self.entrypoint_id}'."
+            )
+        if self.strategy == "official_search" and "{query}" not in self.url_template:
+            raise ValueError(
+                f"official_search entrypoint '{self.entrypoint_id}' must contain {{query}} in url_template."
+            )
+
+
+@dataclass
 class WebDomainPolicy:
     domain: str
     source_kind: SourceKind
     source_role_level: SourceRoleLevel
     jurisdiction: str
     seed_urls: List[str] = field(default_factory=list)
-    discovery_urls: List[str] = field(default_factory=list)
-    allowed_path_prefixes: List[str] = field(default_factory=list)
+    discovery_entrypoints: List[DiscoveryEntrypoint] = field(default_factory=list)
+    crawl_path_prefixes: List[str] = field(default_factory=list)
+    admission_path_prefixes: List[str] = field(default_factory=list)
     blocked_url_keywords: List[str] = field(default_factory=list)
     allowed_cross_domain_domains: List[str] = field(default_factory=list)
     allowed_intent_types: List[str] = field(default_factory=list)
+    policy_id: Optional[str] = None
+    discovery_urls: List[str] = field(default_factory=list)
+    allowed_path_prefixes: List[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.policy_id:
+            self.policy_id = f"{self.domain}:{self.source_kind.value}"
+        if not self.discovery_entrypoints and self.discovery_urls:
+            self.discovery_entrypoints = [
+                DiscoveryEntrypoint(
+                    entrypoint_id=f"{self.policy_id}:legacy:{index + 1}",
+                    url_template=url,
+                    strategy="index_crawl",
+                )
+                for index, url in enumerate(self.discovery_urls)
+            ]
+        if not self.crawl_path_prefixes and self.allowed_path_prefixes:
+            self.crawl_path_prefixes = list(self.allowed_path_prefixes)
+        if not self.admission_path_prefixes and self.allowed_path_prefixes:
+            self.admission_path_prefixes = list(self.allowed_path_prefixes)
 
 
 @dataclass
@@ -252,8 +290,19 @@ class WebAllowlistConfig:
         return domain in self.allowed_domains
 
     def policy_for_domain(self, domain: str) -> Optional[WebDomainPolicy]:
+        policies = self.policies_for_domain(domain)
+        return policies[0] if policies else None
+
+    def policies_for_domain(self, domain: str) -> List[WebDomainPolicy]:
+        return [policy for policy in self.domain_policies if policy.domain == domain]
+
+    def policy_for_domain_and_kind(
+        self,
+        domain: str,
+        source_kind: SourceKind,
+    ) -> Optional[WebDomainPolicy]:
         for policy in self.domain_policies:
-            if policy.domain == domain:
+            if policy.domain == domain and policy.source_kind == source_kind:
                 return policy
         return None
 
@@ -272,6 +321,21 @@ class WebAllowlistConfig:
             urls.extend(policy.seed_urls)
         return urls
 
+    def discovery_entrypoints_for_kind(
+        self,
+        source_kind: SourceKind,
+        *,
+        intent_type: Optional[str] = None,
+    ) -> List[DiscoveryEntrypoint]:
+        entrypoints: List[DiscoveryEntrypoint] = []
+        for policy in self.domain_policies:
+            if policy.source_kind != source_kind:
+                continue
+            if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
+                continue
+            entrypoints.extend(policy.discovery_entrypoints)
+        return entrypoints
+
     def discovery_urls_for_kind(
         self,
         source_kind: SourceKind,
@@ -284,7 +348,10 @@ class WebAllowlistConfig:
                 continue
             if policy.allowed_intent_types and intent_type not in policy.allowed_intent_types:
                 continue
-            urls.extend(policy.discovery_urls)
+            if policy.discovery_urls:
+                urls.extend(policy.discovery_urls)
+            else:
+                urls.extend(entrypoint.url_template for entrypoint in policy.discovery_entrypoints)
         return urls
 
 
@@ -387,7 +454,9 @@ class EvaluationScenario:
     required_retrieval_prefix_kinds: List[SourceKind] = field(default_factory=list)
     required_clarification_substring: Optional[str] = None
     required_web_discovery_count: int = 0
+    required_web_discovered_link_count: int = 0
     required_web_fetch_count: int = 0
+    required_web_domains: List[str] = field(default_factory=list)
     require_provisional_grouping: bool = False
     require_manual_review_accept: bool = False
     spawned_validator_gate_eligible: bool = False
@@ -539,6 +608,12 @@ class WebFetchRecord:
     normalization_status: Optional[NormalizationStatus] = None
     content_digest: Optional[str] = None
     provenance_record: Optional[str] = None
+    policy_id: Optional[str] = None
+    entrypoint_id: Optional[str] = None
+    discovery_strategy: Optional[str] = None
+    admission_rule: Optional[str] = None
+    discovery_query: Optional[str] = None
+    source_id: Optional[str] = None
 
 
 @dataclass
@@ -629,6 +704,11 @@ class ApprovedFetchedSourceEvidence:
     citation_quality: CitationQuality
     discovered_from: Optional[str] = None
     retrieval_timestamp: Optional[str] = None
+    policy_id: Optional[str] = None
+    entrypoint_id: Optional[str] = None
+    discovery_strategy: Optional[str] = None
+    admission_rule: Optional[str] = None
+    discovery_query: Optional[str] = None
 
 
 @dataclass

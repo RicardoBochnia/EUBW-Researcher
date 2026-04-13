@@ -184,10 +184,15 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
 
 
 def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvidence]:
-    fetch_records_by_url: Dict[str, object] = {
-        record.canonical_url: record
+    fetch_records_by_source_id: Dict[str, object] = {
+        record.source_id: record
         for record in result.web_fetch_records
-        if record.record_type == "fetch" and record.canonical_url
+        if record.record_type == "fetch" and record.source_id
+    }
+    fetch_records_by_url_and_kind: Dict[Tuple[str, object], object] = {
+        (record.canonical_url, record.source_kind): record
+        for record in result.web_fetch_records
+        if record.record_type == "fetch" and record.canonical_url and record.source_kind is not None
     }
     evidence_items: Dict[Tuple[str, str], ApprovedFetchedSourceEvidence] = {}
 
@@ -195,7 +200,14 @@ def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvide
         for citation in entry.citations:
             if citation.source_origin.value != "web" or not citation.canonical_url:
                 continue
-            fetch_record = fetch_records_by_url.get(citation.canonical_url)
+            fetch_record = fetch_records_by_source_id.get(citation.source_id)
+            if fetch_record is None:
+                citation_source_kind = getattr(citation, "source_kind", None)
+                if citation_source_kind is None:
+                    continue
+                fetch_record = fetch_records_by_url_and_kind.get(
+                    (citation.canonical_url, citation_source_kind)
+                )
             if fetch_record is None:
                 continue
             evidence = ApprovedFetchedSourceEvidence(
@@ -208,6 +220,11 @@ def _approved_fetched_source_evidence(result) -> List[ApprovedFetchedSourceEvide
                 citation_quality=citation.citation_quality,
                 discovered_from=fetch_record.discovered_from,
                 retrieval_timestamp=fetch_record.retrieval_timestamp,
+                policy_id=fetch_record.policy_id,
+                entrypoint_id=fetch_record.entrypoint_id,
+                discovery_strategy=fetch_record.discovery_strategy,
+                admission_rule=fetch_record.admission_rule,
+                discovery_query=fetch_record.discovery_query,
             )
             evidence_items[(evidence.source_id, evidence.canonical_url)] = evidence
 
@@ -421,7 +438,12 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
                 f"(type=`{evidence.content_type}`, "
                 f"digest=`{evidence.content_digest}`, "
                 f"normalization=`{evidence.normalization_status.value}`, "
-                f"provenance=`{evidence.provenance_record}`)"
+                f"provenance=`{evidence.provenance_record}`, "
+                f"policy_id=`{evidence.policy_id or 'n/a'}`, "
+                f"entrypoint_id=`{evidence.entrypoint_id or 'n/a'}`, "
+                f"strategy=`{evidence.discovery_strategy or 'n/a'}`, "
+                f"admission_rule=`{evidence.admission_rule or 'n/a'}`, "
+                f"discovery_query=`{evidence.discovery_query or 'n/a'}`)"
             )
     else:
         lines.append("- No approved fetched web sources in this run.")

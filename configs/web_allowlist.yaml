@@ -1,10 +1,16 @@
 {
   "allowed_domains": [
     "eur-lex.europa.eu",
+    "publications.europa.eu",
     "europa.eu",
     "ec.europa.eu",
+    "commission.europa.eu",
+    "digital-strategy.ec.europa.eu",
     "openid.net",
     "eudi-walletconsortium.org",
+    "eudi.dev",
+    "docs.eudi.dev",
+    "eu-digital-identity-wallet.github.io",
     "www.sprind.org",
     "www.bmv.de",
     "dserver.bundestag.de",
@@ -13,60 +19,228 @@
   ],
   "domain_policies": [
     {
+      "policy_id": "eur_lex_regulation",
       "domain": "eur-lex.europa.eu",
       "source_kind": "regulation",
       "source_role_level": "high",
       "jurisdiction": "EU",
       "seed_urls": [],
-      "discovery_urls": ["https://eur-lex.europa.eu/homepage.html"],
-      "allowed_path_prefixes": ["/legal-content/", "/eli/"],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "eur_lex_regulation_quick_search",
+          "url_template": "https://eur-lex.europa.eu/search.html?text={query}&lang=en&type=quick",
+          "strategy": "official_search"
+        }
+      ],
+      "crawl_path_prefixes": ["/legal-content/"],
+      "admission_path_prefixes": ["/legal-content/", "/eli/"],
       "blocked_url_keywords": [
         "/homepage.html",
         "/print-pdf.html",
         "/protected/",
         "/eu-enlargement/",
         "/eli-register/"
-      ]
+      ],
+      "allowed_cross_domain_domains": ["publications.europa.eu"]
     },
     {
+      "policy_id": "eur_lex_implementing_act",
+      "domain": "eur-lex.europa.eu",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "eur_lex_implementing_act_quick_search",
+          "url_template": "https://eur-lex.europa.eu/search.html?text={query}&lang=en&type=quick",
+          "strategy": "official_search"
+        }
+      ],
+      "crawl_path_prefixes": ["/legal-content/"],
+      "admission_path_prefixes": ["/legal-content/", "/eli/"],
+      "blocked_url_keywords": [
+        "/homepage.html",
+        "/print-pdf.html",
+        "/protected/",
+        "/eu-enlargement/",
+        "/eli-register/"
+      ],
+      "allowed_cross_domain_domains": ["publications.europa.eu"]
+    },
+    {
+      "policy_id": "publications_regulation",
+      "domain": "publications.europa.eu",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [],
+      "crawl_path_prefixes": ["/resource/cellar/", "/resource/celex/"],
+      "admission_path_prefixes": ["/resource/cellar/", "/resource/celex/"],
+      "blocked_url_keywords": ["/search", "/news", "/events", "/homepage"]
+    },
+    {
+      "policy_id": "publications_implementing_act",
+      "domain": "publications.europa.eu",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [],
+      "crawl_path_prefixes": ["/resource/cellar/", "/resource/celex/"],
+      "admission_path_prefixes": ["/resource/cellar/", "/resource/celex/"],
+      "blocked_url_keywords": ["/search", "/news", "/events", "/homepage"]
+    },
+    {
+      "policy_id": "europa_implementing_act",
       "domain": "europa.eu",
       "source_kind": "implementing_act",
       "source_role_level": "high",
       "jurisdiction": "EU",
       "seed_urls": [],
-      "discovery_urls": [],
-      "allowed_path_prefixes": ["/"],
+      "discovery_entrypoints": [],
+      "crawl_path_prefixes": ["/"],
+      "admission_path_prefixes": ["/"],
       "blocked_url_keywords": ["/news", "/press", "/events", "/homepage", "/commission-presscorner"]
     },
     {
+      "policy_id": "ec_info_implementing_act",
       "domain": "ec.europa.eu",
       "source_kind": "implementing_act",
       "source_role_level": "high",
       "jurisdiction": "EU",
       "seed_urls": [],
-      "discovery_urls": [],
-      "allowed_path_prefixes": ["/"],
+      "discovery_entrypoints": [],
+      "crawl_path_prefixes": ["/"],
+      "admission_path_prefixes": ["/"],
       "blocked_url_keywords": ["/news", "/press", "/events", "/homepage", "/commission-presscorner"]
     },
     {
+      "policy_id": "commission_project_artifact",
+      "domain": "commission.europa.eu",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "commission_eudi_topic",
+          "url_template": "https://commission.europa.eu/topics/digital-economy-and-society/european-digital-identity_en",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/topics/"],
+      "admission_path_prefixes": ["/topics/"],
+      "blocked_url_keywords": ["/news", "/press", "/events", "/homepage", "/commission-presscorner"]
+    },
+    {
+      "policy_id": "digital_strategy_project_artifact",
+      "domain": "digital-strategy.ec.europa.eu",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "digital_strategy_eudi_impl",
+          "url_template": "https://digital-strategy.ec.europa.eu/en/policies/eudi-wallet-implementation",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/en/policies/"],
+      "admission_path_prefixes": ["/en/policies/"],
+      "blocked_url_keywords": ["/news", "/press", "/events", "/homepage"]
+    },
+    {
+      "policy_id": "openid_standard",
       "domain": "openid.net",
       "source_kind": "technical_standard",
       "source_role_level": "high",
       "jurisdiction": "international",
       "seed_urls": [],
-      "discovery_urls": ["https://openid.net/specs/"],
-      "allowed_path_prefixes": ["/specs/"],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "openid_specs_index",
+          "url_template": "https://openid.net/specs/",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/specs/"],
+      "admission_path_prefixes": ["/specs/"],
       "blocked_url_keywords": ["/certification/", "/about/", "/members/", "/news/"]
     },
     {
+      "policy_id": "ewc_project_artifact",
       "domain": "eudi-walletconsortium.org",
       "source_kind": "project_artifact",
       "source_role_level": "medium",
       "jurisdiction": "EU",
       "seed_urls": [],
-      "discovery_urls": ["https://eudi-walletconsortium.org/"],
-      "allowed_path_prefixes": ["/"],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "ewc_home",
+          "url_template": "https://eudi-walletconsortium.org/",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/"],
+      "admission_path_prefixes": ["/"],
       "blocked_url_keywords": ["/news", "/events", "/press", "/blog"]
+    },
+    {
+      "policy_id": "eudi_dev_project_artifact",
+      "domain": "eudi.dev",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "eudi_dev_specs",
+          "url_template": "https://eudi.dev/latest/technical-specifications/",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/latest/technical-specifications/", "/latest/discussion-topics/"],
+      "admission_path_prefixes": ["/latest/technical-specifications/", "/latest/discussion-topics/"],
+      "blocked_url_keywords": ["/news", "/events", "/blog"]
+    },
+    {
+      "policy_id": "docs_eudi_project_artifact",
+      "domain": "docs.eudi.dev",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "docs_eudi_latest",
+          "url_template": "https://docs.eudi.dev/latest/",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/latest/", "/2.0.3/"],
+      "admission_path_prefixes": ["/latest/", "/2.0.3/"],
+      "blocked_url_keywords": ["/news", "/events", "/blog"]
+    },
+    {
+      "policy_id": "eudi_github_pages_project_artifact",
+      "domain": "eu-digital-identity-wallet.github.io",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "seed_urls": [],
+      "discovery_entrypoints": [
+        {
+          "entrypoint_id": "eudi_arf_pages_latest",
+          "url_template": "https://eu-digital-identity-wallet.github.io/eudi-doc-architecture-and-reference-framework/latest/",
+          "strategy": "index_crawl"
+        }
+      ],
+      "crawl_path_prefixes": ["/eudi-doc-architecture-and-reference-framework/"],
+      "admission_path_prefixes": ["/eudi-doc-architecture-and-reference-framework/"],
+      "blocked_url_keywords": ["/issues", "/pull", "/releases"]
     },
     {
       "domain": "www.sprind.org",

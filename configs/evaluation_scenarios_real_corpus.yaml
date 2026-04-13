@@ -56,7 +56,6 @@
       ],
       "required_gap_actions": ["official_web_search"],
       "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
-      "required_web_discovery_count": 1,
       "require_manual_review_accept": true,
       "min_gap_records": 2,
       "min_ledger_entries": 2
@@ -90,15 +89,15 @@
       "required_states": ["confirmed", "interpretive"],
       "allowed_states": ["confirmed", "interpretive"],
       "required_sources": [
-        "celex_32025R0848_fulltext_en",
-        "eudi_discussion_topic_x_rp_registration"
+        "celex_32025R0848_fulltext_en"
       ],
       "required_answer_substrings": [
         "Not explicitly defined:",
         "derived certificate",
         "Interpretive:",
         "Open:",
-        "organisation-level certificate"
+        "organisation-level certificate",
+        "Evidence (medium-rank project support):"
       ],
       "forbidden_answer_substrings": ["Blocked:"],
       "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],

@@ -61,6 +61,17 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _is_successful_web_fetch_record(record: Any) -> bool:
+    normalization_status = getattr(record, "normalization_status", None)
+    return (
+        getattr(record, "record_type", None) == "fetch"
+        and bool(getattr(record, "allowed", False))
+        and bool(getattr(record, "metadata_complete", False))
+        and normalization_status is not None
+        and getattr(normalization_status, "value", None) == "success"
+    )
+
+
 def _evaluate_scenario_with_review_report(
     scenario: EvaluationScenario,
     result: Any,
@@ -165,8 +176,11 @@ def _evaluate_scenario_with_review_report(
     discovery_count = sum(
         1 for record in result.web_fetch_records if record.record_type == "discovery"
     )
+    discovered_link_count = sum(
+        1 for record in result.web_fetch_records if record.record_type == "discovered_link"
+    )
     fetch_count = sum(
-        1 for record in result.web_fetch_records if record.record_type == "fetch"
+        1 for record in result.web_fetch_records if _is_successful_web_fetch_record(record)
     )
 
     if discovery_count >= scenario.required_web_discovery_count:
@@ -175,11 +189,44 @@ def _evaluate_scenario_with_review_report(
         checks.append(f"web_discovery_records>={scenario.required_web_discovery_count}:fail")
         passed = False
 
+    if discovered_link_count >= scenario.required_web_discovered_link_count:
+        checks.append(
+            f"web_discovered_link_records>={scenario.required_web_discovered_link_count}:ok"
+        )
+    else:
+        checks.append(
+            f"web_discovered_link_records>={scenario.required_web_discovered_link_count}:fail"
+        )
+        passed = False
+
     if fetch_count >= scenario.required_web_fetch_count:
         checks.append(f"web_fetch_records>={scenario.required_web_fetch_count}:ok")
     else:
         checks.append(f"web_fetch_records>={scenario.required_web_fetch_count}:fail")
         passed = False
+
+    if scenario.required_web_domains:
+        observed_domains = {
+            record.domain
+            for record in result.web_fetch_records
+            if record.domain
+            and (
+                record.record_type == "discovered_link"
+                or _is_successful_web_fetch_record(record)
+            )
+        }
+        missing_domains = [
+            domain for domain in scenario.required_web_domains if domain not in observed_domains
+        ]
+        if not missing_domains:
+            checks.append(
+                "web_domains:ok:" + ",".join(sorted(scenario.required_web_domains))
+            )
+        else:
+            checks.append(
+                "web_domains:fail:" + ",".join(sorted(missing_domains))
+            )
+            passed = False
 
     if scenario.required_retrieval_prefix_kinds:
         actual_prefix = [step.required_kind for step in result.retrieval_plan.steps[: len(scenario.required_retrieval_prefix_kinds)]]

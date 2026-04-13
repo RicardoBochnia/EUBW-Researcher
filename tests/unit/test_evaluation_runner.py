@@ -393,7 +393,7 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertEqual(merged.validation_mode, "structural_plus_spawned_validator_gate")
 
-    def test_required_web_fetch_count_counts_fetch_records_only(self) -> None:
+    def test_required_web_fetch_count_counts_only_successful_allowed_fetches(self) -> None:
         scenario = EvaluationScenario(
             scenario_id="synthetic_fetch_gate",
             question="Synthetic question?",
@@ -405,6 +405,21 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertFalse(verdict.passed)
         self.assertIn("web_fetch_records>=1:fail", verdict.checks)
+
+        rejected_result = _minimal_result("fetch")
+        rejected_result.web_fetch_records[0].allowed = False
+
+        verdict = _evaluate_scenario(scenario, rejected_result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_fetch_records>=1:fail", verdict.checks)
+
+        successful_result = _minimal_result("fetch")
+
+        verdict = _evaluate_scenario(scenario, successful_result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_fetch_records>=1:ok", verdict.checks)
 
     def test_required_web_discovery_count_accepts_discovery_records(self) -> None:
         scenario = EvaluationScenario(
@@ -418,6 +433,53 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertTrue(verdict.passed)
         self.assertIn("web_discovery_records>=1:ok", verdict.checks)
+
+    def test_required_web_discovered_link_count_counts_discovered_link_records_only(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_discovered_link_gate",
+            question="Synthetic question?",
+            expectation="Require at least one discovered candidate link.",
+            required_web_discovered_link_count=1,
+        )
+
+        verdict = _evaluate_scenario(scenario, _minimal_result("discovery"))
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_discovered_link_records>=1:fail", verdict.checks)
+
+        verdict = _evaluate_scenario(scenario, _minimal_result("discovered_link"))
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_discovered_link_records>=1:ok", verdict.checks)
+
+    def test_required_web_domains_requires_expected_host_presence(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_domain_gate",
+            question="Synthetic question?",
+            expectation="Require a specific discovered or fetched host.",
+            required_web_domains=["eur-lex.europa.eu"],
+        )
+
+        verdict = _evaluate_scenario(scenario, _minimal_result("fetch"))
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_domains:fail:eur-lex.europa.eu", verdict.checks)
+
+        discovery_only_result = _minimal_result("discovery")
+        discovery_only_result.web_fetch_records[0].domain = "eur-lex.europa.eu"
+
+        verdict = _evaluate_scenario(scenario, discovery_only_result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("web_domains:fail:eur-lex.europa.eu", verdict.checks)
+
+        result = _minimal_result("discovered_link")
+        result.web_fetch_records[0].domain = "eur-lex.europa.eu"
+
+        verdict = _evaluate_scenario(scenario, result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_domains:ok:eur-lex.europa.eu", verdict.checks)
 
     def test_required_intent_type_fails_when_analyzer_contract_drifts(self) -> None:
         scenario = EvaluationScenario(
@@ -496,11 +558,13 @@ class EvaluationRunnerTests(unittest.TestCase):
 
     def test_review_report_surfaces_digest_and_provenance_for_approved_web_sources(self) -> None:
         result = _minimal_result("fetch")
+        result.web_fetch_records[0].source_id = "synthetic-web-source"
         result.ledger_entries[0].citations = [
             SimpleNamespace(
                 source_id="synthetic-web-source",
                 canonical_url="https://example.test/source",
                 source_origin=SourceOrigin.WEB,
+                source_kind=SourceKind.TECHNICAL_STANDARD,
                 source_role_level=SourceRoleLevel.HIGH,
                 citation_quality=CitationQuality.ANCHOR_GROUNDED,
             )
@@ -533,8 +597,97 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertIn("Approved Fetched-Source Evidence", markdown)
         self.assertIn("digest=`abc123`", markdown)
         self.assertIn("provenance=`configured_seed_url`", markdown)
+        self.assertIn("policy_id=`n/a`", markdown)
+        self.assertIn("entrypoint_id=`n/a`", markdown)
+        self.assertIn("strategy=`n/a`", markdown)
+        self.assertIn("admission_rule=`n/a`", markdown)
+        self.assertIn("discovery_query=`n/a`", markdown)
         self.assertIn("Pinpoint traceability verdict", markdown)
         self.assertIn("Reusable without raw-document reconstruction", markdown)
+
+    def test_review_report_prefers_source_id_for_shared_url_governance_metadata(self) -> None:
+        result = _minimal_result("fetch")
+        shared_url = "https://example.test/shared-source"
+        result.web_fetch_records = [
+            WebFetchRecord(
+                sub_question="test",
+                canonical_url=shared_url,
+                domain="example.test",
+                allowed=True,
+                source_kind=SourceKind.REGULATION,
+                source_role_level=SourceRoleLevel.HIGH,
+                jurisdiction="EU",
+                retrieval_timestamp="2026-04-01T00:00:00+00:00",
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                metadata_complete=True,
+                reason="synthetic regulation fetch",
+                record_type="fetch",
+                content_type="text/html",
+                normalization_status=NormalizationStatus.SUCCESS,
+                content_digest="digest-reg",
+                provenance_record="configured_seed_url",
+                policy_id="reg_policy",
+                entrypoint_id="reg_entry",
+                discovery_strategy="official_search",
+                admission_rule="admission_path_prefixes",
+                discovery_query="regulation query",
+                source_id="web::regulation::shared",
+            ),
+            WebFetchRecord(
+                sub_question="test",
+                canonical_url=shared_url,
+                domain="example.test",
+                allowed=True,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                source_role_level=SourceRoleLevel.HIGH,
+                jurisdiction="EU",
+                retrieval_timestamp="2026-04-01T00:00:01+00:00",
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                metadata_complete=True,
+                reason="synthetic implementing-act fetch",
+                record_type="fetch",
+                content_type="text/html",
+                normalization_status=NormalizationStatus.SUCCESS,
+                content_digest="digest-impl",
+                provenance_record="discovered_from=https://example.test/search",
+                policy_id="impl_policy",
+                entrypoint_id="impl_entry",
+                discovery_strategy="official_search",
+                admission_rule="admission_path_prefixes",
+                discovery_query="implementing query",
+                source_id="web::implementing_act::shared",
+            ),
+        ]
+        result.ledger_entries[0].citations = [
+            SimpleNamespace(
+                source_id="web::regulation::shared",
+                canonical_url=shared_url,
+                source_origin=SourceOrigin.WEB,
+                source_kind=SourceKind.REGULATION,
+                source_role_level=SourceRoleLevel.HIGH,
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+            )
+        ]
+        result.approved_entries = result.ledger_entries
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_shared_url_governance",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_shared_url_governance",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+        markdown = build_manual_review_report_markdown(report)
+
+        self.assertIn("`web::regulation::shared`", markdown)
+        self.assertIn("policy_id=`reg_policy`", markdown)
+        self.assertIn("entrypoint_id=`reg_entry`", markdown)
+        self.assertIn("discovery_query=`regulation query`", markdown)
+        self.assertNotIn("policy_id=`impl_policy`", markdown)
 
     def test_certificate_topology_eval_requires_facet_coverage(self) -> None:
         result = _minimal_result("fetch")

@@ -23,7 +23,12 @@ from eubw_researcher.models import (
     WebAllowlistConfig,
     WebFetchRecord,
 )
-from eubw_researcher.retrieval import analyze_query, build_retrieval_plan, retrieve_candidates
+from eubw_researcher.retrieval import (
+    analyze_query,
+    build_retrieval_plan,
+    build_target_query_text,
+    retrieve_candidates,
+)
 from eubw_researcher.trust import build_blind_validation_report
 from eubw_researcher.web import fetch_and_normalize_official_sources
 
@@ -64,7 +69,10 @@ class ResearchPipeline:
             for kind in target.preferred_kinds
             if (
                 self.allowlist.seed_urls_for_kind(kind, intent_type=intent_type)
-                or self.allowlist.discovery_urls_for_kind(kind, intent_type=intent_type)
+                or self.allowlist.discovery_entrypoints_for_kind(
+                    kind,
+                    intent_type=intent_type,
+                )
             )
             and self._role_weight(self.hierarchy.role_for(kind))
             <= self._role_weight(target.required_source_role_level)
@@ -128,6 +136,9 @@ class ResearchPipeline:
             or bool(target.grouping_label)
             or target.claim_type.value == "synthesis"
         )
+
+    def _target_query_text(self, question: str, target) -> str:
+        return build_target_query_text(question, target)
 
     def _local_retrieval(self, question: str, query_intent):
         retrieval_plan = build_retrieval_plan(
@@ -236,6 +247,7 @@ class ResearchPipeline:
 
     def _fetch_web_candidates(
         self,
+        question: str,
         query_intent,
         retrieval_plan,
         gap_records: List[GapRecord],
@@ -272,9 +284,11 @@ class ResearchPipeline:
                 target.target_id,
                 gap_record.reason_local_evidence_insufficient,
             )
+            discovery_query = self._target_query_text(question, target)
             documents, reports, fetch_records = fetch_and_normalize_official_sources(
                 sub_question=gap_record.sub_question,
                 source_kinds=allowed_web_kinds,
+                discovery_query=discovery_query,
                 allowlist=self.allowlist,
                 runtime_config=self.runtime_config,
                 intent_type=query_intent.intent_type,
@@ -348,6 +362,7 @@ class ResearchPipeline:
         web_ingestion_reports: List = []
         if any(gap.next_allowed_action == "official_web_search" for gap in initial_gap_records):
             web_candidates_by_step, web_fetch_records, web_ingestion_reports = self._fetch_web_candidates(
+                question=question,
                 query_intent=query_intent,
                 retrieval_plan=retrieval_plan,
                 gap_records=initial_gap_records,

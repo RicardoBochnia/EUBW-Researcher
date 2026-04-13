@@ -300,8 +300,8 @@ class CorpusRuntimeTests(unittest.TestCase):
                         anchorability_hints=["markdown_headings"],
                     ),
                     SourceCatalogEntry(
-                        source_id="de_parliament_wallet_status",
-                        title="Bundestag Drucksache EUDI Wallet",
+                        source_id="de_parliament_status_note",
+                        title="Bundestag Drucksache Verwaltungsmodernisierung",
                         source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
                         source_role_level=SourceRoleLevel.MEDIUM,
                         jurisdiction="DE",
@@ -347,6 +347,71 @@ class CorpusRuntimeTests(unittest.TestCase):
             self.assertIn("germany_wallet_delivery_sources", families)
             self.assertFalse(families["germany_legislative_or_legal_sources"].missing)
             self.assertFalse(families["germany_wallet_delivery_sources"].missing)
+
+    def test_corpus_coverage_does_not_count_unrelated_german_project_artifacts_as_wallet_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            corpus_root = root / "artifacts" / "real_corpus"
+            source_root = corpus_root / "sources"
+            source_root.mkdir(parents=True, exist_ok=True)
+
+            def source_file(name: str, content: str) -> Path:
+                path = source_root / name
+                path.write_text(content, encoding="utf-8")
+                return path
+
+            catalog = SourceCatalog(
+                entries=[
+                    SourceCatalogEntry(
+                        source_id="de_law_bmv_eidas",
+                        title="BMV eIDAS Durchführungsgesetz",
+                        source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
+                        source_role_level=SourceRoleLevel.MEDIUM,
+                        jurisdiction="DE",
+                        publication_status="draft",
+                        publication_date=None,
+                        local_path=source_file("de_law.md", "# Gesetz\n\nWallet draft.\n"),
+                        canonical_url="https://example.test/de-law",
+                        anchorability_hints=["markdown_headings"],
+                    ),
+                    SourceCatalogEntry(
+                        source_id="de_parliament_status_note",
+                        title="Bundestag Drucksache Verwaltungsmodernisierung",
+                        source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
+                        source_role_level=SourceRoleLevel.MEDIUM,
+                        jurisdiction="DE",
+                        publication_status="briefing",
+                        publication_date=None,
+                        local_path=source_file("de_parliament.md", "# Drucksache\n\nStatus.\n"),
+                        canonical_url="https://example.test/de-parliament",
+                        anchorability_hints=["markdown_headings"],
+                    ),
+                    SourceCatalogEntry(
+                        source_id="de_generic_delivery_dashboard",
+                        title="Deutschland Digitalisierungs-Dashboard",
+                        source_kind=SourceKind.PROJECT_ARTIFACT,
+                        source_role_level=SourceRoleLevel.MEDIUM,
+                        jurisdiction="DE",
+                        publication_status="project",
+                        publication_date=None,
+                        local_path=source_file("de_dashboard.md", "# Dashboard\n\nProjektstatus.\n"),
+                        canonical_url="https://example.test/de-dashboard",
+                        anchorability_hints=["markdown_headings"],
+                    ),
+                ]
+            )
+            catalog_path = corpus_root / "curated_catalog.json"
+            write_source_catalog(catalog, catalog_path)
+
+            _, _, coverage_report, _ = load_or_build_ingestion_bundle(catalog_path)
+
+            families = {family.family_id: family for family in coverage_report.families}
+            self.assertIn("germany_wallet_delivery_sources", families)
+            self.assertTrue(families["germany_wallet_delivery_sources"].missing)
+            self.assertEqual(
+                families["germany_wallet_delivery_sources"].admitted_source_ids,
+                [],
+            )
 
 
 if __name__ == "__main__":

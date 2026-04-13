@@ -85,6 +85,17 @@ Treat refresh differently from discovery:
 - refresh should therefore not be blocked just because the canonical URL lacks a discovery allowlist rule
 - archive writes still remain bounded to paths inside `artifacts/real_corpus/archive`
 
+## Wave 3 discovery contract
+
+Treat official discovery as an exact-host policy system, not a suffix-matching host-family crawler:
+- `configs/web_allowlist.yaml` is exact-host-only; `docs.eudi.dev` is distinct from `eudi.dev`, and `commission.europa.eu` is distinct from `ec.europa.eu`
+- domain policies may share the same host when they differ by `source_kind`; use the kind-aware policy lookup rather than assuming one policy per domain
+- `seed_urls` remain direct fetch candidates
+- discovery entrypoints are now structured as `discovery_entrypoints` with `entrypoint_id`, `url_template`, and `strategy`
+- `official_search` is currently restricted to the EUR-Lex quick-search HTML endpoint; do not generalize it into arbitrary site-search or third-party search
+- `publications.europa.eu` is an official document host and permitted cross-domain follow-up target for legal EUR-Lex policies, but it is not currently configured as its own search endpoint
+- document admission is stricter than crawl permission: `crawl_path_prefixes` govern what discovery may follow, while `admission_path_prefixes` govern what may enter the fetched-evidence path
+
 For verification or review tasks:
 - read `README.md`
 - read `docs/architecture/options/option-a/REVIEW_GUIDE.md`
@@ -118,6 +129,13 @@ The highest-value artifacts are:
 For Scenario D closeout runs, also inspect:
 - `spawned_validator_request.json`
 - `spawned_validator_result.json`
+
+For Wave 3 web-review runs, also inspect the per-record governance fields in `web_fetch_records.json` and the approved fetched-source section in `manual_review_report.md`:
+- `policy_id`
+- `entrypoint_id`
+- `discovery_strategy`
+- `admission_rule`
+- `discovery_query`
 
 ## V2 boundaries to respect
 

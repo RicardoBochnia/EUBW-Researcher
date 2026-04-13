@@ -82,13 +82,25 @@ def _has_required_context(match_text: str, alias: _CompiledTerminologyAlias) -> 
     return any(pattern.search(match_text) for pattern in alias.context_patterns)
 
 
+def _normalize_text_with_offset_map(text: str) -> tuple[str, list[int]]:
+    normalized_parts: list[str] = []
+    offset_map = [0]
+    for index, char in enumerate(text):
+        normalized_char = normalize_text_for_matching(char)
+        normalized_parts.append(normalized_char)
+        if not normalized_char:
+            continue
+        for normalized_index in range(len(normalized_char)):
+            offset_map.append(index if normalized_index < (len(normalized_char) - 1) else index + 1)
+    return "".join(normalized_parts), offset_map
+
+
 def normalize_query_terms_with_trace(
     question: str,
     terminology: TerminologyConfig,
 ) -> tuple[str, list[AppliedTermNormalization]]:
     display_text = question
-    match_text = normalize_text_for_matching(question)
-    offset_map = list(range(len(question) + 1))
+    match_text, offset_map = _normalize_text_with_offset_map(question)
     applied_with_positions: list[tuple[int, str, str]] = []
 
     for mapping in _compile_terminology_config(terminology):
@@ -99,33 +111,25 @@ def normalize_query_terms_with_trace(
             if not matches:
                 continue
             rebuilt_display_parts: list[str] = []
-            rebuilt_match_parts: list[str] = []
-            rebuilt_offset_map: list[int] = []
-            last_end = 0
+            last_display_end = 0
 
             for match in matches:
-                original_start = offset_map[match.start()]
+                display_start = offset_map[match.start()]
+                display_end = offset_map[match.end()]
                 applied_with_positions.append(
                     (
-                        original_start,
-                        display_text[match.start() : match.end()].lower(),
+                        display_start,
+                        display_text[display_start:display_end].lower(),
                         mapping.canonical_term,
                     )
                 )
-                rebuilt_display_parts.append(display_text[last_end : match.start()])
+                rebuilt_display_parts.append(display_text[last_display_end:display_start])
                 rebuilt_display_parts.append(mapping.canonical_term)
-                rebuilt_match_parts.append(match_text[last_end : match.start()])
-                rebuilt_match_parts.append(normalize_text_for_matching(mapping.canonical_term))
-                rebuilt_offset_map.extend(offset_map[last_end : match.start()])
-                rebuilt_offset_map.extend([original_start] * len(mapping.canonical_term))
-                last_end = match.end()
+                last_display_end = display_end
 
-            rebuilt_display_parts.append(display_text[last_end:])
-            rebuilt_match_parts.append(match_text[last_end:])
-            rebuilt_offset_map.extend(offset_map[last_end:])
+            rebuilt_display_parts.append(display_text[last_display_end:])
             display_text = "".join(rebuilt_display_parts)
-            match_text = "".join(rebuilt_match_parts)
-            offset_map = rebuilt_offset_map
+            match_text, offset_map = _normalize_text_with_offset_map(display_text)
 
     applied_with_positions.sort(key=lambda item: item[0])
     applied = [
