@@ -338,6 +338,31 @@ def _policy_allows_intent(policy, intent_type: str | None) -> bool:
     return not policy.allowed_intent_types or intent_type in policy.allowed_intent_types
 
 
+def _candidate_policies_for_url(
+    candidate_url: str,
+    policy,
+    allowlist: WebAllowlistConfig,
+    *,
+    intent_type: str | None,
+) -> List[WebDomainPolicy]:
+    candidate_domain = normalize_domain(candidate_url)
+    if not candidate_domain or not validate_domain(candidate_url, allowlist):
+        return []
+    if candidate_domain == policy.domain:
+        return [
+            candidate_policy
+            for candidate_policy in allowlist.policies_for_domain(candidate_domain)
+            if _policy_allows_intent(candidate_policy, intent_type)
+        ]
+    if candidate_domain in policy.allowed_cross_domain_domains:
+        return [
+            candidate_policy
+            for candidate_policy in allowlist.policies_for_domain(candidate_domain)
+            if _policy_allows_intent(candidate_policy, intent_type)
+        ]
+    return []
+
+
 def _policy_for_candidate_url(
     candidate_url: str,
     policy,
@@ -345,20 +370,15 @@ def _policy_for_candidate_url(
     *,
     intent_type: str | None,
 ):
-    candidate_domain = normalize_domain(candidate_url)
-    if not candidate_domain or not validate_domain(candidate_url, allowlist):
+    candidate_policies = _candidate_policies_for_url(
+        candidate_url,
+        policy,
+        allowlist,
+        intent_type=intent_type,
+    )
+    if not candidate_policies:
         return None
-    if candidate_domain == policy.domain:
-        candidate_policy = (
-            allowlist.policy_for_domain_and_kind(candidate_domain, policy.source_kind) or policy
-        )
-        return candidate_policy if _policy_allows_intent(candidate_policy, intent_type) else None
-    if candidate_domain in policy.allowed_cross_domain_domains:
-        candidate_policy = allowlist.policy_for_domain_and_kind(candidate_domain, policy.source_kind)
-        if candidate_policy is None:
-            return None
-        return candidate_policy if _policy_allows_intent(candidate_policy, intent_type) else None
-    return None
+    return candidate_policies[0]
 
 
 def _matches_path_prefixes(url: str, prefixes: List[str]) -> bool:
@@ -395,19 +415,40 @@ def _admissible_document_policy(
     *,
     intent_type: str | None = None,
 ):
-    candidate_policy = _policy_for_candidate_url(
+    candidate_policies = _candidate_policies_for_url(
         candidate_url,
         policy,
         allowlist,
         intent_type=intent_type,
     )
-    if candidate_policy is None:
-        return None
-    if _url_has_blocked_keyword(candidate_url, candidate_policy):
-        return None
-    if not _matches_admission_path_prefixes(candidate_url, candidate_policy):
-        return None
-    return candidate_policy
+    for candidate_policy in candidate_policies:
+        if _url_has_blocked_keyword(candidate_url, candidate_policy):
+            continue
+        if not _matches_admission_path_prefixes(candidate_url, candidate_policy):
+            continue
+        return candidate_policy
+    return None
+
+
+def _admissible_document_policies(
+    candidate_url: str,
+    policy,
+    allowlist: WebAllowlistConfig,
+    *,
+    intent_type: str | None = None,
+) -> List[WebDomainPolicy]:
+    candidate_policies = _candidate_policies_for_url(
+        candidate_url,
+        policy,
+        allowlist,
+        intent_type=intent_type,
+    )
+    return [
+        candidate_policy
+        for candidate_policy in candidate_policies
+        if not _url_has_blocked_keyword(candidate_url, candidate_policy)
+        and _matches_admission_path_prefixes(candidate_url, candidate_policy)
+    ]
 
 
 def _followable_discovery_link(
@@ -417,17 +458,16 @@ def _followable_discovery_link(
     *,
     intent_type: str | None = None,
 ) -> bool:
-    candidate_policy = _policy_for_candidate_url(
+    candidate_policies = _candidate_policies_for_url(
         candidate_url,
         policy,
         allowlist,
         intent_type=intent_type,
     )
-    if candidate_policy is None:
-        return False
-    return not _url_has_blocked_keyword(candidate_url, candidate_policy) and _matches_crawl_path_prefixes(
-        candidate_url,
-        candidate_policy,
+    return any(
+        not _url_has_blocked_keyword(candidate_url, candidate_policy)
+        and _matches_crawl_path_prefixes(candidate_url, candidate_policy)
+        for candidate_policy in candidate_policies
     )
 
 
@@ -443,7 +483,7 @@ def _discover_candidate_urls(
     request_cache: Dict[str, Tuple[bytes, str]] | None = None,
 ) -> tuple[List[str], List[WebFetchRecord]]:
     records: List[WebFetchRecord] = []
-    candidate_scores: Dict[str, Tuple[int, str, str, WebDomainPolicy | None]] = {}
+    candidate_scores: Dict[Tuple[str, SourceKind], Tuple[int, str, str, WebDomainPolicy]] = {}
     discovery_url = _resolve_discovery_url(entrypoint, discovery_query)
     crawl_queue: Deque[Tuple[str, int, Optional[str]]] = deque(
         [(discovery_url, 0, None)]
@@ -629,30 +669,34 @@ def _discover_candidate_urls(
         parser.feed(raw_text)
         for href, anchor_text in parser.links:
             candidate_url = urljoin(discovery_url, href)
-            if not _followable_discovery_link(
+            candidate_policies = _admissible_document_policies(
                 candidate_url,
                 policy,
                 allowlist,
                 intent_type=intent_type,
-            ):
+            )
+            can_crawl = _followable_discovery_link(
+                candidate_url,
+                policy,
+                allowlist,
+                intent_type=intent_type,
+            )
+            if not candidate_policies and not can_crawl:
                 continue
 
             score = _score_discovered_link(sub_question, candidate_url, anchor_text)
-            candidate_policy = _admissible_document_policy(
-                candidate_url,
-                policy,
-                allowlist,
-                intent_type=intent_type,
-            )
-            plausible = _is_plausible_for_kind(
-                (candidate_policy or policy).source_kind,
-                candidate_url,
-                anchor_text,
-            )
-            if candidate_policy is not None and plausible and score >= 2:
-                existing = candidate_scores.get(candidate_url)
+            for candidate_policy in candidate_policies:
+                plausible = _is_plausible_for_kind(
+                    candidate_policy.source_kind,
+                    candidate_url,
+                    anchor_text,
+                )
+                if not plausible or score < 2:
+                    continue
+                candidate_key = (candidate_url, candidate_policy.source_kind)
+                existing = candidate_scores.get(candidate_key)
                 if existing is None or score > existing[0]:
-                    candidate_scores[candidate_url] = (
+                    candidate_scores[candidate_key] = (
                         score,
                         anchor_text,
                         discovery_url,
@@ -660,7 +704,8 @@ def _discover_candidate_urls(
                     )
 
             should_crawl = (
-                (depth + 1) < runtime_config.web_discovery_max_depth
+                can_crawl
+                and (depth + 1) < runtime_config.web_discovery_max_depth
                 and candidate_url not in visited
                 and _policy_allows_intent(policy, intent_type)
                 and any(token in candidate_url.lower() for token in URL_RELEVANCE_HINTS)
@@ -671,17 +716,21 @@ def _discover_candidate_urls(
     discovered = sorted(
         (
             (score, candidate_url, anchor_text, discovered_from, candidate_policy)
-            for candidate_url, (score, anchor_text, discovered_from, candidate_policy) in candidate_scores.items()
+            for (candidate_url, _candidate_kind), (
+                score,
+                anchor_text,
+                discovered_from,
+                candidate_policy,
+            ) in candidate_scores.items()
         ),
-        key=lambda item: (item[0], item[1]),
+        key=lambda item: (item[0], item[1], item[4].source_kind.value),
         reverse=True,
     )
 
     selected_urls: List[str] = []
     for score, candidate_url, anchor_text, discovered_from, candidate_policy in discovered:
-        if candidate_url in selected_urls:
-            continue
-        selected_urls.append(candidate_url)
+        if candidate_url not in selected_urls:
+            selected_urls.append(candidate_url)
         records.append(
             WebFetchRecord(
                 sub_question=sub_question,
@@ -745,7 +794,7 @@ def fetch_and_normalize_official_sources(
         ]
         for policy in policies:
             for entrypoint in policy.discovery_entrypoints:
-                discovered_urls, discovery_records = _discover_candidate_urls(
+                _discovered_urls, discovery_records = _discover_candidate_urls(
                     sub_question=sub_question,
                     discovery_query=discovery_query,
                     entrypoint=entrypoint,
@@ -756,40 +805,22 @@ def fetch_and_normalize_official_sources(
                     request_cache=discovery_request_cache,
                 )
                 fetch_records.extend(discovery_records)
-                for discovered_url in discovered_urls:
-                    discovery_record = next(
-                        (
-                            record
-                            for record in reversed(discovery_records)
-                            if record.canonical_url == discovered_url
-                            and record.record_type == "discovered_link"
-                        ),
-                        None,
-                    )
-                    candidate_urls.setdefault(discovered_url, {}).setdefault(
-                        discovery_record.source_kind if discovery_record is not None else source_kind,
+                for discovery_record in discovery_records:
+                    if (
+                        discovery_record.record_type != "discovered_link"
+                        or discovery_record.source_kind is None
+                    ):
+                        continue
+                    candidate_urls.setdefault(discovery_record.canonical_url, {}).setdefault(
+                        discovery_record.source_kind,
                         _CandidateOrigin(
-                            discovered_from=(
-                                discovery_record.discovered_from if discovery_record is not None else None
-                            ),
-                            provenance_record=(
-                                discovery_record.provenance_record if discovery_record is not None else None
-                            ),
-                            source_kind=(
-                                discovery_record.source_kind if discovery_record is not None else source_kind
-                            ),
-                            policy_id=(
-                                discovery_record.policy_id if discovery_record is not None else policy.policy_id
-                            ),
-                            entrypoint_id=(
-                                discovery_record.entrypoint_id if discovery_record is not None else entrypoint.entrypoint_id
-                            ),
-                            discovery_strategy=(
-                                discovery_record.discovery_strategy if discovery_record is not None else entrypoint.strategy
-                            ),
-                            discovery_query=(
-                                discovery_record.discovery_query if discovery_record is not None else discovery_query
-                            ),
+                            discovered_from=discovery_record.discovered_from,
+                            provenance_record=discovery_record.provenance_record,
+                            source_kind=discovery_record.source_kind,
+                            policy_id=discovery_record.policy_id,
+                            entrypoint_id=discovery_record.entrypoint_id,
+                            discovery_strategy=discovery_record.discovery_strategy,
+                            discovery_query=discovery_record.discovery_query,
                         ),
                     )
 

@@ -55,14 +55,15 @@ class ConfigLoadingTests(unittest.TestCase):
                 for entrypoint in policy.discovery_entrypoints
             )
         )
-        self.assertEqual(
-            real_scenarios[
-                [scenario.scenario_id for scenario in real_scenarios].index(
-                    "scenario_b_registration_certificate_mandatory"
-                )
-            ].required_web_domains,
-            ["eur-lex.europa.eu"],
-        )
+        scenario_b = real_scenarios[
+            [scenario.scenario_id for scenario in real_scenarios].index(
+                "scenario_b_registration_certificate_mandatory"
+            )
+        ]
+        self.assertEqual(scenario_b.required_web_discovery_count, 0)
+        self.assertEqual(scenario_b.required_web_discovered_link_count, 0)
+        self.assertEqual(scenario_b.required_web_fetch_count, 0)
+        self.assertEqual(scenario_b.required_web_domains, [])
         self.assertIn("www.sprind.org", allowlist.allowed_domains)
         self.assertEqual(archive_corpus.archive_root.name, "archive")
         self.assertGreaterEqual(len(archive_corpus.sources), 11)

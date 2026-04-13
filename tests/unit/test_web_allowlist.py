@@ -593,3 +593,161 @@ class WebAllowlistTests(unittest.TestCase):
         )
         self.assertEqual(request_counts[discovery_url], 1)
         self.assertEqual(request_counts[shared_document_url], 1)
+
+    def test_discovery_can_emit_admission_only_eli_link_without_following_it(self) -> None:
+        runtime = replace(
+            load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml"),
+            web_discovery_max_pages=1,
+            web_discovery_max_depth=1,
+            web_discovery_max_candidates_per_kind=2,
+        )
+        policy = WebDomainPolicy(
+            domain="example.test",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            policy_id="example_regulation",
+            discovery_entrypoints=[
+                DiscoveryEntrypoint(
+                    entrypoint_id="quick_search",
+                    url_template="https://example.test/search?text={query}",
+                    strategy="official_search",
+                )
+            ],
+            crawl_path_prefixes=["/search", "/legal-content/"],
+            admission_path_prefixes=["/legal-content/", "/eli/"],
+        )
+        allowlist = WebAllowlistConfig(
+            allowed_domains=["example.test"],
+            domain_policies=[policy],
+        )
+        discovery_url = "https://example.test/search?text=registration+certificate"
+        eli_url = "https://example.test/eli/reg/2024/1183/oj"
+
+        def fake_request(url: str, timeout_seconds: int) -> tuple[bytes, str]:
+            del timeout_seconds
+            if url == discovery_url:
+                return (
+                    (
+                        "<html><body>"
+                        "<a href='/eli/reg/2024/1183/oj'>Registration certificate regulation</a>"
+                        "</body></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            raise AssertionError(f"Unexpected URL fetched during test: {url}")
+
+        with patch("eubw_researcher.web.fetch._request_url", side_effect=fake_request):
+            discovered_urls, records = _discover_candidate_urls(
+                sub_question="Is the registration certificate mandatory?",
+                discovery_query="registration certificate",
+                entrypoint=policy.discovery_entrypoints[0],
+                policy=policy,
+                allowlist=allowlist,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual(discovered_urls, [eli_url])
+        self.assertTrue(
+            any(
+                record.record_type == "discovered_link"
+                and record.canonical_url == eli_url
+                and record.admission_rule == "admission_path_prefixes"
+                for record in records
+            )
+        )
+
+    def test_fetch_does_not_force_same_host_search_hit_into_originating_kind(self) -> None:
+        runtime = replace(
+            load_runtime_config(REPO_ROOT / "configs" / "runtime.yaml"),
+            web_discovery_max_pages=1,
+            web_discovery_max_depth=1,
+            web_discovery_max_candidates_per_kind=2,
+        )
+        allowlist = WebAllowlistConfig(
+            allowed_domains=["example.test"],
+            domain_policies=[
+                WebDomainPolicy(
+                    domain="example.test",
+                    source_kind=SourceKind.REGULATION,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    policy_id="example_regulation",
+                    discovery_entrypoints=[
+                        DiscoveryEntrypoint(
+                            entrypoint_id="shared_quick_search_regulation",
+                            url_template="https://example.test/search?text={query}",
+                            strategy="official_search",
+                        )
+                    ],
+                    crawl_path_prefixes=["/search", "/legal-content/"],
+                    admission_path_prefixes=["/legal-content/"],
+                ),
+                WebDomainPolicy(
+                    domain="example.test",
+                    source_kind=SourceKind.IMPLEMENTING_ACT,
+                    source_role_level=SourceRoleLevel.HIGH,
+                    jurisdiction="EU",
+                    policy_id="example_implementing_act",
+                    discovery_entrypoints=[],
+                    crawl_path_prefixes=["/search", "/legal-content/"],
+                    admission_path_prefixes=["/legal-content/"],
+                ),
+            ],
+        )
+        discovery_url = "https://example.test/search?text=registration+certificate"
+        unsupported_url = "https://example.test/legal-content/EN/TXT/?uri=CELEX:52022SC0158"
+
+        def fake_request(url: str, timeout_seconds: int) -> tuple[bytes, str]:
+            del timeout_seconds
+            if url == discovery_url:
+                return (
+                    (
+                        "<html><body>"
+                        "<a href='/legal-content/EN/TXT/?uri=CELEX:52022SC0158'>"
+                        "Registration certificate Commission Staff Working Document"
+                        "</a>"
+                        "</body></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            if url == unsupported_url:
+                return (
+                    (
+                        "<html><head><title>Commission Staff Working Document</title></head>"
+                        "<body><h1>Commission Staff Working Document</h1>"
+                        "<p>This staff working document describes registration certificate implementation observations.</p>"
+                        "</body></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            raise AssertionError(f"Unexpected URL fetched during test: {url}")
+
+        with patch("eubw_researcher.web.fetch._request_url", side_effect=fake_request):
+            documents, reports, records = fetch_and_normalize_official_sources(
+                sub_question="Is the registration certificate mandatory under the regulation?",
+                source_kinds=[SourceKind.REGULATION],
+                discovery_query="registration certificate",
+                allowlist=allowlist,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual(documents, [])
+        self.assertEqual(reports, [])
+        self.assertTrue(
+            any(
+                record.record_type == "discovered_link"
+                and record.canonical_url == unsupported_url
+                and record.source_kind == SourceKind.IMPLEMENTING_ACT
+                for record in records
+            )
+        )
+        self.assertTrue(
+            any(
+                record.record_type == "fetch"
+                and record.canonical_url == unsupported_url
+                and record.source_kind is None
+                and "could not be classified" in record.reason
+                for record in records
+            )
+        )

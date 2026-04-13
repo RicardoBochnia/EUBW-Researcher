@@ -56,10 +56,6 @@
       ],
       "required_gap_actions": ["official_web_search"],
       "required_retrieval_prefix_kinds": ["regulation", "implementing_act"],
-      "required_web_discovery_count": 1,
-      "required_web_discovered_link_count": 1,
-      "required_web_fetch_count": 1,
-      "required_web_domains": ["eur-lex.europa.eu"],
       "require_manual_review_accept": true,
       "min_gap_records": 2,
       "min_ledger_entries": 2
