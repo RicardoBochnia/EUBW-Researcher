@@ -435,6 +435,20 @@ class RuntimeConfig:
     web_discovery_max_candidates_per_kind: int
     web_max_admitted_per_domain: int
     web_max_admitted_per_run: int
+    local_retrieval_backend: str = "sqlite_fts"
+    local_index_candidate_pool: int = 5
+
+    def __post_init__(self) -> None:
+        if self.local_retrieval_backend not in {"scan", "sqlite_fts"}:
+            raise ValueError(
+                "Unsupported local_retrieval_backend: "
+                f"{self.local_retrieval_backend}"
+            )
+        if self.local_index_candidate_pool < self.retrieval_top_k:
+            raise ValueError(
+                "local_index_candidate_pool must be >= retrieval_top_k: "
+                f"{self.local_index_candidate_pool} < {self.retrieval_top_k}"
+            )
 
 
 @dataclass
@@ -564,6 +578,10 @@ class RetrievalPlan:
     question_term_normalizations: List[AppliedTermNormalization] = field(default_factory=list)
     target_queries: List[RetrievalTargetQuery] = field(default_factory=list)
     steps: List[RetrievalPlanStep] = field(default_factory=list)
+    local_retrieval_backend: str = "sqlite_fts"
+    local_index_candidate_pool: int = 0
+    local_index_cache_status: Optional[str] = None
+    local_backend_fallback_used: bool = False
 
 
 @dataclass
@@ -941,6 +959,9 @@ class RealQuestionPackRunManifest:
     catalog_path: str
     corpus_state_id: str
     runtime_contract_version: str
+    runtime_config_path: Optional[str]
+    runtime_config_digest: Optional[str]
+    local_retrieval_backend: Optional[str]
     entrypoint: str
     git_commit: Optional[str]
     git_branch: Optional[str]
@@ -969,6 +990,9 @@ class EvalRunManifest:
     catalog_path: str
     corpus_state_id: str
     runtime_contract_version: str
+    runtime_config_path: Optional[str]
+    runtime_config_digest: Optional[str]
+    local_retrieval_backend: Optional[str]
     binding_gate_surface: str
     coverage_gate_passed: Optional[bool]
     overall_passed: bool
@@ -1002,6 +1026,9 @@ class SpawnedValidatorGateManifest:
     catalog_path: str
     corpus_state_id: str
     runtime_contract_version: str
+    runtime_config_path: Optional[str]
+    runtime_config_digest: Optional[str]
+    local_retrieval_backend: Optional[str]
     gate_target: str
     validator_command: str
     overall_passed: bool
@@ -1026,6 +1053,9 @@ class ValidatedCurrentStateReport:
     catalog_path: str
     corpus_state_id: str
     runtime_contract_version: str
+    runtime_config_path: Optional[str]
+    runtime_config_digest: Optional[str]
+    local_retrieval_backend: Optional[str]
     git_commit: Optional[str]
     git_branch: Optional[str]
     git_dirty: Optional[bool]

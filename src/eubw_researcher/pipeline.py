@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Dict, List
 
 from eubw_researcher.answering import (
@@ -28,6 +29,7 @@ from eubw_researcher.retrieval import (
     build_retrieval_plan,
     build_target_query_text,
     retrieve_candidates,
+    retrieve_candidates_with_trace,
 )
 from eubw_researcher.trust import build_blind_validation_report
 from eubw_researcher.web import fetch_and_normalize_official_sources
@@ -43,12 +45,16 @@ class ResearchPipeline:
         allowlist: WebAllowlistConfig,
         ingestion_bundle: IngestionBundle,
         terminology: TerminologyConfig,
+        catalog_path: Path | None = None,
+        corpus_state_id: str | None = None,
     ) -> None:
         self.runtime_config = runtime_config
         self.hierarchy = hierarchy
         self.allowlist = allowlist
         self.ingestion_bundle = ingestion_bundle
         self.terminology = terminology
+        self.catalog_path = catalog_path
+        self.corpus_state_id = corpus_state_id
 
     def _role_weight(self, role_level: SourceRoleLevel) -> int:
         return {
@@ -140,6 +146,12 @@ class ResearchPipeline:
     def _target_query_text(self, question: str, target) -> str:
         return build_target_query_text(question, target)
 
+    def _summarize_cache_status(self, cache_statuses: set[str]) -> str | None:
+        for status in ("error_fallback_scan", "rebuilt", "cache_hit", "memory", "disabled"):
+            if status in cache_statuses:
+                return status
+        return None
+
     def _local_retrieval(self, question: str, query_intent):
         retrieval_plan = build_retrieval_plan(
             query_intent=query_intent,
@@ -160,6 +172,8 @@ class ResearchPipeline:
             }
             for target in query_intent.claim_targets
         }
+        cache_statuses: set[str] = set()
+        fallback_used = False
 
         for step in retrieval_plan.steps:
             step_candidate_groups: List[List[RetrievalCandidate]] = []
@@ -168,13 +182,18 @@ class ResearchPipeline:
                 if trace["resolved"]:
                     continue
                 target_query = target_queries_by_id[target.target_id]
-                target_candidates = retrieve_candidates(
+                target_candidates, retrieval_trace = retrieve_candidates_with_trace(
                     question=target_query.normalized_query,
                     step=step,
                     bundle=self.ingestion_bundle,
                     hierarchy=self.hierarchy,
                     runtime_config=self.runtime_config,
+                    catalog_path=self.catalog_path,
+                    corpus_state_id=self.corpus_state_id,
                 )
+                if retrieval_trace.cache_status:
+                    cache_statuses.add(retrieval_trace.cache_status)
+                fallback_used = fallback_used or retrieval_trace.fallback_used
                 step_candidate_groups.append(target_candidates)
                 trace["local_source_layers_searched"].append(step.required_kind.value)
                 trace["candidate_sources_inspected"].extend(
@@ -192,6 +211,10 @@ class ResearchPipeline:
             if all(trace["resolved"] for trace in target_traces.values()):
                 break
 
+        retrieval_plan.local_index_cache_status = self._summarize_cache_status(
+            cache_statuses
+        )
+        retrieval_plan.local_backend_fallback_used = fallback_used
         return retrieval_plan, candidates_by_step, target_traces
 
     def _build_gap_records(self, query_intent, target_traces, ledger_entries) -> List[GapRecord]:

@@ -37,8 +37,19 @@ class ConfigLoadingTests(unittest.TestCase):
             REPO_ROOT / "configs" / "real_question_pack.yaml"
         )
         terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
+        runtime_scan = load_runtime_config(REPO_ROOT / "configs" / "runtime.scan.yaml")
+        runtime_sqlite_fts = load_runtime_config(
+            REPO_ROOT / "configs" / "runtime.sqlite_fts.yaml"
+        )
 
         self.assertEqual(runtime.retrieval_top_k, 5)
+        self.assertGreaterEqual(
+            runtime.local_index_candidate_pool,
+            runtime.retrieval_top_k,
+        )
+        self.assertEqual(runtime.local_retrieval_backend, "sqlite_fts")
+        self.assertEqual(runtime_scan.local_retrieval_backend, "scan")
+        self.assertEqual(runtime_sqlite_fts.local_retrieval_backend, "sqlite_fts")
         self.assertEqual(runtime.web_discovery_max_depth, 1)
         self.assertEqual(runtime.web_max_admitted_per_domain, 10)
         self.assertTrue(hierarchy.default_eu_first)
@@ -537,6 +548,33 @@ class ConfigLoadingTests(unittest.TestCase):
                 "must also be spawned-validator eligible: release_only",
             ):
                 load_evaluation_scenarios(scenarios_path)
+
+    def test_runtime_config_rejects_local_index_candidate_pool_below_top_k(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_path = Path(tmp_dir) / "runtime.json"
+            runtime_path.write_text(
+                json.dumps(
+                    {
+                        "logging": {"level": "INFO"},
+                        "retrieval": {
+                            "top_k": 5,
+                            "lexical_weight": 0.7,
+                            "semantic_weight": 0.3,
+                            "min_combined_score": 0.1,
+                            "semantic_expansions": {},
+                            "local_retrieval_backend": "sqlite_fts",
+                            "local_index_candidate_pool": 4,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "local_index_candidate_pool must be >= retrieval_top_k",
+            ):
+                load_runtime_config(runtime_path)
 
 
 if __name__ == "__main__":

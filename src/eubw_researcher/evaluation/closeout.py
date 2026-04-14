@@ -76,6 +76,7 @@ def run_scenario_d_closeout(
     timeout_seconds: float,
     catalog_path: Optional[Path] = None,
     scenarios_path: Optional[Path] = None,
+    runtime_config_path: Optional[Path] = None,
     reviewer_name: str = "Codex",
 ) -> Tuple[Path, ScenarioVerdict]:
     results, _manifest_path = run_spawned_validator_gate(
@@ -86,6 +87,7 @@ def run_scenario_d_closeout(
         scenario_ids=[SCENARIO_D_ID],
         catalog_path=catalog_path,
         scenarios_path=scenarios_path,
+        runtime_config_path=runtime_config_path,
         reviewer_name=reviewer_name,
         require_eligibility=False,
         load_scenarios=load_evaluation_scenarios,

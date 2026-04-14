@@ -46,6 +46,10 @@ from eubw_researcher.trust import (
     pinpoint_traceability_status,
 )
 
+RUNTIME_CONFIG_PATH = Path("/tmp/repo/configs/runtime.scan.yaml")
+RUNTIME_CONFIG_DIGEST = "runtime-digest"
+LOCAL_RETRIEVAL_BACKEND = "scan"
+
 
 def _minimal_result(record_type: str) -> SimpleNamespace:
     entry = SimpleNamespace(
@@ -929,6 +933,9 @@ class ScenarioRunnerArtifactTests(unittest.TestCase):
                 coverage_report,
                 "state-123",
                 Path("/tmp/catalog.json"),
+                RUNTIME_CONFIG_PATH,
+                RUNTIME_CONFIG_DIGEST,
+                LOCAL_RETRIEVAL_BACKEND,
             ),
         ), patch(
             "eubw_researcher.evaluation.runner._evaluate_scenario_with_review_report",
@@ -989,6 +996,9 @@ class ScenarioRunnerArtifactTests(unittest.TestCase):
                 coverage_report,
                 "state-123",
                 Path("/tmp/catalog.json"),
+                RUNTIME_CONFIG_PATH,
+                RUNTIME_CONFIG_DIGEST,
+                LOCAL_RETRIEVAL_BACKEND,
             ),
         ), patch(
             "eubw_researcher.evaluation.runner._evaluate_scenario_with_review_report",

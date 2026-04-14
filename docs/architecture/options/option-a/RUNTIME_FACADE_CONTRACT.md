@@ -11,7 +11,7 @@ The stable agent-facing package-root surface for the current Option A runtime is
 ## Contract version
 
 - runtime contract id: `option_a_runtime.v2`
-- result schema id: `agent_runtime_result.v2`
+- result schema id: `agent_runtime_result.v3`
 
 The runtime contract version covers the facade entrypoints and response envelope.
 The result schema version covers the narrowed `AgentRuntimeResult` payload carried in `AgentRuntimeResponse.result`.
@@ -28,9 +28,9 @@ Migration notes:
 
 ## Public surface
 
-- `ResearchRuntimeFacade.answer_question(question, catalog_path=None)`
-- `ResearchRuntimeFacade.run_evidence_only(question, catalog_path=None)`
-- `ResearchRuntimeFacade.write_reviewable_artifact_bundle(question, output_dir, catalog_path=None)`
+- `ResearchRuntimeFacade.answer_question(question, catalog_path=None, runtime_config_path=None)`
+- `ResearchRuntimeFacade.run_evidence_only(question, catalog_path=None, runtime_config_path=None)`
+- `ResearchRuntimeFacade.write_reviewable_artifact_bundle(question, output_dir, catalog_path=None, runtime_config_path=None)`
 - `ResearchRuntimeFacade.run(AgentRuntimeRequest(...))`
 
 The facade accepts one question per request and resolves config, corpus loading, pipeline creation, and artifact writing internally.
@@ -52,6 +52,7 @@ The facade accepts one question per request and resolves config, corpus loading,
 
 - relative paths are resolved from the repository root passed to the facade
 - omitted `catalog_path` resolves to `artifacts/real_corpus/curated_catalog.json`
+- omitted `runtime_config_path` resolves to `configs/runtime.yaml`
 - `output_dir` is only accepted for `write_reviewable_artifact_bundle`
 - `write_reviewable_artifact_bundle` requires `output_dir`
 - blank questions are rejected
@@ -76,6 +77,7 @@ Each facade call returns `AgentRuntimeResponse` with:
 - `query_intent`
 - `retrieval_plan`
   - includes `normalized_question`, `question_term_normalizations`, and `target_queries` for reviewable query normalization traceability
+  - includes `local_retrieval_backend`, `local_index_candidate_pool`, `local_index_cache_status`, and `local_backend_fallback_used` for stable local-retrieval backend traceability
 - `gap_records`
 - `web_fetch_records`
 - `ingestion_report`

@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Optional, Union
 
 from eubw_researcher import ResearchRuntimeFacade
-from eubw_researcher.config import load_real_question_pack
+from eubw_researcher.config import (
+    load_real_question_pack,
+    load_runtime_config,
+    runtime_config_digest,
+)
 from eubw_researcher.corpus import is_real_corpus_catalog
 from eubw_researcher.evaluation.review import (
     build_manual_review_artifact,
@@ -73,6 +77,7 @@ def run_real_question_pack(
     question_id: Optional[str] = None,
     catalog_path: Optional[PathLike] = None,
     output_dir: Optional[PathLike] = None,
+    runtime_config_path: Optional[PathLike] = None,
 ) -> tuple[Path, RealQuestionPackRunManifest]:
     resolved_repo_root = Path(repo_root).resolve()
     resolved_pack_path = _resolve_path(
@@ -92,6 +97,11 @@ def run_real_question_pack(
     )
     _validate_run_root(resolved_repo_root, run_root)
     run_root.mkdir(parents=True, exist_ok=True)
+    resolved_runtime_config_path = _resolve_runtime_config_path(
+        resolved_repo_root,
+        runtime_config_path,
+    )
+    runtime_config = load_runtime_config(resolved_runtime_config_path)
 
     facade = ResearchRuntimeFacade(resolved_repo_root)
     pack_digest = hashlib.sha256(resolved_pack_path.read_bytes()).hexdigest()
@@ -107,6 +117,7 @@ def run_real_question_pack(
         response = facade.run_evidence_only(
             question.question,
             catalog_path=catalog_path,
+            runtime_config_path=resolved_runtime_config_path,
         )
         expected_artifacts = _expected_bundle_artifacts(
             response.result,
@@ -264,6 +275,9 @@ def run_real_question_pack(
         catalog_path=str(resolved_catalog_path),
         corpus_state_id=corpus_state_id,
         runtime_contract_version=runtime_contract_version,
+        runtime_config_path=str(resolved_runtime_config_path),
+        runtime_config_digest=runtime_config_digest(resolved_runtime_config_path),
+        local_retrieval_backend=runtime_config.local_retrieval_backend,
         entrypoint=DEFAULT_ENTRYPOINT,
         git_commit=git_metadata["commit"],
         git_branch=git_metadata["branch"],
@@ -296,6 +310,19 @@ def _resolve_path(repo_root: Path, value: PathLike) -> Path:
     if not path.is_absolute():
         path = repo_root / path
     return path.resolve()
+
+
+def _resolve_runtime_config_path(
+    repo_root: Path,
+    runtime_config_path: Optional[PathLike],
+) -> Path:
+    resolved_path = _resolve_path(
+        repo_root,
+        runtime_config_path or Path("configs/runtime.yaml"),
+    )
+    if not resolved_path.is_file():
+        raise FileNotFoundError(f"Runtime config file not found: {resolved_path}")
+    return resolved_path
 
 
 def _validate_run_root(repo_root: Path, run_root: Path) -> None:

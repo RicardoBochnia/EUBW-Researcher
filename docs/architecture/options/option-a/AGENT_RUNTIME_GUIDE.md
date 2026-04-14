@@ -58,7 +58,7 @@ The facade is the stable runtime contract for:
 - writing the standard reviewable artifact bundle
 
 The contract is documented in `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
-The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`. The current result schema is `agent_runtime_result.v2`.
+The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`. The current result schema is `agent_runtime_result.v3`.
 
 Anything below that facade boundary should be treated as internal implementation detail.
 
@@ -68,11 +68,17 @@ The closeout harness invokes the validator as:
 Unless there is a strong reason otherwise, use the default real-corpus catalog at:
 - `artifacts/real_corpus/curated_catalog.json`
 
+For reproducible runtime comparisons or release gates, use explicit runtime configs rather than hand-editing `configs/runtime.yaml`:
+- `configs/runtime.scan.yaml`
+- `configs/runtime.sqlite_fts.yaml`
+- `python3 scripts/run_retrieval_backend_comparison.py --baseline-config configs/runtime.scan.yaml --candidate-config configs/runtime.yaml`
+
 ## Preferred operating pattern
 
 - prefer `ResearchRuntimeFacade` for programmatic agent-driven runs
 - use the documented CLI entrypoints when validating end-to-end behavior
 - default to the curated real-corpus catalog unless the task explicitly requires another input
+- pass `--runtime-config <path>` when you need a benchmark-only non-default baseline or want the validated-state report to bind to a specific runtime digest
 - treat `configs/terminology.yaml` as generated runtime input, not a hand-maintained config file
 - inspect the generated artifact bundle as the primary review surface, not answer text alone
 

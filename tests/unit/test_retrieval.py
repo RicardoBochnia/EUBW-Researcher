@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from eubw_researcher.config import (
     load_runtime_config,
@@ -9,8 +12,28 @@ from eubw_researcher.config import (
     load_terminology_config,
 )
 from eubw_researcher.corpus import ingest_catalog, load_source_catalog
-from eubw_researcher.models import AppliedTermNormalization, SourceKind, SourceRoleLevel
-from eubw_researcher.retrieval import analyze_query, build_retrieval_plan, retrieve_candidates
+from eubw_researcher.models import (
+    AnchorQuality,
+    AppliedTermNormalization,
+    Citation,
+    CitationQuality,
+    DocumentStatus,
+    IngestionBundle,
+    RetrievalPlanStep,
+    SourceCatalog,
+    SourceCatalogEntry,
+    SourceChunk,
+    SourceDocument,
+    SourceKind,
+    SourceOrigin,
+    SourceRoleLevel,
+)
+from eubw_researcher.retrieval import (
+    analyze_query,
+    build_retrieval_plan,
+    retrieve_candidates,
+    retrieve_candidates_with_trace,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +48,72 @@ class RetrievalTests(unittest.TestCase):
             REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
         )
         self.bundle = ingest_catalog(catalog)
+
+    def _build_synthetic_document(
+        self,
+        *,
+        source_id: str,
+        chunk_id: str,
+        title: str,
+        source_kind: SourceKind,
+        source_role_level: SourceRoleLevel,
+        text: str,
+    ) -> SourceDocument:
+        entry = SourceCatalogEntry(
+            source_id=source_id,
+            title=title,
+            source_kind=source_kind,
+            source_role_level=source_role_level,
+            jurisdiction="EU",
+            publication_status=None,
+            publication_date=None,
+            local_path=None,
+            canonical_url=None,
+            document_status=DocumentStatus.FINAL,
+            source_origin=SourceOrigin.LOCAL,
+        )
+        citation = Citation(
+            source_id=source_id,
+            document_title=title,
+            source_role_level=source_role_level,
+            source_kind=source_kind,
+            jurisdiction="EU",
+            citation_quality=CitationQuality.ANCHOR_GROUNDED,
+            document_path=None,
+            canonical_url=None,
+            document_status=DocumentStatus.FINAL,
+            source_origin=SourceOrigin.LOCAL,
+            anchor_label="Article 1",
+        )
+        chunk = SourceChunk(
+            source_id=source_id,
+            chunk_id=chunk_id,
+            title=title,
+            source_kind=source_kind,
+            source_role_level=source_role_level,
+            source_origin=SourceOrigin.LOCAL,
+            jurisdiction="EU",
+            text=text,
+            citation=citation,
+            document_status=DocumentStatus.FINAL,
+            anchor_quality=AnchorQuality.STRONG,
+        )
+        return SourceDocument(
+            entry=entry,
+            text=text,
+            chunks=[chunk],
+            anchor_quality=AnchorQuality.STRONG,
+            structure_poor=False,
+            technical_anchor_failure=False,
+            anchor_audit=None,
+        )
+
+    def _build_synthetic_bundle(self, *documents: SourceDocument) -> IngestionBundle:
+        return IngestionBundle(
+            catalog=SourceCatalog(entries=[document.entry for document in documents]),
+            documents=list(documents),
+            report=[],
+        )
 
     def test_analyze_query_classifies_registration_mandatory_question(self) -> None:
         intent = analyze_query(
@@ -80,6 +169,21 @@ class RetrievalTests(unittest.TestCase):
             ],
         )
 
+    def test_build_retrieval_plan_records_local_backend_trace_fields(self) -> None:
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.sqlite_fts.yaml")
+        intent = analyze_query(
+            "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
+            self.terminology,
+        )
+
+        plan = build_retrieval_plan(intent, self.hierarchy, runtime, self.terminology)
+
+        self.assertEqual(plan.local_retrieval_backend, "sqlite_fts")
+        self.assertEqual(
+            plan.local_index_candidate_pool,
+            runtime.local_index_candidate_pool,
+        )
+
     def test_retrieve_candidates_returns_inspected_top_k_with_threshold_flags(self) -> None:
         intent = analyze_query(
             "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
@@ -96,6 +200,227 @@ class RetrievalTests(unittest.TestCase):
         self.assertLessEqual(len(candidates), self.runtime.retrieval_top_k)
         self.assertTrue(any(candidate.meets_threshold for candidate in candidates))
         self.assertEqual(candidates[0].chunk.source_kind, SourceKind.TECHNICAL_STANDARD)
+
+    def test_sqlite_fts_filters_per_step_before_candidate_cap(self) -> None:
+        runtime = replace(
+            self.runtime,
+            retrieval_top_k=1,
+            min_combined_score=0.0,
+            local_retrieval_backend="sqlite_fts",
+            local_index_candidate_pool=1,
+        )
+        step = RetrievalPlanStep(
+            step_id="regulation_only",
+            required_kind=SourceKind.REGULATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            inspection_depth=1,
+            reason="Synthetic regulation step",
+        )
+        commentary_doc = self._build_synthetic_document(
+            source_id="commentary-1",
+            chunk_id="commentary-1",
+            title="Commentary",
+            source_kind=SourceKind.COMMENTARY,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="access certificate access certificate access certificate",
+        )
+        regulation_doc = self._build_synthetic_document(
+            source_id="regulation-1",
+            chunk_id="regulation-1",
+            title="Regulation",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="access certificate",
+        )
+        bundle = self._build_synthetic_bundle(commentary_doc, regulation_doc)
+
+        candidates, trace = retrieve_candidates_with_trace(
+            question="access certificate",
+            step=step,
+            bundle=bundle,
+            hierarchy=self.hierarchy,
+            runtime_config=runtime,
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].chunk.source_kind, SourceKind.REGULATION)
+        self.assertEqual(candidates[0].chunk.source_id, "regulation-1")
+        self.assertEqual(trace.cache_status, "memory")
+        self.assertFalse(trace.fallback_used)
+
+    def test_sqlite_fts_backfills_from_same_step_scan_when_candidate_pool_is_sparse(self) -> None:
+        runtime = replace(
+            self.runtime,
+            retrieval_top_k=2,
+            min_combined_score=0.0,
+            local_retrieval_backend="sqlite_fts",
+            local_index_candidate_pool=2,
+        )
+        step = RetrievalPlanStep(
+            step_id="regulation_backfill",
+            required_kind=SourceKind.REGULATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            inspection_depth=2,
+            reason="Synthetic regulation step",
+        )
+        first_doc = self._build_synthetic_document(
+            source_id="regulation-1",
+            chunk_id="regulation-1",
+            title="Regulation One",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="access certificate for wallet relying parties",
+        )
+        second_doc = self._build_synthetic_document(
+            source_id="regulation-2",
+            chunk_id="regulation-2",
+            title="Regulation Two",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="registration certificate and access certificate",
+        )
+        bundle = self._build_synthetic_bundle(first_doc, second_doc)
+
+        with patch(
+            "eubw_researcher.retrieval.local._load_or_build_sqlite_index",
+            return_value=SimpleNamespace(
+                cache_status="memory",
+                query_step=lambda **_kwargs: ["regulation-1"],
+            ),
+        ):
+            candidates, trace = retrieve_candidates_with_trace(
+                question="access certificate",
+                step=step,
+                bundle=bundle,
+                hierarchy=self.hierarchy,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual({candidate.chunk.source_id for candidate in candidates}, {"regulation-1", "regulation-2"})
+        self.assertTrue(trace.fallback_used)
+        self.assertEqual(trace.cache_status, "memory")
+
+    def test_sqlite_fts_backfills_semantic_only_candidates_when_match_pool_is_full(self) -> None:
+        runtime = replace(
+            self.runtime,
+            retrieval_top_k=3,
+            min_combined_score=0.0,
+            local_retrieval_backend="sqlite_fts",
+            local_index_candidate_pool=3,
+        )
+        step = RetrievalPlanStep(
+            step_id="regulation_semantic_backfill",
+            required_kind=SourceKind.REGULATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            inspection_depth=3,
+            reason="Synthetic regulation step",
+        )
+        weak_exact_a = self._build_synthetic_document(
+            source_id="regulation-1",
+            chunk_id="regulation-1",
+            title="Regulation One",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="metadata",
+        )
+        weak_exact_b = self._build_synthetic_document(
+            source_id="regulation-2",
+            chunk_id="regulation-2",
+            title="Regulation Two",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="session",
+        )
+        weak_exact_c = self._build_synthetic_document(
+            source_id="regulation-3",
+            chunk_id="regulation-3",
+            title="Regulation Three",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="wallet",
+        )
+        semantic_only = self._build_synthetic_document(
+            source_id="regulation-4",
+            chunk_id="regulation-4",
+            title="Regulation Four",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="authorisation authz as issuance",
+        )
+        bundle = self._build_synthetic_bundle(
+            weak_exact_a,
+            weak_exact_b,
+            weak_exact_c,
+            semantic_only,
+        )
+
+        with patch(
+            "eubw_researcher.retrieval.local._load_or_build_sqlite_index",
+            return_value=SimpleNamespace(
+                cache_status="memory",
+                query_step=lambda **_kwargs: [
+                    "regulation-1",
+                    "regulation-2",
+                    "regulation-3",
+                ],
+            ),
+        ):
+            candidates, trace = retrieve_candidates_with_trace(
+                question="authorization server credential wallet metadata session",
+                step=step,
+                bundle=bundle,
+                hierarchy=self.hierarchy,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual(
+            [candidate.chunk.source_id for candidate in candidates],
+            ["regulation-4", "regulation-1", "regulation-2"],
+        )
+        self.assertTrue(trace.fallback_used)
+        self.assertEqual(trace.cache_status, "memory")
+
+    def test_sqlite_fts_errors_fall_back_to_same_step_scan(self) -> None:
+        runtime = replace(
+            self.runtime,
+            retrieval_top_k=1,
+            min_combined_score=0.0,
+            local_retrieval_backend="sqlite_fts",
+            local_index_candidate_pool=1,
+        )
+        step = RetrievalPlanStep(
+            step_id="regulation_error_fallback",
+            required_kind=SourceKind.REGULATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            inspection_depth=1,
+            reason="Synthetic regulation step",
+        )
+        regulation_doc = self._build_synthetic_document(
+            source_id="regulation-1",
+            chunk_id="regulation-1",
+            title="Regulation",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="access certificate",
+        )
+        bundle = self._build_synthetic_bundle(regulation_doc)
+
+        with patch(
+            "eubw_researcher.retrieval.local._load_or_build_sqlite_index",
+            side_effect=RuntimeError("fts unavailable"),
+        ):
+            candidates, trace = retrieve_candidates_with_trace(
+                question="access certificate",
+                step=step,
+                bundle=bundle,
+                hierarchy=self.hierarchy,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].chunk.source_id, "regulation-1")
+        self.assertEqual(trace.cache_status, "error_fallback_scan")
+        self.assertTrue(trace.fallback_used)
 
     def test_analyze_query_classifies_relying_party_registration_information_question(self) -> None:
         intent = analyze_query(

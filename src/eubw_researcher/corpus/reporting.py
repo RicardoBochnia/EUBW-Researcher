@@ -161,6 +161,9 @@ def build_validated_current_state_report(
     eval_manifest: EvalRunManifest,
     eval_manifest_path: Path,
     runtime_contract_version: str,
+    runtime_config_path: Path,
+    runtime_config_digest_value: str,
+    local_retrieval_backend: str,
     coverage_report_path: Optional[Path],
     coverage_summary_path: Optional[Path],
     corpus_selection_summary_path: Optional[Path],
@@ -191,6 +194,9 @@ def build_validated_current_state_report(
     )
     current_runtime_matches_eval_gate = (
         runtime_contract_version == eval_manifest.runtime_contract_version
+        and str(runtime_config_path.resolve()) == eval_manifest.runtime_config_path
+        and runtime_config_digest_value == eval_manifest.runtime_config_digest
+        and local_retrieval_backend == eval_manifest.local_retrieval_backend
     )
     coverage_gate_passed = eval_manifest.coverage_gate_passed
     eval_gate_passed = eval_manifest.overall_passed
@@ -207,6 +213,12 @@ def build_validated_current_state_report(
             and spawned_validator_gate_manifest.corpus_state_id == snapshot["corpus_state_id"]
             and spawned_validator_gate_manifest.runtime_contract_version
             == runtime_contract_version
+            and spawned_validator_gate_manifest.runtime_config_path
+            == str(runtime_config_path.resolve())
+            and spawned_validator_gate_manifest.runtime_config_digest
+            == runtime_config_digest_value
+            and spawned_validator_gate_manifest.local_retrieval_backend
+            == local_retrieval_backend
         )
         spawned_validator_gate_passed = _validated_spawned_validator_gate_passed(
             spawned_validator_gate_manifest
@@ -242,6 +254,12 @@ def build_validated_current_state_report(
             and real_question_pack_manifest.get("corpus_state_id") == snapshot["corpus_state_id"]
             and real_question_pack_manifest.get("runtime_contract_version")
             == runtime_contract_version
+            and real_question_pack_manifest.get("runtime_config_path")
+            == str(runtime_config_path.resolve())
+            and real_question_pack_manifest.get("runtime_config_digest")
+            == runtime_config_digest_value
+            and real_question_pack_manifest.get("local_retrieval_backend")
+            == local_retrieval_backend
         )
         supplemental_run_id = real_question_pack_manifest.get("run_id")
     return ValidatedCurrentStateReport(
@@ -252,6 +270,9 @@ def build_validated_current_state_report(
         catalog_path=snapshot_catalog_path,
         corpus_state_id=snapshot["corpus_state_id"],
         runtime_contract_version=runtime_contract_version,
+        runtime_config_path=str(runtime_config_path.resolve()),
+        runtime_config_digest=runtime_config_digest_value,
+        local_retrieval_backend=local_retrieval_backend,
         git_commit=(git_metadata or {}).get("commit"),
         git_branch=(git_metadata or {}).get("branch"),
         git_dirty=(git_metadata or {}).get("dirty"),
@@ -312,6 +333,9 @@ def render_validated_current_state_report_md(
     lines.append(f"**Release validation mode:** `{report.release_validation_mode}`")
     lines.append(f"**Corpus state:** `{report.corpus_state_id}`")
     lines.append(f"**Runtime contract:** `{report.runtime_contract_version}`")
+    lines.append(f"**Runtime config:** `{report.runtime_config_path}`")
+    lines.append(f"**Runtime config digest:** `{report.runtime_config_digest}`")
+    lines.append(f"**Local retrieval backend:** `{report.local_retrieval_backend}`")
     lines.append("")
     lines.append("## Current state")
     lines.append("")

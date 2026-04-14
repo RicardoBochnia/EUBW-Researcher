@@ -30,8 +30,13 @@ This is a V2 research-version review target, not a production-readiness claim.
   `python3 scripts/run_eval.py --all`
 - Run the real-corpus evaluation gate:
   `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
+- Run the retrieval backend comparison harness:
+  `python3 scripts/run_retrieval_backend_comparison.py --baseline-config configs/runtime.scan.yaml --candidate-config configs/runtime.yaml`
 - Generate the validated current-state report from the real-corpus gate:
   `python3 scripts/report_validated_current_state.py`
+- Generate the validated current-state report for a non-default runtime config:
+  `python3 scripts/report_validated_current_state.py --runtime-config configs/runtime.sqlite_fts.yaml`
+- Treat `configs/runtime.yaml` as the fixed `sqlite_fts` default; keep `configs/runtime.scan.yaml` for comparison-only baselines rather than day-to-day runtime switching.
 - Add optional spawned-validator evidence to the validated current-state report:
   `python3 scripts/report_validated_current_state.py --spawned-validator-manifest artifacts/spawned_validator_gate_runs/spawned_validator_gate_manifest.json`
 - Promote that spawned-validator evidence into the release decision explicitly:
@@ -51,6 +56,7 @@ This is a V2 research-version review target, not a production-readiness claim.
 
 By default, fixture eval writes to `artifacts/eval_runs` and real-corpus eval writes to `artifacts/eval_runs_real_corpus`.
 The real-corpus gate also reuses the cached normalized bundle under `artifacts/real_corpus/cache/`, writes `corpus_coverage_report.json` into each scenario bundle, and writes a top-level `eval_run_manifest.json` plus top-level `corpus_coverage_report.json` / `corpus_coverage_summary.md` into the eval output directory.
+For backend rollouts, prefer committed config files plus `--runtime-config` over editing `configs/runtime.yaml` during review.
 The real-question pack writes to `artifacts/real_question_pack_runs/<run-id>/...` and adds a top-level `pack_run_manifest.json` that records baseline repo state, whether the run wrote repo-local artifacts, runtime contract, corpus state, and compact per-question review signals.
 The validated current-state report lives outside per-run bundles under `artifacts/current_state/`; it treats the real-corpus eval manifest from `run_eval.py --all` as the authoritative binding gate surface and only records real-question-pack evidence as supplemental context when a pack manifest is provided explicitly with `--real-question-pack-manifest`.
 If a spawned-validator manifest is provided, the report records whether release validation is deterministic-only, deterministic plus supplemental spawned-validator evidence, or deterministic plus an explicitly promoted binding spawned-validator gate.
@@ -132,7 +138,7 @@ Optional spawned-validator gate runs additionally include:
 - Lower-precedence material does not displace higher-precedence governing support.
 - `provisional_grouping.json` stays provisional and source-bound.
 - `corpus_coverage_report.json` passes and shows admitted coverage for the required source families on real-corpus runs.
-- `validated_current_state_report.json` matches the current `corpus_state_id`, current catalog path, current runtime contract version, and the binding real-corpus eval surface.
+- `validated_current_state_report.json` matches the current `corpus_state_id`, current catalog path, current runtime contract version, runtime config digest, local retrieval backend, and the binding real-corpus eval surface.
 - any binding review sample listed in the validated current-state report points to the expected `manual_review_report.md` and `verdict.json`.
 
 ## Good review samples
