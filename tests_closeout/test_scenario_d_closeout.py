@@ -36,6 +36,10 @@ from eubw_researcher.models import (
     dataclass_to_dict,
 )
 
+RUNTIME_CONFIG_PATH = Path("/tmp/repo/configs/runtime.scan.yaml")
+RUNTIME_CONFIG_DIGEST = "runtime-digest"
+LOCAL_RETRIEVAL_BACKEND = "scan"
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FAKE_VALIDATOR = (
     f"{shlex.quote(sys.executable)} "
@@ -624,6 +628,9 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     None,
                     "synthetic-state",
                     Path("/tmp/synthetic_catalog.json"),
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
@@ -707,6 +714,9 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     None,
                     "synthetic-state",
                     Path("/tmp/synthetic_catalog.json"),
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
@@ -755,6 +765,9 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     None,
                     "synthetic-state",
                     Path("/tmp/synthetic_catalog.json"),
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
@@ -797,6 +810,9 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     None,
                     "synthetic-state",
                     Path("/tmp/synthetic_catalog.json"),
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
@@ -845,6 +861,9 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     None,
                     "synthetic-state",
                     Path("/tmp/synthetic_catalog.json"),
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",
@@ -885,6 +904,9 @@ class ScenarioDCloseoutTests(unittest.TestCase):
                     None,
                     "synthetic-state",
                     Path("/tmp/synthetic_catalog.json"),
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.spawned_validator_gate.write_artifact_bundle",

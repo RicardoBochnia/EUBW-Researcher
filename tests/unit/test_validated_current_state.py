@@ -26,6 +26,18 @@ from eubw_researcher.models import (
     SpawnedValidatorGateScenarioRunSummary,
 )
 
+RUNTIME_CONFIG_PATH = Path("/tmp/repo/configs/runtime.scan.yaml")
+RUNTIME_CONFIG_DIGEST = "runtime-digest"
+LOCAL_RETRIEVAL_BACKEND = "scan"
+
+
+def _runtime_kwargs():
+    return {
+        "runtime_config_path": RUNTIME_CONFIG_PATH,
+        "runtime_config_digest_value": RUNTIME_CONFIG_DIGEST,
+        "local_retrieval_backend": LOCAL_RETRIEVAL_BACKEND,
+    }
+
 
 class EvalRunManifestTests(unittest.TestCase):
     def test_build_eval_run_manifest_records_binding_gate_state(self) -> None:
@@ -60,6 +72,7 @@ class EvalRunManifestTests(unittest.TestCase):
                 catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
                 corpus_state_id="state123",
                 runtime_contract_version="option_a_runtime.v1",
+                **_runtime_kwargs(),
                 scenario_runs=scenario_runs,
                 coverage_gate_passed=True,
                 coverage_report_path=output_dir / "corpus_coverage_report.json",
@@ -69,6 +82,9 @@ class EvalRunManifestTests(unittest.TestCase):
         self.assertEqual(manifest.binding_gate_surface, "real_corpus_eval")
         self.assertTrue(manifest.overall_passed)
         self.assertEqual(manifest.runtime_contract_version, "option_a_runtime.v1")
+        self.assertEqual(manifest.runtime_config_path, str(RUNTIME_CONFIG_PATH.resolve()))
+        self.assertEqual(manifest.runtime_config_digest, RUNTIME_CONFIG_DIGEST)
+        self.assertEqual(manifest.local_retrieval_backend, LOCAL_RETRIEVAL_BACKEND)
         self.assertEqual(manifest.git_commit, "abc123")
         self.assertEqual(len(manifest.scenario_runs), 1)
 
@@ -96,6 +112,7 @@ class EvalRunManifestTests(unittest.TestCase):
                 catalog_path=tmp_root / "artifacts" / "real_corpus" / "curated_catalog.json",
                 corpus_state_id="state456",
                 runtime_contract_version="option_a_runtime.v1",
+                **_runtime_kwargs(),
                 scenario_runs=scenario_runs,
                 coverage_gate_passed=False,
                 coverage_report_path=None,
@@ -121,6 +138,7 @@ class EvalRunManifestTests(unittest.TestCase):
                 catalog_path=Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json"),
                 corpus_state_id="state123",
                 runtime_contract_version="option_a_runtime.v1",
+                **_runtime_kwargs(),
                 scenario_runs=[],
                 coverage_gate_passed=True,
                 coverage_report_path=None,
@@ -171,6 +189,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
                 catalog_path=Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json"),
                 corpus_state_id="state123",
                 runtime_contract_version="option_a_runtime.v1",
+                **_runtime_kwargs(),
                 scenario_runs=[
                     EvalScenarioRunSummary(
                         scenario_id="primary_success_scenario",
@@ -194,6 +213,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             catalog_path=Path("/tmp/repo/artifacts/real_corpus/curated_catalog.json"),
             corpus_state_id="state123",
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             gate_target=gate_target,
             validator_command="python3 validator.py",
             scenario_runs=[
@@ -239,6 +259,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=Path("/tmp/repo/artifacts/current_state/corpus_coverage_report.json"),
             coverage_summary_path=Path("/tmp/repo/artifacts/current_state/corpus_coverage_summary.md"),
             corpus_selection_summary_path=Path("/tmp/repo/artifacts/current_state/corpus_selection_summary.md"),
@@ -248,6 +269,9 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
                 "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
                 "corpus_state_id": "state123",
                 "runtime_contract_version": "option_a_runtime.v1",
+                "runtime_config_path": str(RUNTIME_CONFIG_PATH.resolve()),
+                "runtime_config_digest": RUNTIME_CONFIG_DIGEST,
+                "local_retrieval_backend": LOCAL_RETRIEVAL_BACKEND,
             },
             real_question_pack_manifest_path=Path(
                 "/tmp/repo/artifacts/real_question_pack_runs/pack123/pack_run_manifest.json"
@@ -288,6 +312,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,
@@ -296,6 +321,32 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
 
         self.assertFalse(report.validated)
         self.assertFalse(report.current_catalog_matches_eval_gate)
+
+    def test_build_validated_current_state_report_matches_runtime_by_digest_not_path(self) -> None:
+        snapshot = {
+            "corpus_state_id": "state123",
+            "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
+            "total_sources": 7,
+            "counts_by_kind": {"regulation": 2},
+            "counts_by_role_level": {"high": 7},
+            "source_ids": ["a"],
+        }
+        report = build_validated_current_state_report(
+            snapshot,
+            eval_manifest=self._manifest(),
+            eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
+            runtime_contract_version="option_a_runtime.v1",
+            runtime_config_path=Path("/another/checkout/configs/runtime.scan.yaml"),
+            runtime_config_digest_value=RUNTIME_CONFIG_DIGEST,
+            local_retrieval_backend=LOCAL_RETRIEVAL_BACKEND,
+            coverage_report_path=None,
+            coverage_summary_path=None,
+            corpus_selection_summary_path=None,
+            corpus_state_snapshot_path=Path("/tmp/repo/artifacts/current_state/corpus_state_snapshot.json"),
+        )
+
+        self.assertTrue(report.current_runtime_matches_eval_gate)
+        self.assertTrue(report.validated)
 
     def test_build_validated_current_state_report_can_bind_spawned_validator_gate(self) -> None:
         snapshot = {
@@ -312,6 +363,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,
@@ -345,6 +397,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,
@@ -381,6 +434,9 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             catalog_path="/tmp/repo/artifacts/real_corpus/curated_catalog.json",
             corpus_state_id="state123",
             runtime_contract_version="option_a_runtime.v1",
+            runtime_config_path=str(RUNTIME_CONFIG_PATH.resolve()),
+            runtime_config_digest=RUNTIME_CONFIG_DIGEST,
+            local_retrieval_backend=LOCAL_RETRIEVAL_BACKEND,
             gate_target="release_gate",
             validator_command="python3 validator.py",
             overall_passed=True,
@@ -392,6 +448,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,
@@ -421,6 +478,9 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             catalog_path="/tmp/repo/artifacts/real_corpus/curated_catalog.json",
             corpus_state_id="state123",
             runtime_contract_version="option_a_runtime.v1",
+            runtime_config_path=str(RUNTIME_CONFIG_PATH.resolve()),
+            runtime_config_digest=RUNTIME_CONFIG_DIGEST,
+            local_retrieval_backend=LOCAL_RETRIEVAL_BACKEND,
             gate_target="release_gate",
             validator_command="python3 validator.py",
             overall_passed=True,
@@ -444,6 +504,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,
@@ -472,6 +533,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=self._manifest(),
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=Path("/tmp/repo/artifacts/current_state/corpus_coverage_report.json"),
             coverage_summary_path=Path("/tmp/repo/artifacts/current_state/corpus_coverage_summary.md"),
             corpus_selection_summary_path=Path("/tmp/repo/artifacts/current_state/corpus_selection_summary.md"),
@@ -502,6 +564,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=manifest,
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,
@@ -529,6 +592,7 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
             eval_manifest=manifest,
             eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
             runtime_contract_version="option_a_runtime.v1",
+            **_runtime_kwargs(),
             coverage_report_path=None,
             coverage_summary_path=None,
             corpus_selection_summary_path=None,

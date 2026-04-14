@@ -35,6 +35,11 @@ def parse_args() -> argparse.Namespace:
             "artifacts/real_question_pack_runs/<timestamp>."
         ),
     )
+    parser.add_argument(
+        "--runtime-config",
+        default="configs/runtime.yaml",
+        help="Runtime config path.",
+    )
     return parser.parse_args()
 
 
@@ -54,6 +59,7 @@ def main() -> int:
             question_id=args.question_id,
             catalog_path=catalog_path,
             output_dir=args.output_dir,
+            runtime_config_path=(repo_root / args.runtime_config).resolve(),
         )
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc

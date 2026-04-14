@@ -39,6 +39,11 @@ def parse_args() -> argparse.Namespace:
             "Defaults to artifacts/scenario_d_closeout."
         ),
     )
+    parser.add_argument(
+        "--runtime-config",
+        default="configs/runtime.yaml",
+        help="Runtime config path.",
+    )
     return parser.parse_args()
 
 
@@ -66,6 +71,7 @@ def main() -> int:
         timeout_seconds=args.timeout,
         catalog_path=catalog_path,
         scenarios_path=scenarios_path,
+        runtime_config_path=(repo_root / args.runtime_config).resolve(),
     )
     print(scenario_dir)
     return 0 if verdict.passed else 1

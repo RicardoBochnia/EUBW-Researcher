@@ -12,6 +12,7 @@ from eubw_researcher.config import (
     load_source_hierarchy,
     load_terminology_config,
     load_web_allowlist,
+    runtime_config_digest,
 )
 from eubw_researcher.corpus import (
     is_real_corpus_catalog,
@@ -498,8 +499,30 @@ def _evaluate_scenario(
     return verdict
 
 
-def _run_pipeline(repo_root: Path, catalog_path: Optional[Path] = None):
-    runtime = load_runtime_config(repo_root / "configs" / "runtime.yaml")
+def _resolve_runtime_config_path(
+    repo_root: Path,
+    runtime_config_path: Optional[Path] = None,
+) -> Path:
+    resolved_path = (
+        runtime_config_path.resolve()
+        if runtime_config_path is not None
+        else (repo_root / "configs" / "runtime.yaml").resolve()
+    )
+    if not resolved_path.is_file():
+        raise FileNotFoundError(f"Runtime config file not found: {resolved_path}")
+    return resolved_path
+
+
+def _run_pipeline(
+    repo_root: Path,
+    catalog_path: Optional[Path] = None,
+    runtime_config_path: Optional[Path] = None,
+):
+    resolved_runtime_config_path = _resolve_runtime_config_path(
+        repo_root,
+        runtime_config_path,
+    )
+    runtime = load_runtime_config(resolved_runtime_config_path)
     hierarchy = load_source_hierarchy(repo_root / "configs" / "source_hierarchy.yaml")
     allowlist = load_web_allowlist(repo_root / "configs" / "web_allowlist.yaml")
     terminology = load_terminology_config(repo_root / "configs" / "terminology.yaml")
@@ -513,8 +536,18 @@ def _run_pipeline(repo_root: Path, catalog_path: Optional[Path] = None):
         allowlist=allowlist,
         ingestion_bundle=bundle,
         terminology=terminology,
+        catalog_path=resolved_catalog_path,
+        corpus_state_id=corpus_state_id,
     )
-    return pipeline, coverage_report, corpus_state_id, resolved_catalog_path
+    return (
+        pipeline,
+        coverage_report,
+        corpus_state_id,
+        resolved_catalog_path,
+        resolved_runtime_config_path,
+        runtime_config_digest(resolved_runtime_config_path),
+        runtime.local_retrieval_backend,
+    )
 
 
 def _build_manual_review_outputs(
@@ -656,6 +689,9 @@ def build_eval_run_manifest(
     catalog_path: Path,
     corpus_state_id: str,
     runtime_contract_version: str,
+    runtime_config_path: Path,
+    runtime_config_digest_value: str,
+    local_retrieval_backend: str,
     scenario_runs: List[EvalScenarioRunSummary],
     coverage_gate_passed: Optional[bool],
     coverage_report_path: Optional[Path],
@@ -668,6 +704,9 @@ def build_eval_run_manifest(
         catalog_path=str(catalog_path.resolve()),
         corpus_state_id=corpus_state_id,
         runtime_contract_version=runtime_contract_version,
+        runtime_config_path=str(runtime_config_path.resolve()),
+        runtime_config_digest=runtime_config_digest_value,
+        local_retrieval_backend=local_retrieval_backend,
         binding_gate_surface=(
             "real_corpus_eval" if is_real_corpus_catalog(catalog_path) else "fixture_eval"
         ),
@@ -703,6 +742,9 @@ def load_eval_run_manifest(path: Path) -> EvalRunManifest:
         catalog_path=payload["catalog_path"],
         corpus_state_id=payload["corpus_state_id"],
         runtime_contract_version=payload["runtime_contract_version"],
+        runtime_config_path=payload.get("runtime_config_path"),
+        runtime_config_digest=payload.get("runtime_config_digest"),
+        local_retrieval_backend=payload.get("local_retrieval_backend"),
         binding_gate_surface=payload["binding_gate_surface"],
         coverage_gate_passed=payload.get("coverage_gate_passed"),
         overall_passed=payload["overall_passed"],
@@ -744,13 +786,15 @@ def run_named_scenario(
     output_dir: Path,
     catalog_path: Optional[Path] = None,
     scenarios_path: Optional[Path] = None,
+    runtime_config_path: Optional[Path] = None,
 ) -> Tuple[Path, ScenarioVerdict]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
     _clear_authoritative_eval_artifacts(output_dir)
-    pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
+    pipeline, coverage_report, corpus_state_id, resolved_catalog_path, *_runtime_metadata = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,
+        runtime_config_path=runtime_config_path,
     )
 
     scenario = next(item for item in scenarios if item.scenario_id == scenario_id)
@@ -781,13 +825,23 @@ def run_all_scenarios(
     output_dir: Path,
     catalog_path: Optional[Path] = None,
     scenarios_path: Optional[Path] = None,
+    runtime_config_path: Optional[Path] = None,
 ) -> List[Tuple[str, ScenarioVerdict]]:
     resolved_scenarios_path = _scenario_config_path(repo_root, catalog_path, scenarios_path)
     scenarios = load_evaluation_scenarios(resolved_scenarios_path)
     _clear_authoritative_eval_artifacts(output_dir)
-    pipeline, coverage_report, corpus_state_id, resolved_catalog_path = _run_pipeline(
+    (
+        pipeline,
+        coverage_report,
+        corpus_state_id,
+        resolved_catalog_path,
+        resolved_runtime_config_path,
+        runtime_config_digest_value,
+        local_retrieval_backend,
+    ) = _run_pipeline(
         repo_root,
         catalog_path=catalog_path,
+        runtime_config_path=runtime_config_path,
     )
     from eubw_researcher.runtime_facade import ResearchRuntimeFacade
 
@@ -847,6 +901,9 @@ def run_all_scenarios(
         catalog_path=resolved_catalog_path,
         corpus_state_id=corpus_state_id,
         runtime_contract_version=ResearchRuntimeFacade.CONTRACT_VERSION,
+        runtime_config_path=resolved_runtime_config_path,
+        runtime_config_digest_value=runtime_config_digest_value,
+        local_retrieval_backend=local_retrieval_backend,
         scenario_runs=scenario_runs,
         coverage_gate_passed=coverage_report.passed if coverage_report is not None else None,
         coverage_report_path=coverage_report_path,

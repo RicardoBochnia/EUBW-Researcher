@@ -1,0 +1,53 @@
+{
+  "cases": [
+    {
+      "case_id": "primary_success_access_certificate",
+      "question": "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+      "expected_intent_type": "wallet_requirements_summary",
+      "target_id": "wallet_access_certificate_requirement",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "primary_success_annex_fields",
+      "question": "What requirements apply to the Business Wallet, and how can they be provisionally structured?",
+      "expected_intent_type": "wallet_requirements_summary",
+      "target_id": "annex_registration_fields",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "scenario_b_member_state_discretion",
+      "question": "Is the registration certificate mandatory at EU level, or is that delegated to member states?",
+      "expected_intent_type": "registration_certificate_scope",
+      "target_id": "member_state_discretion",
+      "expected_source_ids": ["celex_32024R1183_fulltext_en"]
+    },
+    {
+      "case_id": "scenario_c_openid4vci",
+      "question": "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
+      "expected_intent_type": "protocol_authorization_server_comparison",
+      "target_id": "openid4vci_authorization_server",
+      "expected_source_ids": ["openid4vci_1_0_official"]
+    },
+    {
+      "case_id": "scenario_c_openid4vp",
+      "question": "What is the difference between OpenID4VCI and OpenID4VP regarding the authorization server?",
+      "expected_intent_type": "protocol_authorization_server_comparison",
+      "target_id": "openid4vp_authorization_server",
+      "expected_source_ids": ["openid4vp_1_0_official"]
+    },
+    {
+      "case_id": "topology_access_role_anchor",
+      "question": "Gibt es abgeleitete Access bzw. Registration Certificates? Also kann eine Wallet-Relying-Party mehrere solcher Zertifikate besitzen oder gibt es nur Hauptzertifikat fuer die Ganze Organisation?",
+      "expected_intent_type": "certificate_topology_analysis",
+      "target_id": "topology_access_certificate_role",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "topology_access_role_paraphrase",
+      "question": "Can a wallet-relying party hold multiple access certificates for different delegated uses, or is the access certificate only organisation-wide?",
+      "expected_intent_type": "certificate_topology_analysis",
+      "target_id": "topology_access_certificate_role",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    }
+  ]
+}

@@ -17,6 +17,11 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         help="Optional directory for answer, ledger, retrieval-plan, and gap-record artifacts.",
     )
+    parser.add_argument(
+        "--runtime-config",
+        default="configs/runtime.yaml",
+        help="Runtime config path.",
+    )
     return parser.parse_args()
 
 
@@ -42,6 +47,7 @@ def main() -> int:
                 ),
                 catalog_path=args.catalog,
                 output_dir=args.output_dir,
+                runtime_config_path=args.runtime_config,
             )
         )
     except (FileNotFoundError, ValueError) as exc:

@@ -50,6 +50,7 @@ class AgentRuntimeRequest:
     mode: Union[AgentRuntimeMode, str] = AgentRuntimeMode.ANSWER_QUESTION
     catalog_path: Optional[RuntimePath] = None
     output_dir: Optional[RuntimePath] = None
+    runtime_config_path: Optional[RuntimePath] = None
 
 
 @dataclass(frozen=True)
@@ -86,8 +87,9 @@ class ResearchRuntimeFacade:
     """Stable agent-facing runtime facade for Option A."""
 
     CONTRACT_VERSION = "option_a_runtime.v2"
-    RESULT_SCHEMA_VERSION = "agent_runtime_result.v2"
+    RESULT_SCHEMA_VERSION = "agent_runtime_result.v3"
     DEFAULT_CATALOG_PATH = Path("artifacts/real_corpus/curated_catalog.json")
+    DEFAULT_RUNTIME_CONFIG_PATH = Path("configs/runtime.yaml")
 
     def __init__(self, repo_root: RuntimePath) -> None:
         self.repo_root = Path(repo_root).resolve()
@@ -97,12 +99,14 @@ class ResearchRuntimeFacade:
         question: str,
         *,
         catalog_path: Optional[RuntimePath] = None,
+        runtime_config_path: Optional[RuntimePath] = None,
     ) -> AgentRuntimeResponse:
         return self.run(
             AgentRuntimeRequest(
                 question=question,
                 mode=AgentRuntimeMode.ANSWER_QUESTION,
                 catalog_path=catalog_path,
+                runtime_config_path=runtime_config_path,
             )
         )
 
@@ -111,12 +115,14 @@ class ResearchRuntimeFacade:
         question: str,
         *,
         catalog_path: Optional[RuntimePath] = None,
+        runtime_config_path: Optional[RuntimePath] = None,
     ) -> AgentRuntimeResponse:
         return self.run(
             AgentRuntimeRequest(
                 question=question,
                 mode=AgentRuntimeMode.EVIDENCE_ONLY,
                 catalog_path=catalog_path,
+                runtime_config_path=runtime_config_path,
             )
         )
 
@@ -126,6 +132,7 @@ class ResearchRuntimeFacade:
         output_dir: RuntimePath,
         *,
         catalog_path: Optional[RuntimePath] = None,
+        runtime_config_path: Optional[RuntimePath] = None,
     ) -> AgentRuntimeResponse:
         return self.run(
             AgentRuntimeRequest(
@@ -133,6 +140,7 @@ class ResearchRuntimeFacade:
                 mode=AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE,
                 catalog_path=catalog_path,
                 output_dir=output_dir,
+                runtime_config_path=runtime_config_path,
             )
         )
 
@@ -143,6 +151,7 @@ class ResearchRuntimeFacade:
         internal_result, resolved_catalog_path, corpus_state_id = self._execute_question(
             normalized_question,
             request.catalog_path,
+            request.runtime_config_path,
         )
         if mode == AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE:
             assert output_dir is not None
@@ -166,14 +175,18 @@ class ResearchRuntimeFacade:
         self,
         question: str,
         catalog_path: Optional[RuntimePath],
+        runtime_config_path: Optional[RuntimePath],
     ) -> tuple[AnswerResult, Path, str]:
         resolved_catalog_path = self._resolve_catalog_path(catalog_path)
+        resolved_runtime_config_path = self._resolve_runtime_config_path(
+            runtime_config_path
+        )
         _, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(
             resolved_catalog_path
         )
         pipeline = ResearchPipeline(
             runtime_config=load_runtime_config(
-                self.repo_root / "configs" / "runtime.yaml"
+                resolved_runtime_config_path
             ),
             hierarchy=load_source_hierarchy(
                 self.repo_root / "configs" / "source_hierarchy.yaml"
@@ -185,6 +198,8 @@ class ResearchRuntimeFacade:
             terminology=load_terminology_config(
                 self.repo_root / "configs" / "terminology.yaml"
             ),
+            catalog_path=resolved_catalog_path,
+            corpus_state_id=corpus_state_id,
         )
         result = pipeline.answer_question(question)
         result.corpus_coverage_report = coverage_report
@@ -196,6 +211,19 @@ class ResearchRuntimeFacade:
             raise FileNotFoundError(f"Catalog file not found: {resolved_path}")
         if not resolved_path.is_file():
             raise ValueError(f"Catalog path is not a file: {resolved_path}")
+        return resolved_path
+
+    def _resolve_runtime_config_path(
+        self,
+        runtime_config_path: Optional[RuntimePath],
+    ) -> Path:
+        resolved_path = self._resolve_path(
+            runtime_config_path or self.DEFAULT_RUNTIME_CONFIG_PATH
+        )
+        if not resolved_path.exists():
+            raise FileNotFoundError(f"Runtime config file not found: {resolved_path}")
+        if not resolved_path.is_file():
+            raise ValueError(f"Runtime config path is not a file: {resolved_path}")
         return resolved_path
 
     def _resolve_output_dir(

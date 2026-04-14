@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from eubw_researcher.config import runtime_config_digest
 from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.evaluation.real_question_pack import (
     _build_question_verdict,
@@ -16,6 +17,9 @@ from eubw_researcher.evaluation.real_question_pack import (
     run_real_question_pack,
 )
 from eubw_researcher.models import ManualReviewArtifact, ManualReviewCheck
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_CONFIG_PATH = REPO_ROOT / "configs" / "runtime.scan.yaml"
 
 REAL_CORPUS_BUNDLE_ARTIFACTS = [
     "retrieval_plan.json",
@@ -120,7 +124,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         )
         return SimpleNamespace(
             contract_version="option_a_runtime.v2",
-            result_schema_version="agent_runtime_result.v2",
+            result_schema_version="agent_runtime_result.v3",
             catalog_path=resolved_catalog_path,
             corpus_state_id="synthetic-state",
             output_dir=output_dir.resolve(),
@@ -197,6 +201,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     pack_path=pack_path,
                     question_id="synthetic_question",
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             self.assertEqual(run_root, expected_run_root.resolve())
@@ -248,6 +253,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             self.assertTrue(manifest.repo_local_artifacts_written)
@@ -302,6 +308,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=external_catalog_path,
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             self.assertFalse(manifest.repo_local_artifacts_written)
@@ -364,6 +371,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             manifest_path = run_root / "pack_run_manifest.json"
@@ -373,6 +381,12 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             self.assertEqual(manifest.run_id, "synthetic-run")
             self.assertEqual(payload["selected_question_ids"], ["synthetic_question"])
             self.assertEqual(payload["runtime_contract_version"], "option_a_runtime.v2")
+            self.assertEqual(payload["runtime_config_path"], str(RUNTIME_CONFIG_PATH.resolve()))
+            self.assertEqual(
+                payload["runtime_config_digest"],
+                runtime_config_digest(RUNTIME_CONFIG_PATH),
+            )
+            self.assertEqual(payload["local_retrieval_backend"], "scan")
             self.assertEqual(payload["git_branch"], "codex/issue-8-real-question-pack")
             self.assertFalse(payload["git_dirty"])
             self.assertTrue(payload["repo_local_artifacts_written"])
@@ -467,6 +481,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             payload = json.loads(
@@ -530,6 +545,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             payload = json.loads(
@@ -593,6 +609,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             payload = json.loads((run_root / "pack_run_manifest.json").read_text(encoding="utf-8"))
@@ -646,6 +663,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     pack_path=pack_path,
                     question_id="missing",
                     output_dir=repo_root / "artifacts" / "real_question_pack_runs" / "synthetic-run",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
     def test_runner_rejects_repo_root_output_dir(self) -> None:
@@ -662,6 +680,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     pack_path=pack_path,
                     question_id="synthetic_question",
                     output_dir=".",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
     def test_git_metadata_treats_unknown_status_as_dirty(self) -> None:
@@ -753,6 +772,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
                     question_id="synthetic_question",
                     output_dir=output_dir,
                     catalog_path=repo_root / "artifacts" / "real_corpus" / "curated_catalog.json",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             # The artifact built for verdict gating must be the same object passed to

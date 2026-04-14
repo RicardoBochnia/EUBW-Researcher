@@ -28,6 +28,10 @@ from eubw_researcher.models import (
     SpawnedValidatorResult,
 )
 
+RUNTIME_CONFIG_PATH = Path("/tmp/repo/configs/runtime.scan.yaml")
+RUNTIME_CONFIG_DIGEST = "runtime-digest"
+LOCAL_RETRIEVAL_BACKEND = "scan"
+
 
 def _coverage_report(passed: bool) -> CorpusCoverageReport:
     return CorpusCoverageReport(
@@ -279,7 +283,15 @@ class CloseoutTests(unittest.TestCase):
                 return_value=[scenario],
             ), patch(
                 "eubw_researcher.evaluation.closeout._run_pipeline",
-                return_value=(pipeline, None, "synthetic-state", repo_root / "catalog.json"),
+                return_value=(
+                    pipeline,
+                    None,
+                    "synthetic-state",
+                    repo_root / "catalog.json",
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
+                ),
             ), patch(
                 "eubw_researcher.evaluation.closeout._evaluate_scenario",
                 return_value=ScenarioVerdict(
@@ -348,6 +360,9 @@ class CloseoutTests(unittest.TestCase):
                     _coverage_report(True),
                     "synthetic-state",
                     repo_root / "catalog.json",
+                    RUNTIME_CONFIG_PATH,
+                    RUNTIME_CONFIG_DIGEST,
+                    LOCAL_RETRIEVAL_BACKEND,
                 ),
             ), patch(
                 "eubw_researcher.evaluation.closeout._evaluate_scenario",

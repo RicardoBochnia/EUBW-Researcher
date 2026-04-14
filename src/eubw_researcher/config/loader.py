@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -189,7 +190,17 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
         ),
         web_max_admitted_per_domain=int(retrieval.get("web_max_admitted_per_domain", 10)),
         web_max_admitted_per_run=int(retrieval.get("web_max_admitted_per_run", 25)),
+        local_retrieval_backend=str(
+            retrieval.get("local_retrieval_backend", "sqlite_fts")
+        ).strip(),
+        local_index_candidate_pool=int(
+            retrieval.get("local_index_candidate_pool", retrieval["top_k"])
+        ),
     )
+
+
+def runtime_config_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
 def load_terminology_config(path: Path) -> TerminologyConfig:

@@ -17,6 +17,9 @@ from eubw_researcher import (
 )
 from eubw_researcher.models import CorpusCoverageFamily, CorpusCoverageReport
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_CONFIG_PATH = REPO_ROOT / "configs" / "runtime.scan.yaml"
+
 
 class RuntimeFacadeTests(unittest.TestCase):
     def test_package_root_exports_only_runtime_facade_contract(self) -> None:
@@ -109,7 +112,10 @@ class RuntimeFacadeTests(unittest.TestCase):
             ) as write_bundle:
                 pipeline_cls.return_value.answer_question.return_value = result
 
-                response = ResearchRuntimeFacade(repo_root).answer_question("  Synthetic question?  ")
+                response = ResearchRuntimeFacade(repo_root).answer_question(
+                    "  Synthetic question?  ",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
+                )
 
             pipeline_cls.assert_called_once_with(
                 runtime_config="runtime",
@@ -117,11 +123,13 @@ class RuntimeFacadeTests(unittest.TestCase):
                 allowlist="allowlist",
                 ingestion_bundle="bundle",
                 terminology="terminology",
+                catalog_path=catalog_path.resolve(),
+                corpus_state_id="state-123",
             )
             pipeline_cls.return_value.answer_question.assert_called_once_with("Synthetic question?")
             write_bundle.assert_not_called()
             self.assertEqual(response.contract_version, "option_a_runtime.v2")
-            self.assertEqual(response.result_schema_version, "agent_runtime_result.v2")
+            self.assertEqual(response.result_schema_version, "agent_runtime_result.v3")
             self.assertEqual(response.mode, AgentRuntimeMode.ANSWER_QUESTION)
             self.assertEqual(response.catalog_path, catalog_path.resolve())
             self.assertIsNone(response.output_dir)
@@ -156,6 +164,7 @@ class RuntimeFacadeTests(unittest.TestCase):
                 response = ResearchRuntimeFacade(repo_root).write_reviewable_artifact_bundle(
                     "Synthetic question?",
                     "artifacts/manual_runs/synthetic",
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             self.assertEqual(response.mode, AgentRuntimeMode.WRITE_REVIEWABLE_ARTIFACT_BUNDLE)
@@ -194,6 +203,7 @@ class RuntimeFacadeTests(unittest.TestCase):
                 response = ResearchRuntimeFacade(repo_root).run_evidence_only(
                     "Synthetic question?",
                     catalog_path=catalog_path,
+                    runtime_config_path=RUNTIME_CONFIG_PATH,
                 )
 
             pipeline_cls.return_value.answer_question.assert_called_once_with(
@@ -316,6 +326,7 @@ class RuntimeFacadeTests(unittest.TestCase):
                         question="Synthetic question?",
                         mode="answer_question",
                         catalog_path=catalog_path,
+                        runtime_config_path=RUNTIME_CONFIG_PATH,
                     )
                 )
 

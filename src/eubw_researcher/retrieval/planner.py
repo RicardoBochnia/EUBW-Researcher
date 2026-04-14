@@ -1020,4 +1020,6 @@ def build_retrieval_plan(
         question_term_normalizations=question_term_normalizations,
         target_queries=target_queries,
         steps=steps,
+        local_retrieval_backend=runtime_config.local_retrieval_backend,
+        local_index_candidate_pool=runtime_config.local_index_candidate_pool,
     )

@@ -9,6 +9,7 @@ from .loader import (
     load_source_hierarchy,
     load_terminology_config,
     load_web_allowlist,
+    runtime_config_digest,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "load_source_hierarchy",
     "load_terminology_config",
     "load_web_allowlist",
+    "runtime_config_digest",
 ]

@@ -27,6 +27,11 @@ def parse_args() -> argparse.Namespace:
             "when the real-corpus catalog is used."
         ),
     )
+    parser.add_argument(
+        "--runtime-config",
+        default="configs/runtime.yaml",
+        help="Runtime config path.",
+    )
     return parser.parse_args()
 
 
@@ -53,6 +58,7 @@ def main() -> int:
             output_dir=output_dir,
             catalog_path=catalog_path,
             scenarios_path=scenarios_path,
+            runtime_config_path=(repo_root / args.runtime_config).resolve(),
         )
         for scenario_id, verdict in results:
             print(f"{scenario_id}: {'PASS' if verdict.passed else 'FAIL'}")
@@ -64,6 +70,7 @@ def main() -> int:
         output_dir=output_dir,
         catalog_path=catalog_path,
         scenarios_path=scenarios_path,
+        runtime_config_path=(repo_root / args.runtime_config).resolve(),
     )
     print(scenario_dir)
     if not verdict.passed:

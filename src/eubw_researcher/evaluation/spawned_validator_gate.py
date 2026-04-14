@@ -429,6 +429,9 @@ def build_spawned_validator_gate_manifest(
     catalog_path: Path,
     corpus_state_id: str,
     runtime_contract_version: str,
+    runtime_config_path: Path,
+    runtime_config_digest_value: str,
+    local_retrieval_backend: str,
     gate_target: str,
     validator_command: str,
     scenario_runs: List[SpawnedValidatorGateScenarioRunSummary],
@@ -439,6 +442,9 @@ def build_spawned_validator_gate_manifest(
         catalog_path=str(catalog_path.resolve()),
         corpus_state_id=corpus_state_id,
         runtime_contract_version=runtime_contract_version,
+        runtime_config_path=str(runtime_config_path.resolve()),
+        runtime_config_digest=runtime_config_digest_value,
+        local_retrieval_backend=local_retrieval_backend,
         gate_target=gate_target,
         validator_command=validator_command,
         overall_passed=bool(scenario_runs) and all(item.final_passed for item in scenario_runs),
@@ -462,6 +468,9 @@ def load_spawned_validator_gate_manifest(path: Path) -> SpawnedValidatorGateMani
         catalog_path=payload["catalog_path"],
         corpus_state_id=payload["corpus_state_id"],
         runtime_contract_version=payload["runtime_contract_version"],
+        runtime_config_path=payload.get("runtime_config_path"),
+        runtime_config_digest=payload.get("runtime_config_digest"),
+        local_retrieval_backend=payload.get("local_retrieval_backend"),
         gate_target=payload["gate_target"],
         validator_command=payload["validator_command"],
         overall_passed=payload["overall_passed"],
@@ -547,6 +556,7 @@ def run_spawned_validator_gate(
     release_gate: bool = False,
     catalog_path: Optional[Path] = None,
     scenarios_path: Optional[Path] = None,
+    runtime_config_path: Optional[Path] = None,
     reviewer_name: str = "Codex",
     require_eligibility: bool = True,
     load_scenarios: Optional[Callable[[Path], List[EvaluationScenario]]] = None,
@@ -597,9 +607,18 @@ def run_spawned_validator_gate(
         release_gate=release_gate,
         require_eligibility=require_eligibility,
     )
-    pipeline, coverage_report, corpus_state_id, resolved_catalog_path = pipeline_runner(
+    (
+        pipeline,
+        coverage_report,
+        corpus_state_id,
+        resolved_catalog_path,
+        resolved_runtime_config_path,
+        runtime_config_digest_value,
+        local_retrieval_backend,
+    ) = pipeline_runner(
         repo_root,
         catalog_path=catalog_path,
+        runtime_config_path=runtime_config_path,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     results: List[Tuple[str, ScenarioVerdict]] = []
@@ -721,6 +740,9 @@ def run_spawned_validator_gate(
         catalog_path=resolved_catalog_path,
         corpus_state_id=corpus_state_id,
         runtime_contract_version=ResearchRuntimeFacade.CONTRACT_VERSION,
+        runtime_config_path=resolved_runtime_config_path,
+        runtime_config_digest_value=runtime_config_digest_value,
+        local_retrieval_backend=local_retrieval_backend,
         gate_target=gate_target,
         validator_command=validator_command,
         scenario_runs=manifest_runs,

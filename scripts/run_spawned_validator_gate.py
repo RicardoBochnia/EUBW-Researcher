@@ -45,6 +45,11 @@ def parse_args() -> argparse.Namespace:
             "Defaults to artifacts/spawned_validator_gate_runs."
         ),
     )
+    parser.add_argument(
+        "--runtime-config",
+        default="configs/runtime.yaml",
+        help="Runtime config path.",
+    )
     return parser.parse_args()
 
 
@@ -76,6 +81,7 @@ def main() -> int:
         release_gate=args.release_gate,
         catalog_path=catalog_path,
         scenarios_path=scenarios_path,
+        runtime_config_path=(repo_root / args.runtime_config).resolve(),
     )
     for scenario_id, verdict in results:
         print(f"{scenario_id}: {'PASS' if verdict.passed else 'FAIL'}")

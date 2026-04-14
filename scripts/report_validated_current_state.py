@@ -52,6 +52,13 @@ def parse_args() -> argparse.Namespace:
         default="artifacts/current_state",
         help="Directory where the validated current-state artifacts are written.",
     )
+    parser.add_argument(
+        "--runtime-config",
+        help=(
+            "Optional runtime config path. Defaults to the runtime config recorded in "
+            "the eval manifest, or configs/runtime.yaml when the manifest has none."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -70,6 +77,7 @@ def main() -> int:
         write_corpus_coverage_report,
         write_corpus_state_snapshot,
     )
+    from eubw_researcher.config import load_runtime_config, runtime_config_digest
     from eubw_researcher.evaluation import (
         load_eval_run_manifest,
         load_spawned_validator_gate_manifest,
@@ -115,6 +123,17 @@ def main() -> int:
     write_corpus_state_snapshot(snapshot, snapshot_path)
 
     eval_manifest = load_eval_run_manifest(eval_manifest_path)
+    runtime_config_path = (
+        (repo_root / args.runtime_config).resolve()
+        if args.runtime_config
+        else Path(
+            eval_manifest.runtime_config_path
+            or str((repo_root / "configs" / "runtime.yaml").resolve())
+        ).resolve()
+    )
+    if not runtime_config_path.is_file():
+        raise SystemExit(f"Runtime config not found: {runtime_config_path}")
+    runtime_config = load_runtime_config(runtime_config_path)
 
     pack_manifest = None
     pack_manifest_path = None
@@ -150,6 +169,9 @@ def main() -> int:
         eval_manifest=eval_manifest,
         eval_manifest_path=eval_manifest_path,
         runtime_contract_version=ResearchRuntimeFacade.CONTRACT_VERSION,
+        runtime_config_path=runtime_config_path,
+        runtime_config_digest_value=runtime_config_digest(runtime_config_path),
+        local_retrieval_backend=runtime_config.local_retrieval_backend,
         coverage_report_path=coverage_report_path,
         coverage_summary_path=coverage_summary_path,
         corpus_selection_summary_path=selection_path,
