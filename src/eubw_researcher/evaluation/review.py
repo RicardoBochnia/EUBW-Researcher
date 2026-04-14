@@ -15,6 +15,7 @@ from eubw_researcher.models import (
 from eubw_researcher.trust import (
     answer_alignment_status,
     pinpoint_traceability_status,
+    relation_hint_integrity_status,
 )
 
 
@@ -143,6 +144,17 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
                 if blind_validation_report is not None
                 else "blind_validation_report.json was not produced."
             ),
+        )
+    )
+
+    relation_hints_ok, relation_hints_evidence, _relation_hint_missing_facets = (
+        relation_hint_integrity_status(result)
+    )
+    checks.append(
+        ManualReviewCheck(
+            check_id="relation_hints_artifact",
+            status="pass" if relation_hints_ok else "fail",
+            evidence=relation_hints_evidence,
         )
     )
 
@@ -301,6 +313,28 @@ def build_manual_review_report(
     alignment_ok, _ = answer_alignment_status(result)
     blind_validation_report = getattr(result, "blind_validation_report", None)
     blind_validation_ok = blind_validation_report is not None and blind_validation_report.passed
+    relation_hints_ok, _relation_hints_evidence, _relation_hint_missing_facets = (
+        relation_hint_integrity_status(result)
+    )
+    relation_hint_report = getattr(result, "relation_hint_report", None)
+    rendered_relation_hint_ids = (
+        [
+            record.hint_id
+            for record in relation_hint_report.records
+            if record.rendered_in_answer
+        ]
+        if relation_hint_report is not None
+        else []
+    )
+    bundle_only_relation_hint_ids = (
+        [
+            record.hint_id
+            for record in relation_hint_report.records
+            if not record.rendered_in_answer
+        ]
+        if relation_hint_report is not None
+        else []
+    )
     source_bound_ok = has_approved_entries and not blocked_visible
     correctness_verdict = "acceptable" if verdict.passed else "needs_follow_up"
     usefulness_verdict = (
@@ -387,6 +421,19 @@ def build_manual_review_report(
         product_output_self_sufficiency_verdict=self_sufficiency_verdict,
         approved_fetched_source_evidence=_approved_fetched_source_evidence(result),
         germany_dependency_summary=_germany_dependency_summary(result),
+        relation_hints_artifact_present=relation_hint_report is not None,
+        relation_hint_integrity_verdict=(
+            "acceptable"
+            if relation_hints_ok
+            else "needs_follow_up"
+        ) if relation_hint_report is not None else "not_applicable",
+        relation_hint_families_considered=(
+            list(relation_hint_report.families_considered)
+            if relation_hint_report is not None
+            else []
+        ),
+        relation_hint_rendered_ids=rendered_relation_hint_ids,
+        relation_hint_bundle_only_ids=bundle_only_relation_hint_ids,
     )
 
 
@@ -416,6 +463,30 @@ def build_manual_review_report_markdown(report: ManualReviewReport) -> str:
         f"- Pinpoint traceability verdict: `{report.pinpoint_traceability_verdict}`",
         f"- Answer / evidence alignment verdict: `{report.answer_evidence_alignment_verdict}`",
         f"- Reusable without raw-document reconstruction: `{report.product_output_self_sufficiency_verdict}`",
+        "",
+        "## Relation Hints",
+        "",
+        f"- Artifact present: `{str(report.relation_hints_artifact_present).lower()}`",
+        f"- Integrity verdict: `{report.relation_hint_integrity_verdict}`",
+        "- Families considered: "
+        + (
+            ", ".join(f"`{item}`" for item in report.relation_hint_families_considered)
+            if report.relation_hint_families_considered
+            else "none"
+        ),
+        "- Rendered hint ids: "
+        + (
+            ", ".join(f"`{item}`" for item in report.relation_hint_rendered_ids)
+            if report.relation_hint_rendered_ids
+            else "none"
+        ),
+        "- Bundle-only hint ids: "
+        + (
+            ", ".join(f"`{item}`" for item in report.relation_hint_bundle_only_ids)
+            if report.relation_hint_bundle_only_ids
+            else "none"
+        ),
+        "- Relation hints remain supplemental and do not replace the approved-ledger model.",
         "",
         "## Open Follow-Ups",
         "",

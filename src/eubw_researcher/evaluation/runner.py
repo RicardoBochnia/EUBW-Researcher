@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-from eubw_researcher.answering import TOPOLOGY_FACET_IDS
+from eubw_researcher.answering import TOPOLOGY_FACET_IDS, supports_relation_hints
 from eubw_researcher.config import (
     load_evaluation_scenarios,
     load_runtime_config,
@@ -36,6 +36,7 @@ from eubw_researcher.evaluation.review import (
     build_manual_review_report,
     build_manual_review_report_markdown,
 )
+from eubw_researcher.trust import relation_hint_integrity_status
 
 
 def default_output_dir(repo_root: Path, catalog_path: Optional[Path]) -> Path:
@@ -317,6 +318,16 @@ def _evaluate_scenario_with_review_report(
     else:
         checks.append("approved_entries_have_citations:fail")
         passed = False
+
+    if supports_relation_hints(result.query_intent.intent_type):
+        relation_hints_ok, _relation_hints_evidence, _relation_hint_missing_facets = (
+            relation_hint_integrity_status(result)
+        )
+        if relation_hints_ok:
+            checks.append("relation_hints_artifact:ok")
+        else:
+            checks.append("relation_hints_artifact:fail")
+            passed = False
 
     blocked_visible = "Blocked:" in result.rendered_answer
     if not blocked_visible:
@@ -650,6 +661,11 @@ def write_artifact_bundle(
     if result.answer_alignment_report is not None:
         (output_dir / "answer_alignment.json").write_text(
             json.dumps(dataclass_to_dict(result.answer_alignment_report), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "relation_hint_report", None) is not None:
+        (output_dir / "relation_hints.json").write_text(
+            json.dumps(dataclass_to_dict(result.relation_hint_report), indent=2),
             encoding="utf-8",
         )
     if result.blind_validation_report is not None:

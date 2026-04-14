@@ -24,6 +24,7 @@ from eubw_researcher.models import (
     PinpointEvidenceReport,
     ProvisionalGroup,
     QueryIntent,
+    RelationHintReport,
     RetrievalPlan,
     WebFetchRecord,
 )
@@ -76,6 +77,7 @@ class AgentRuntimeResult:
     approved_entries: list[LedgerEntry]
     rendered_answer: str
     provisional_grouping: list[ProvisionalGroup]
+    relation_hint_report: Optional[RelationHintReport] = None
     facet_coverage_report: Optional[FacetCoverageReport] = None
     pinpoint_evidence_report: Optional[PinpointEvidenceReport] = None
     answer_alignment_report: Optional[AnswerAlignmentReport] = None
@@ -87,7 +89,7 @@ class ResearchRuntimeFacade:
     """Stable agent-facing runtime facade for Option A."""
 
     CONTRACT_VERSION = "option_a_runtime.v2"
-    RESULT_SCHEMA_VERSION = "agent_runtime_result.v3"
+    RESULT_SCHEMA_VERSION = "agent_runtime_result.v4"
     DEFAULT_CATALOG_PATH = Path("artifacts/real_corpus/curated_catalog.json")
     DEFAULT_RUNTIME_CONFIG_PATH = Path("configs/runtime.yaml")
 
@@ -295,11 +297,12 @@ class ResearchRuntimeFacade:
             approved_entries=result.approved_entries,
             rendered_answer=result.rendered_answer,
             provisional_grouping=result.provisional_grouping,
-            facet_coverage_report=result.facet_coverage_report,
-            pinpoint_evidence_report=result.pinpoint_evidence_report,
-            answer_alignment_report=result.answer_alignment_report,
-            blind_validation_report=result.blind_validation_report,
-            corpus_coverage_report=result.corpus_coverage_report,
+            relation_hint_report=getattr(result, "relation_hint_report", None),
+            facet_coverage_report=getattr(result, "facet_coverage_report", None),
+            pinpoint_evidence_report=getattr(result, "pinpoint_evidence_report", None),
+            answer_alignment_report=getattr(result, "answer_alignment_report", None),
+            blind_validation_report=getattr(result, "blind_validation_report", None),
+            corpus_coverage_report=getattr(result, "corpus_coverage_report", None),
         )
 
     @staticmethod

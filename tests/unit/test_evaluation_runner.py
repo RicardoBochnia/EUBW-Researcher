@@ -33,6 +33,9 @@ from eubw_researcher.models import (
     NormalizationStatus,
     PinpointEvidenceRecord,
     PinpointEvidenceReport,
+    RelationHintEvidencePartition,
+    RelationHintRecord,
+    RelationHintReport,
     ScenarioVerdict,
     SourceKind,
     SourceOrigin,
@@ -311,6 +314,12 @@ class EvaluationRunnerTests(unittest.TestCase):
                     cited_source_roles=[SourceRoleLevel.HIGH],
                 ),
             ],
+        )
+        result.relation_hint_report = RelationHintReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            families_considered=["certificate_role_topology"],
+            records=[],
         )
 
         report = build_blind_validation_report(result)
@@ -886,6 +895,39 @@ class WriteArtifactBundleCoverageTests(unittest.TestCase):
             output_dir = Path(tmp)
             write_artifact_bundle(output_dir, result)
             self.assertFalse((output_dir / "corpus_coverage_summary.md").exists())
+
+    def test_write_artifact_bundle_writes_relation_hints_when_present(self):
+        result = self._make_result()
+        result.query_intent = SimpleNamespace(
+            intent_type="wallet_requirements_summary",
+            claim_targets=[],
+        )
+        result.relation_hint_report = RelationHintReport(
+            question="Synthetic question?",
+            intent_type="wallet_requirements_summary",
+            families_considered=["registration_requirement_layering"],
+            records=[
+                RelationHintRecord(
+                    hint_id="layering_requirement_to_annex_detail",
+                    family_id="registration_requirement_layering",
+                    relation_state="confirmed",
+                    summary="Synthetic summary",
+                    supporting_source_ids=["synthetic-local-source"],
+                    evidence_partitions=[
+                        RelationHintEvidencePartition(
+                            partition_label="Synthetic partition",
+                            source_role_levels=[SourceRoleLevel.HIGH],
+                            source_ids=["synthetic-local-source"],
+                        )
+                    ],
+                )
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            write_artifact_bundle(output_dir, result)
+
+            self.assertTrue((output_dir / "relation_hints.json").exists())
 
 
 class ScenarioRunnerArtifactTests(unittest.TestCase):

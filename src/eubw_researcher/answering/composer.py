@@ -17,6 +17,8 @@ from eubw_researcher.models import (
     PinpointEvidenceRecord,
     PinpointEvidenceReport,
     QueryIntent,
+    RelationHintRecord,
+    RelationHintReport,
     SourceDocument,
     SourceKind,
     SourceRoleLevel,
@@ -685,7 +687,68 @@ def _compose_certificate_topology_bullets(
     return bullets
 
 
-def _compose_generic_bullets(entries: Sequence[LedgerEntry]) -> List[_AnswerBullet]:
+def _relation_hint_wording_category(record: RelationHintRecord) -> str:
+    cited_roles = {
+        citation.source_role_level
+        for partition in record.evidence_partitions
+        for citation in partition.citations
+    }
+    partitioned = SourceRoleLevel.MEDIUM in cited_roles and SourceRoleLevel.HIGH in cited_roles
+    if record.relation_state == "confirmed":
+        return (
+            "relation_hint_partitioned_confirmed"
+            if partitioned
+            else "relation_hint_governing_confirmed"
+        )
+    return (
+        "relation_hint_partitioned_interpretive"
+        if partitioned
+        else "relation_hint_governing_interpretive"
+    )
+
+
+def _relation_hint_bullet(record: RelationHintRecord) -> _AnswerBullet:
+    evidence_lines = [
+        _EvidenceLine(
+            label=partition.partition_label,
+            citations=list(partition.citations),
+        )
+        for partition in record.evidence_partitions
+    ]
+    cited_roles = {
+        citation.source_role_level
+        for partition in record.evidence_partitions
+        for citation in partition.citations
+    }
+    return _AnswerBullet(
+        bullet_id=f"relation_hint:{record.hint_id}",
+        section="Cross-reference hints",
+        text=record.summary,
+        rationale=record.limitation_note,
+        wording_category=_relation_hint_wording_category(record),
+        claim_ids=list(record.derived_from_claim_ids),
+        claim_states=list(record.derived_from_claim_states),
+        evidence_lines=evidence_lines,
+        explicit_role_partitioning=len(cited_roles) > 1 or len(evidence_lines) > 1,
+    )
+
+
+def _compose_relation_hint_bullets(
+    relation_hint_report: Optional[RelationHintReport],
+) -> List[_AnswerBullet]:
+    if relation_hint_report is None:
+        return []
+    return [
+        _relation_hint_bullet(record)
+        for record in relation_hint_report.records
+        if record.rendered_in_answer
+    ]
+
+
+def _compose_generic_bullets(
+    entries: Sequence[LedgerEntry],
+    relation_hint_report: Optional[RelationHintReport] = None,
+) -> List[_AnswerBullet]:
     bullets: List[_AnswerBullet] = []
     for state, section in [
         (ClaimState.CONFIRMED, "Confirmed"),
@@ -695,6 +758,7 @@ def _compose_generic_bullets(entries: Sequence[LedgerEntry]) -> List[_AnswerBull
         for entry in entries:
             if entry.final_claim_state == state:
                 bullets.append(_generic_entry_bullet(entry, section))
+    bullets.extend(_compose_relation_hint_bullets(relation_hint_report))
     return bullets
 
 
@@ -871,6 +935,54 @@ def _build_answer_alignment_report(
         elif bullet.wording_category == "open_state_forwarded":
             if bullet.section != "Open":
                 notes.append("Open claim-state is not surfaced in the Open section.")
+        elif bullet.wording_category == "relation_hint_governing_confirmed":
+            if bullet.section != "Cross-reference hints":
+                notes.append("Confirmed relation-hint wording is not placed in Cross-reference hints.")
+            if bullet.claim_states and any(
+                claim_state != ClaimState.CONFIRMED for claim_state in bullet.claim_states
+            ):
+                notes.append("Confirmed relation-hint wording is attached to a non-confirmed claim-state.")
+            if cited_roles and any(role != SourceRoleLevel.HIGH for role in cited_roles):
+                notes.append("Confirmed governing relation-hint wording cites non-governing evidence.")
+        elif bullet.wording_category == "relation_hint_governing_interpretive":
+            if bullet.section != "Cross-reference hints":
+                notes.append("Interpretive relation-hint wording is not placed in Cross-reference hints.")
+            if bullet.claim_states and not any(
+                claim_state == ClaimState.INTERPRETIVE for claim_state in bullet.claim_states
+            ):
+                notes.append("Interpretive relation-hint wording does not rest on any interpretive claim-state.")
+            if bullet.claim_states and any(
+                claim_state == ClaimState.OPEN for claim_state in bullet.claim_states
+            ):
+                notes.append("Interpretive relation-hint wording rests on open claim-state evidence.")
+            if cited_roles and any(role != SourceRoleLevel.HIGH for role in cited_roles):
+                notes.append("Interpretive governing relation-hint wording cites non-governing evidence.")
+        elif bullet.wording_category == "relation_hint_partitioned_confirmed":
+            if bullet.section != "Cross-reference hints":
+                notes.append("Partitioned confirmed relation-hint wording is not placed in Cross-reference hints.")
+            if bullet.claim_states and any(
+                claim_state != ClaimState.CONFIRMED for claim_state in bullet.claim_states
+            ):
+                notes.append("Partitioned confirmed relation-hint wording is attached to a non-confirmed claim-state.")
+            if not bullet.explicit_role_partitioning:
+                notes.append("Partitioned confirmed relation-hint wording is not explicitly partitioned.")
+            if SourceRoleLevel.HIGH not in cited_roles or SourceRoleLevel.MEDIUM not in cited_roles:
+                notes.append("Partitioned confirmed relation-hint wording must cite both high and medium support.")
+        elif bullet.wording_category == "relation_hint_partitioned_interpretive":
+            if bullet.section != "Cross-reference hints":
+                notes.append("Partitioned interpretive relation-hint wording is not placed in Cross-reference hints.")
+            if bullet.claim_states and not any(
+                claim_state == ClaimState.INTERPRETIVE for claim_state in bullet.claim_states
+            ):
+                notes.append("Partitioned interpretive relation-hint wording does not rest on any interpretive claim-state.")
+            if bullet.claim_states and any(
+                claim_state == ClaimState.OPEN for claim_state in bullet.claim_states
+            ):
+                notes.append("Partitioned interpretive relation-hint wording rests on open claim-state evidence.")
+            if not bullet.explicit_role_partitioning:
+                notes.append("Partitioned interpretive relation-hint wording is not explicitly partitioned.")
+            if SourceRoleLevel.HIGH not in cited_roles or SourceRoleLevel.MEDIUM not in cited_roles:
+                notes.append("Partitioned interpretive relation-hint wording must cite both high and medium support.")
 
         if notes:
             status = "fail"
@@ -994,6 +1106,7 @@ def compose_answer_bundle(
     query_intent: Optional[QueryIntent] = None,
     clarification_note: Optional[str] = None,
     documents: Sequence[SourceDocument] = (),
+    relation_hint_report: Optional[RelationHintReport] = None,
 ) -> ComposedAnswerBundle:
     if not entries:
         facet_coverage_report = (
@@ -1041,7 +1154,7 @@ def compose_answer_bundle(
         summary = "Source-bound answer:"
         if len(entries) >= 2:
             summary += " the reviewed sources support a differentiated answer rather than a flat yes/no."
-        bullets = _compose_generic_bullets(entries)
+        bullets = _compose_generic_bullets(entries, relation_hint_report)
         facet_coverage_report = None
 
     rendered_answer = _render_bullets(summary, bullets, clarification_note)
@@ -1070,6 +1183,7 @@ def compose_answer(
     query_intent: Optional[QueryIntent] = None,
     clarification_note: Optional[str] = None,
     documents: Sequence[SourceDocument] = (),
+    relation_hint_report: Optional[RelationHintReport] = None,
 ) -> str:
     return compose_answer_bundle(
         question,
@@ -1077,6 +1191,7 @@ def compose_answer(
         query_intent=query_intent,
         clarification_note=clarification_note,
         documents=documents,
+        relation_hint_report=relation_hint_report,
     ).rendered_answer
 
 

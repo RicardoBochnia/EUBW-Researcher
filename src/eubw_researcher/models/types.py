@@ -749,6 +749,11 @@ class ManualReviewReport:
     product_output_self_sufficiency_verdict: str = "not_assessed"
     approved_fetched_source_evidence: List[ApprovedFetchedSourceEvidence] = field(default_factory=list)
     germany_dependency_summary: Dict[str, List[str]] = field(default_factory=dict)
+    relation_hints_artifact_present: bool = False
+    relation_hint_integrity_verdict: str = "not_applicable"
+    relation_hint_families_considered: List[str] = field(default_factory=list)
+    relation_hint_rendered_ids: List[str] = field(default_factory=list)
+    relation_hint_bundle_only_ids: List[str] = field(default_factory=list)
     report_type: str = "automated_review_prefill"
     human_reviewed: bool = False
 
@@ -825,6 +830,39 @@ class AnswerAlignmentReport:
 
 
 @dataclass
+class RelationHintEvidencePartition:
+    partition_label: str
+    source_role_levels: List[SourceRoleLevel] = field(default_factory=list)
+    claim_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    citations: List[Citation] = field(default_factory=list)
+
+
+@dataclass
+class RelationHintRecord:
+    hint_id: str
+    family_id: str
+    relation_state: str
+    summary: str
+    derived_from_claim_ids: List[str] = field(default_factory=list)
+    derived_from_claim_states: List[ClaimState] = field(default_factory=list)
+    supporting_source_ids: List[str] = field(default_factory=list)
+    evidence_partitions: List[RelationHintEvidencePartition] = field(default_factory=list)
+    limitation_note: Optional[str] = None
+    supplemental: bool = True
+    rendered_in_answer: bool = False
+
+
+@dataclass
+class RelationHintReport:
+    question: str
+    intent_type: str
+    families_considered: List[str] = field(default_factory=list)
+    generation_basis: str = "approved_entries_only"
+    records: List[RelationHintRecord] = field(default_factory=list)
+
+
+@dataclass
 class BlindValidationRawRead:
     source_id: str
     document_path: Optional[Path]
@@ -898,6 +936,7 @@ class AnswerResult:
     rendered_answer: str
     provisional_grouping: List[ProvisionalGroup] = field(default_factory=list)
     manual_review: Optional[ManualReviewArtifact] = None
+    relation_hint_report: Optional[RelationHintReport] = None
     facet_coverage_report: Optional[FacetCoverageReport] = None
     pinpoint_evidence_report: Optional[PinpointEvidenceReport] = None
     answer_alignment_report: Optional[AnswerAlignmentReport] = None

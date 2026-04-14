@@ -29,6 +29,7 @@ from eubw_researcher.models import (
     NormalizationStatus,
     PinpointEvidenceRecord,
     PinpointEvidenceReport,
+    RelationHintReport,
     SourceKind,
     SourceOrigin,
     SourceRoleLevel,
@@ -205,6 +206,16 @@ def _minimal_result(record_type: str, *, intent_type: str) -> SimpleNamespace:
             ],
             blocking_violations=[],
         ),
+        relation_hint_report=(
+            RelationHintReport(
+                question="Synthetic topology question?",
+                intent_type="certificate_topology_analysis",
+                families_considered=["certificate_role_topology"],
+                records=[],
+            )
+            if intent_type == "certificate_topology_analysis"
+            else None
+        ),
         blind_validation_report=BlindValidationReport(
             question="Synthetic topology question?",
             intent_type="certificate_topology_analysis",
@@ -215,6 +226,7 @@ def _minimal_result(record_type: str, *, intent_type: str) -> SimpleNamespace:
                 "pinpoint_evidence.json",
                 "answer_alignment.json",
                 "facet_coverage.json",
+                "relation_hints.json",
             ],
             raw_document_reads=[],
             raw_document_dependency="none",
@@ -239,6 +251,11 @@ def _fake_write_artifact_bundle(output_dir: Path, result, verdict=None, **_: obj
         "manual_review_report.md",
     ]:
         (output_dir / filename).write_text("synthetic\n", encoding="utf-8")
+    if getattr(result, "relation_hint_report", None) is not None:
+        (output_dir / "relation_hints.json").write_text(
+            json.dumps(dataclass_to_dict(result.relation_hint_report), indent=2),
+            encoding="utf-8",
+        )
     (output_dir / "blind_validation_report.json").write_text(
         json.dumps(dataclass_to_dict(result.blind_validation_report), indent=2),
         encoding="utf-8",
