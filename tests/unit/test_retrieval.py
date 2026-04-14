@@ -34,6 +34,7 @@ from eubw_researcher.retrieval import (
     retrieve_candidates,
     retrieve_candidates_with_trace,
 )
+from eubw_researcher.retrieval import local as local_retrieval
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -379,6 +380,100 @@ class RetrievalTests(unittest.TestCase):
         )
         self.assertTrue(trace.fallback_used)
         self.assertEqual(trace.cache_status, "memory")
+
+    def test_sqlite_fts_skips_semantic_backfill_when_pool_is_not_saturated(self) -> None:
+        runtime = replace(
+            self.runtime,
+            retrieval_top_k=1,
+            min_combined_score=0.0,
+            local_retrieval_backend="sqlite_fts",
+            local_index_candidate_pool=3,
+        )
+        step = RetrievalPlanStep(
+            step_id="regulation_semantic_skip",
+            required_kind=SourceKind.REGULATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            inspection_depth=1,
+            reason="Synthetic regulation step",
+        )
+        regulation_doc = self._build_synthetic_document(
+            source_id="regulation-1",
+            chunk_id="regulation-1",
+            title="Regulation One",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="authorization server",
+        )
+        bundle = self._build_synthetic_bundle(regulation_doc)
+
+        with patch(
+            "eubw_researcher.retrieval.local._load_or_build_sqlite_index",
+            return_value=SimpleNamespace(
+                cache_status="memory",
+                query_step=lambda **_kwargs: ["regulation-1"],
+            ),
+        ), patch(
+            "eubw_researcher.retrieval.local._scan_candidates",
+            side_effect=AssertionError("semantic backfill should not run"),
+        ):
+            candidates, trace = retrieve_candidates_with_trace(
+                question="authorization server",
+                step=step,
+                bundle=bundle,
+                hierarchy=self.hierarchy,
+                runtime_config=runtime,
+            )
+
+        self.assertEqual([candidate.chunk.source_id for candidate in candidates], ["regulation-1"])
+        self.assertFalse(trace.fallback_used)
+
+    def test_sqlite_fts_error_evicts_broken_memory_index_from_cache(self) -> None:
+        runtime = replace(
+            self.runtime,
+            retrieval_top_k=1,
+            min_combined_score=0.0,
+            local_retrieval_backend="sqlite_fts",
+            local_index_candidate_pool=1,
+        )
+        step = RetrievalPlanStep(
+            step_id="regulation_error_eviction",
+            required_kind=SourceKind.REGULATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            inspection_depth=1,
+            reason="Synthetic regulation step",
+        )
+        regulation_doc = self._build_synthetic_document(
+            source_id="regulation-1",
+            chunk_id="regulation-1",
+            title="Regulation",
+            source_kind=SourceKind.REGULATION,
+            source_role_level=SourceRoleLevel.HIGH,
+            text="access certificate",
+        )
+        bundle = self._build_synthetic_bundle(regulation_doc)
+        cache_key = local_retrieval._bundle_cache_key(bundle)
+        local_retrieval._MEMORY_INDEXES.clear()
+        local_retrieval._CHUNK_LOOKUPS.clear()
+        broken_index = SimpleNamespace(
+            cache_status="memory",
+            connection=SimpleNamespace(close=lambda: None),
+            query_step=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        local_retrieval._MEMORY_INDEXES[cache_key] = broken_index
+
+        candidates, trace = retrieve_candidates_with_trace(
+            question="access certificate",
+            step=step,
+            bundle=bundle,
+            hierarchy=self.hierarchy,
+            runtime_config=runtime,
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].chunk.source_id, "regulation-1")
+        self.assertEqual(trace.cache_status, "error_fallback_scan")
+        self.assertTrue(trace.fallback_used)
+        self.assertNotIn(cache_key, local_retrieval._MEMORY_INDEXES)
 
     def test_sqlite_fts_errors_fall_back_to_same_step_scan(self) -> None:
         runtime = replace(

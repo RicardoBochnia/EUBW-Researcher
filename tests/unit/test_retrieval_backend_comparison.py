@@ -10,15 +10,26 @@ from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = REPO_ROOT / "scripts" / "run_retrieval_backend_comparison.py"
-sys.path.insert(0, str(MODULE_PATH.parent))
-MODULE_SPEC = importlib.util.spec_from_file_location(
-    "run_retrieval_backend_comparison",
-    MODULE_PATH,
-)
-assert MODULE_SPEC is not None
-assert MODULE_SPEC.loader is not None
-retrieval_backend_comparison = importlib.util.module_from_spec(MODULE_SPEC)
-MODULE_SPEC.loader.exec_module(retrieval_backend_comparison)
+
+
+def _load_script_module():
+    original_sys_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(MODULE_PATH.parent))
+        module_spec = importlib.util.spec_from_file_location(
+            "run_retrieval_backend_comparison",
+            MODULE_PATH,
+        )
+        assert module_spec is not None
+        assert module_spec.loader is not None
+        module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path[:] = original_sys_path
+
+
+retrieval_backend_comparison = _load_script_module()
 
 
 class RetrievalBackendComparisonTests(unittest.TestCase):

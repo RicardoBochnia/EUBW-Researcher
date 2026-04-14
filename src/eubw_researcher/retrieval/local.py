@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass
@@ -21,9 +23,16 @@ from eubw_researcher.retrieval.text_normalization import (
 )
 
 _INDEX_SCHEMA_VERSION = "local_lexical_index.v1"
+_LOGGER = logging.getLogger(__name__)
 _PERSISTED_INDEXES: Dict[str, "_SQLiteFtsIndex"] = {}
-_MEMORY_INDEXES: Dict[int, "_SQLiteFtsIndex"] = {}
-_CHUNK_LOOKUPS: Dict[int, Dict[str, SourceChunk]] = {}
+_MEMORY_INDEXES: Dict[str, "_SQLiteFtsIndex"] = {}
+_CHUNK_LOOKUPS: Dict[str, Dict[str, SourceChunk]] = {}
+
+
+def _is_real_corpus_catalog(catalog_path: Optional[Path]) -> bool:
+    from eubw_researcher.corpus.runtime import is_real_corpus_catalog
+
+    return is_real_corpus_catalog(catalog_path)
 
 
 @dataclass
@@ -196,8 +205,39 @@ def _merge_candidates(
     return list(by_chunk_id.values())
 
 
-def _chunk_lookup(bundle: IngestionBundle) -> Dict[str, SourceChunk]:
-    cache_key = id(bundle)
+def _bundle_cache_key(
+    bundle: IngestionBundle,
+    *,
+    catalog_path: Optional[Path] = None,
+    corpus_state_id: Optional[str] = None,
+) -> str:
+    if catalog_path is not None and corpus_state_id:
+        return f"{catalog_path.resolve().as_posix()}::{corpus_state_id}"
+    if corpus_state_id:
+        return f"corpus-state::{corpus_state_id}"
+    digest = hashlib.sha256()
+    for source_id in sorted(document.entry.source_id for document in bundle.documents):
+        digest.update(source_id.encode("utf-8"))
+    for chunk_id in sorted(
+        chunk.chunk_id
+        for document in bundle.documents
+        for chunk in document.chunks
+    ):
+        digest.update(chunk_id.encode("utf-8"))
+    for normalized_text in sorted(
+        normalize_text_for_matching(chunk.text)
+        for document in bundle.documents
+        for chunk in document.chunks
+    ):
+        digest.update(normalized_text.encode("utf-8"))
+    return f"bundle::{digest.hexdigest()}"
+
+
+def _chunk_lookup(
+    bundle: IngestionBundle,
+    *,
+    cache_key: str,
+) -> Dict[str, SourceChunk]:
     cached = _CHUNK_LOOKUPS.get(cache_key)
     if cached is None:
         cached = {
@@ -233,14 +273,6 @@ def _scan_candidates(
                 )
             )
     return _sort_candidates(candidates)
-
-
-def _is_real_corpus_catalog(catalog_path: Optional[Path]) -> bool:
-    return (
-        catalog_path is not None
-        and "real_corpus" in catalog_path.parts
-        and catalog_path.name == "curated_catalog.json"
-    )
 
 
 def _index_paths(catalog_path: Path) -> tuple[Path, Path]:
@@ -338,8 +370,11 @@ def _load_or_build_persisted_index(
     return index
 
 
-def _load_or_build_memory_index(bundle: IngestionBundle) -> _SQLiteFtsIndex:
-    cache_key = id(bundle)
+def _load_or_build_memory_index(
+    bundle: IngestionBundle,
+    *,
+    cache_key: str,
+) -> _SQLiteFtsIndex:
     cached = _MEMORY_INDEXES.get(cache_key)
     if cached is not None:
         cached.cache_status = "memory"
@@ -364,7 +399,43 @@ def _load_or_build_sqlite_index(
             catalog_path=catalog_path,
             corpus_state_id=corpus_state_id,
         )
-    return _load_or_build_memory_index(bundle)
+    return _load_or_build_memory_index(
+        bundle,
+        cache_key=_bundle_cache_key(
+            bundle,
+            catalog_path=catalog_path,
+            corpus_state_id=corpus_state_id,
+        ),
+    )
+
+
+def _evict_cached_index(
+    *,
+    bundle: IngestionBundle,
+    catalog_path: Optional[Path],
+    corpus_state_id: Optional[str],
+) -> None:
+    if _is_real_corpus_catalog(catalog_path) and catalog_path is not None:
+        cache_key = _bundle_cache_key(
+            bundle,
+            catalog_path=catalog_path,
+            corpus_state_id=corpus_state_id,
+        )
+        persisted_cache_key = str(_index_paths(catalog_path)[0].resolve())
+        cached = _PERSISTED_INDEXES.pop(persisted_cache_key, None)
+    else:
+        cache_key = _bundle_cache_key(
+            bundle,
+            catalog_path=catalog_path,
+            corpus_state_id=corpus_state_id,
+        )
+        cached = _MEMORY_INDEXES.pop(cache_key, None)
+    _CHUNK_LOOKUPS.pop(cache_key, None)
+    if cached is not None:
+        try:
+            cached.connection.close()
+        except Exception:
+            pass
 
 
 def _sqlite_fts_candidates(
@@ -383,6 +454,11 @@ def _sqlite_fts_candidates(
         runtime_config.semantic_expansions,
     )
     requires_semantic_backfill = set(fts_query_tokens) != set(query_tokens)
+    cache_key = _bundle_cache_key(
+        bundle,
+        catalog_path=catalog_path,
+        corpus_state_id=corpus_state_id,
+    )
     trace = LocalRetrievalTrace()
     if not query_tokens:
         trace.fallback_used = True
@@ -407,7 +483,7 @@ def _sqlite_fts_candidates(
             corpus_state_id=corpus_state_id,
         )
         trace.cache_status = index.cache_status
-        chunk_lookup = _chunk_lookup(bundle)
+        chunk_lookup = _chunk_lookup(bundle, cache_key=cache_key)
         chunk_ids = index.query_step(
             query_tokens=fts_query_tokens,
             step=step,
@@ -427,7 +503,12 @@ def _sqlite_fts_candidates(
             candidates,
             inspection_depth=step.inspection_depth,
         )
-        if requires_semantic_backfill or len(finalized) < step.inspection_depth:
+        fts_pool_saturated = (
+            len(chunk_ids) >= runtime_config.local_index_candidate_pool
+        )
+        if len(finalized) < step.inspection_depth or (
+            requires_semantic_backfill and fts_pool_saturated
+        ):
             trace.fallback_used = True
             finalized = _finalize_candidates(
                 _merge_candidates(
@@ -444,6 +525,15 @@ def _sqlite_fts_candidates(
             )
         return finalized, trace
     except Exception:
+        _LOGGER.debug(
+            "sqlite_fts local retrieval failed; falling back to scan",
+            exc_info=True,
+        )
+        _evict_cached_index(
+            bundle=bundle,
+            catalog_path=catalog_path,
+            corpus_state_id=corpus_state_id,
+        )
         trace.cache_status = "error_fallback_scan"
         trace.fallback_used = True
         return (

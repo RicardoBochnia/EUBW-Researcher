@@ -322,6 +322,32 @@ class ValidatedCurrentStateReportTests(unittest.TestCase):
         self.assertFalse(report.validated)
         self.assertFalse(report.current_catalog_matches_eval_gate)
 
+    def test_build_validated_current_state_report_matches_runtime_by_digest_not_path(self) -> None:
+        snapshot = {
+            "corpus_state_id": "state123",
+            "catalog_path": "/tmp/repo/artifacts/real_corpus/curated_catalog.json",
+            "total_sources": 7,
+            "counts_by_kind": {"regulation": 2},
+            "counts_by_role_level": {"high": 7},
+            "source_ids": ["a"],
+        }
+        report = build_validated_current_state_report(
+            snapshot,
+            eval_manifest=self._manifest(),
+            eval_manifest_path=Path("/tmp/repo/artifacts/eval_runs_real_corpus/eval_run_manifest.json"),
+            runtime_contract_version="option_a_runtime.v1",
+            runtime_config_path=Path("/another/checkout/configs/runtime.scan.yaml"),
+            runtime_config_digest_value=RUNTIME_CONFIG_DIGEST,
+            local_retrieval_backend=LOCAL_RETRIEVAL_BACKEND,
+            coverage_report_path=None,
+            coverage_summary_path=None,
+            corpus_selection_summary_path=None,
+            corpus_state_snapshot_path=Path("/tmp/repo/artifacts/current_state/corpus_state_snapshot.json"),
+        )
+
+        self.assertTrue(report.current_runtime_matches_eval_gate)
+        self.assertTrue(report.validated)
+
     def test_build_validated_current_state_report_can_bind_spawned_validator_gate(self) -> None:
         snapshot = {
             "corpus_state_id": "state123",

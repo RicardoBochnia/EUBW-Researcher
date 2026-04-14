@@ -194,7 +194,6 @@ def build_validated_current_state_report(
     )
     current_runtime_matches_eval_gate = (
         runtime_contract_version == eval_manifest.runtime_contract_version
-        and str(runtime_config_path.resolve()) == eval_manifest.runtime_config_path
         and runtime_config_digest_value == eval_manifest.runtime_config_digest
         and local_retrieval_backend == eval_manifest.local_retrieval_backend
     )
@@ -213,8 +212,6 @@ def build_validated_current_state_report(
             and spawned_validator_gate_manifest.corpus_state_id == snapshot["corpus_state_id"]
             and spawned_validator_gate_manifest.runtime_contract_version
             == runtime_contract_version
-            and spawned_validator_gate_manifest.runtime_config_path
-            == str(runtime_config_path.resolve())
             and spawned_validator_gate_manifest.runtime_config_digest
             == runtime_config_digest_value
             and spawned_validator_gate_manifest.local_retrieval_backend
@@ -254,8 +251,6 @@ def build_validated_current_state_report(
             and real_question_pack_manifest.get("corpus_state_id") == snapshot["corpus_state_id"]
             and real_question_pack_manifest.get("runtime_contract_version")
             == runtime_contract_version
-            and real_question_pack_manifest.get("runtime_config_path")
-            == str(runtime_config_path.resolve())
             and real_question_pack_manifest.get("runtime_config_digest")
             == runtime_config_digest_value
             and real_question_pack_manifest.get("local_retrieval_backend")
