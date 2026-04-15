@@ -398,7 +398,7 @@ def _build_high_only_record(
         entries,
         allowed_roles=(SourceRoleLevel.HIGH,),
     )
-    if partition is None:
+    if partition is None or set(partition.claim_ids) != {entry.claim_id for entry in entries}:
         return None
     return _make_record(
         definition,
@@ -419,6 +419,7 @@ def _build_topology_multiplicity_record(
             entry
             for entry in entries
             if entry.claim_id != "topology_project_artifact_multiplicity"
+            and entry.final_claim_state != ClaimState.OPEN
         ],
         allowed_roles=(SourceRoleLevel.HIGH,),
     )
@@ -431,6 +432,7 @@ def _build_topology_multiplicity_record(
                 "topology_project_artifact_multiplicity",
                 "topology_project_intended_use_scoping",
             }
+            and entry.final_claim_state != ClaimState.OPEN
         ],
         allowed_roles=(SourceRoleLevel.MEDIUM,),
     )

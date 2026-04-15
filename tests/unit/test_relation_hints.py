@@ -256,6 +256,36 @@ class RelationHintTests(unittest.TestCase):
             boundary_record.derived_from_claim_ids,
         )
 
+    def test_high_only_relation_hints_require_high_support_for_each_claim(self) -> None:
+        entries = [
+            _entry(
+                "wallet_access_certificate_requirement",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+            _entry(
+                "member_state_discretion",
+                ClaimState.INTERPRETIVE,
+                source_role_level=SourceRoleLevel.MEDIUM,
+                source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+        ]
+
+        report = build_relation_hint_report(
+            "Synthetic question?",
+            entries,
+            _intent("wallet_requirements_summary"),
+        )
+
+        assert report is not None
+        self.assertNotIn(
+            "layering_union_requirement_to_member_state_discretion",
+            {record.hint_id for record in report.records},
+        )
+
     def test_wallet_relation_hints_render_through_composer_and_alignment(self) -> None:
         entries = [
             _entry(
@@ -386,6 +416,36 @@ class RelationHintTests(unittest.TestCase):
         )
         self.assertTrue(all(not record.rendered_in_answer for record in report.records))
         self.assertNotIn("Cross-reference hints:", bundle.rendered_answer)
+
+    def test_topology_multiplicity_hint_ignores_open_boundary_claims(self) -> None:
+        entries = [
+            _entry(
+                "topology_access_certificate_role",
+                ClaimState.OPEN,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+            _entry(
+                "topology_project_artifact_multiplicity",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.MEDIUM,
+                source_kind=SourceKind.PROJECT_ARTIFACT,
+                required_source_role_level=SourceRoleLevel.MEDIUM,
+            ),
+        ]
+
+        report = build_relation_hint_report(
+            "Synthetic topology question?",
+            entries,
+            _intent("certificate_topology_analysis"),
+        )
+
+        assert report is not None
+        self.assertNotIn(
+            "topology_non_governing_multiplicity_expansion",
+            {record.hint_id for record in report.records},
+        )
 
     def test_blind_validation_fails_when_rendered_relation_hint_is_not_mirrored(self) -> None:
         entries = [
