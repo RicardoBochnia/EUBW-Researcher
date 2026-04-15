@@ -489,6 +489,53 @@ class RelationHintTests(unittest.TestCase):
         self.assertFalse(report_output.passed)
         self.assertIn("relation_hint_integrity", report_output.missing_facets)
 
+    def test_blind_validation_tracks_missing_relation_hint_artifact_for_supported_intent(
+        self,
+    ) -> None:
+        entries = [
+            _entry(
+                "wallet_access_certificate_requirement",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+            _entry(
+                "annex_registration_fields",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+        ]
+        intent = _intent("wallet_requirements_summary")
+        result = SimpleNamespace(
+            question="Synthetic question?",
+            query_intent=intent,
+            rendered_answer="Confirmed:\nSynthetic answer.",
+            ledger_entries=entries,
+            approved_entries=entries,
+            relation_hint_report=None,
+            facet_coverage_report=None,
+            pinpoint_evidence_report=PinpointEvidenceReport(
+                question="Synthetic question?",
+                intent_type=intent.intent_type,
+                records=[],
+                all_cited_evidence_mapped=True,
+            ),
+            answer_alignment_report=AnswerAlignmentReport(
+                question="Synthetic question?",
+                intent_type=intent.intent_type,
+                records=[],
+            ),
+        )
+
+        report_output = build_blind_validation_report(result)
+
+        self.assertFalse(report_output.passed)
+        self.assertIn("relation_hints.json", report_output.artifacts_used)
+        self.assertIn("relation_hint_integrity", report_output.missing_facets)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -289,7 +289,7 @@ def build_blind_validation_report(result: TrustResultLike) -> BlindValidationRep
         "pinpoint_evidence.json",
         "answer_alignment.json",
     ]
-    if getattr(result, "relation_hint_report", None) is not None:
+    if supports_relation_hints(result.query_intent.intent_type):
         artifacts_used.append("relation_hints.json")
     if result.facet_coverage_report is not None:
         artifacts_used.append("facet_coverage.json")
