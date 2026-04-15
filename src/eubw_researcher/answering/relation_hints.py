@@ -299,10 +299,7 @@ def _build_relation_hint_record_for_entries(
         return _build_boundary_record(
             definition,
             entries,
-            high_claim_ids=(
-                "wallet_access_certificate_requirement",
-                "annex_registration_fields",
-            ),
+            high_claim_ids=("wallet_access_certificate_requirement",),
             medium_claim_ids=("wallet_national_guidance_boundary",),
         )
     if definition.hint_id == "layering_certificate_requirement_to_national_guidance_boundary":
