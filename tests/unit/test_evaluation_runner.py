@@ -813,6 +813,26 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
 
+    def test_manual_review_report_flags_missing_supported_relation_hint_report(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="wallet_requirements_summary")
+        result.relation_hint_report = None
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_relation_hint_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_relation_hint_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertFalse(report.relation_hints_artifact_present)
+        self.assertEqual(report.relation_hint_integrity_verdict, "needs_follow_up")
+
     def test_manual_review_report_includes_germany_dependency_summary_for_germany_intent(self) -> None:
         result = _minimal_result("fetch")
         result.query_intent = SimpleNamespace(intent_type="germany_wallet_implementation_status")

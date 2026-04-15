@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
-from eubw_researcher.answering.relation_hints import supports_relation_hints
+from eubw_researcher.answering import supports_relation_hints
 from eubw_researcher.models import (
     AnswerAlignmentReport,
     BlindValidationReport,

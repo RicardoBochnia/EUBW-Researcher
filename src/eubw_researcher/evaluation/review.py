@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from eubw_researcher.answering import TOPOLOGY_FACET_IDS
+from eubw_researcher.answering import TOPOLOGY_FACET_IDS, supports_relation_hints
 from eubw_researcher.models import (
     ApprovedFetchedSourceEvidence,
     ClaimState,
@@ -426,7 +426,9 @@ def build_manual_review_report(
             "acceptable"
             if relation_hints_ok
             else "needs_follow_up"
-        ) if relation_hint_report is not None else "not_applicable",
+        )
+        if supports_relation_hints(result.query_intent.intent_type)
+        else "not_applicable",
         relation_hint_families_considered=(
             list(relation_hint_report.families_considered)
             if relation_hint_report is not None

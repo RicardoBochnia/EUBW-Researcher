@@ -78,7 +78,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
 
             _prepare_question_output_dir(question_dir)
 
-        self.assertFalse(stale_path.exists())
+            self.assertFalse(stale_path.exists())
 
     def _write_pack_config(self, root: Path) -> Path:
         pack_path = root / "pack.json"
