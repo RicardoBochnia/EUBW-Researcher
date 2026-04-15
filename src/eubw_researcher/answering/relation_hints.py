@@ -66,19 +66,17 @@ _SUPPORTED_HINTS_BY_INTENT: dict[str, tuple[_HintDefinition, ...]] = {
         _HintDefinition(
             hint_id="layering_union_requirement_to_member_state_discretion",
             family_id="registration_requirement_layering",
-            required_all=("member_state_discretion",),
-            required_any=(
+            required_all=(
+                "member_state_discretion",
                 "wallet_access_certificate_requirement",
-                "annex_registration_fields",
             ),
         ),
         _HintDefinition(
             hint_id="layering_union_requirement_to_national_guidance_boundary",
             family_id="registration_requirement_layering",
-            required_all=("wallet_national_guidance_boundary",),
-            required_any=(
+            required_all=(
+                "wallet_national_guidance_boundary",
                 "wallet_access_certificate_requirement",
-                "annex_registration_fields",
             ),
         ),
     ),

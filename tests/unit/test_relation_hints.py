@@ -155,7 +155,7 @@ class RelationHintTests(unittest.TestCase):
         self.assertEqual(report.families_considered, ["registration_requirement_layering"])
         self.assertEqual(report.records, [])
 
-    def test_required_any_branch_selection_skips_open_alternative(self) -> None:
+    def test_wallet_union_layer_hints_require_access_requirement_claim(self) -> None:
         entries = [
             _entry(
                 "member_state_discretion",
@@ -172,11 +172,11 @@ class RelationHintTests(unittest.TestCase):
                 required_source_role_level=SourceRoleLevel.HIGH,
             ),
             _entry(
-                "wallet_access_certificate_requirement",
-                ClaimState.OPEN,
-                source_role_level=SourceRoleLevel.HIGH,
-                source_kind=SourceKind.IMPLEMENTING_ACT,
-                required_source_role_level=SourceRoleLevel.HIGH,
+                "wallet_national_guidance_boundary",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.MEDIUM,
+                source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
+                required_source_role_level=SourceRoleLevel.MEDIUM,
             ),
         ]
 
@@ -187,17 +187,74 @@ class RelationHintTests(unittest.TestCase):
         )
 
         assert report is not None
-        relation_record = next(
+        self.assertNotIn(
+            "layering_union_requirement_to_member_state_discretion",
+            {record.hint_id for record in report.records},
+        )
+        self.assertNotIn(
+            "layering_union_requirement_to_national_guidance_boundary",
+            {record.hint_id for record in report.records},
+        )
+
+    def test_wallet_union_layer_hints_keep_requirement_claim_state(self) -> None:
+        entries = [
+            _entry(
+                "wallet_access_certificate_requirement",
+                ClaimState.INTERPRETIVE,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+            _entry(
+                "annex_registration_fields",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.IMPLEMENTING_ACT,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+            _entry(
+                "member_state_discretion",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.HIGH,
+                source_kind=SourceKind.REGULATION,
+                required_source_role_level=SourceRoleLevel.HIGH,
+            ),
+            _entry(
+                "wallet_national_guidance_boundary",
+                ClaimState.CONFIRMED,
+                source_role_level=SourceRoleLevel.MEDIUM,
+                source_kind=SourceKind.NATIONAL_IMPLEMENTATION,
+                required_source_role_level=SourceRoleLevel.MEDIUM,
+            ),
+        ]
+
+        report = build_relation_hint_report(
+            "Synthetic question?",
+            entries,
+            _intent("wallet_requirements_summary"),
+        )
+
+        assert report is not None
+        discretion_record = next(
             record
             for record in report.records
             if record.hint_id == "layering_union_requirement_to_member_state_discretion"
         )
-        self.assertEqual(relation_record.relation_state, "confirmed")
-        self.assertEqual(
-            relation_record.derived_from_claim_ids,
-            ["member_state_discretion", "annex_registration_fields"],
+        boundary_record = next(
+            record
+            for record in report.records
+            if record.hint_id == "layering_union_requirement_to_national_guidance_boundary"
         )
-        self.assertTrue(relation_record.rendered_in_answer)
+        self.assertEqual(discretion_record.relation_state, "interpretive")
+        self.assertEqual(boundary_record.relation_state, "interpretive")
+        self.assertIn(
+            "wallet_access_certificate_requirement",
+            discretion_record.derived_from_claim_ids,
+        )
+        self.assertIn(
+            "wallet_access_certificate_requirement",
+            boundary_record.derived_from_claim_ids,
+        )
 
     def test_wallet_relation_hints_render_through_composer_and_alignment(self) -> None:
         entries = [
