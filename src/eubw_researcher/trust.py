@@ -16,10 +16,6 @@ from eubw_researcher.models import (
 )
 
 
-class LedgerEvidenceLike(Protocol):
-    anchor_audit_note: Optional[str]
-
-
 class CitationLike(Protocol):
     source_id: str
     source_role_level: object
@@ -36,11 +32,17 @@ class CitationLike(Protocol):
     document_title: str
 
 
+class LedgerEvidenceLike(Protocol):
+    anchor_audit_note: Optional[str]
+    citation: CitationLike
+
+
 class LedgerEntryLike(Protocol):
     claim_id: str
     final_claim_state: ClaimState
     citation_quality: CitationQuality
     governing_evidence: Sequence[LedgerEvidenceLike]
+    supporting_evidence: Sequence[LedgerEvidenceLike]
     citations: Sequence[CitationLike]
 
 
@@ -205,6 +207,19 @@ def _citation_fingerprint(citation: CitationLike) -> tuple[object, ...]:
     )
 
 
+def _approved_ledger_citations(result: TrustResultLike) -> list[CitationLike]:
+    citations: list[CitationLike] = []
+    for entry in result.approved_entries:
+        citations.extend(getattr(entry, "citations", ()))
+        citations.extend(
+            evidence.citation for evidence in getattr(entry, "governing_evidence", ())
+        )
+        citations.extend(
+            evidence.citation for evidence in getattr(entry, "supporting_evidence", ())
+        )
+    return citations
+
+
 def relation_hint_integrity_status(
     result: TrustResultLike,
 ) -> tuple[bool, str, list[str]]:
@@ -226,15 +241,11 @@ def relation_hint_integrity_status(
             ["relation_hint_integrity"],
         )
 
-    approved_source_ids = {
-        citation.source_id
-        for entry in result.approved_entries
-        for citation in entry.citations
-    }
+    approved_citations = _approved_ledger_citations(result)
+    approved_source_ids = {citation.source_id for citation in approved_citations}
     approved_citation_fingerprints = {
         _citation_fingerprint(citation)
-        for entry in result.approved_entries
-        for citation in entry.citations
+        for citation in approved_citations
     }
     alignment_ids = {
         record.answer_claim_id

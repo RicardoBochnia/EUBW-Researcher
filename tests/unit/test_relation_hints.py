@@ -447,6 +447,127 @@ class RelationHintTests(unittest.TestCase):
             {record.hint_id for record in report.records},
         )
 
+    def test_annex_categories_hint_preserves_medium_category_support(self) -> None:
+        annex_citation = _citation(
+            "annex_requirement_source",
+            role_level=SourceRoleLevel.HIGH,
+            source_kind=SourceKind.IMPLEMENTING_ACT,
+            anchor_label="Annex I",
+        )
+        category_high_citation = _citation(
+            "category_governing_source",
+            role_level=SourceRoleLevel.HIGH,
+            source_kind=SourceKind.IMPLEMENTING_ACT,
+            anchor_label="Annex I > Point 3",
+        )
+        category_medium_citation = _citation(
+            "category_project_source",
+            role_level=SourceRoleLevel.MEDIUM,
+            source_kind=SourceKind.PROJECT_ARTIFACT,
+            anchor_label="Section 3.2",
+        )
+
+        def _evidence(citation: Citation) -> LedgerEvidence:
+            return LedgerEvidence(
+                citation=citation,
+                source_role_level=citation.source_role_level,
+                source_kind=citation.source_kind,
+                source_kind_rank=1 if citation.source_role_level == SourceRoleLevel.HIGH else 3,
+                source_origin=SourceOrigin.LOCAL,
+                jurisdiction="EU",
+                support_directness=SupportDirectness.DIRECT,
+                term_overlap=1,
+                scope_overlap=1,
+                on_point_score=5,
+                admissible=True,
+                citation_quality=CitationQuality.ANCHOR_GROUNDED,
+                anchor_audit_note=None,
+            )
+
+        annex_entry = LedgerEntry(
+            claim_id="rp_registration_annex_i_requirement",
+            claim_text="Annex requirement text",
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            support_directness=SupportDirectness.DIRECT,
+            citation_quality=CitationQuality.ANCHOR_GROUNDED,
+            contradiction_status=ContradictionStatus.NONE,
+            final_claim_state=ClaimState.CONFIRMED,
+            citations=[annex_citation],
+            supporting_evidence=[],
+            contradicting_evidence=[],
+            governing_evidence=[_evidence(annex_citation)],
+            rationale="Synthetic rationale.",
+        )
+        categories_entry = LedgerEntry(
+            claim_id="rp_registration_information_categories",
+            claim_text="Category requirement text",
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            source_role_level=SourceRoleLevel.HIGH,
+            jurisdiction="EU",
+            support_directness=SupportDirectness.DIRECT,
+            citation_quality=CitationQuality.ANCHOR_GROUNDED,
+            contradiction_status=ContradictionStatus.NONE,
+            final_claim_state=ClaimState.CONFIRMED,
+            citations=[category_high_citation],
+            supporting_evidence=[_evidence(category_medium_citation)],
+            contradicting_evidence=[],
+            governing_evidence=[_evidence(category_high_citation)],
+            rationale="Synthetic rationale.",
+        )
+
+        report = build_relation_hint_report(
+            "Synthetic question?",
+            [annex_entry, categories_entry],
+            _intent("relying_party_registration_information"),
+        )
+
+        assert report is not None
+        record = next(
+            item
+            for item in report.records
+            if item.hint_id == "layering_annex_requirement_to_categories"
+        )
+        self.assertEqual(
+            [partition.partition_label for partition in record.evidence_partitions],
+            [
+                "Annex I requirement support",
+                "Category-level governing support",
+                "Category-level supplemental support",
+            ],
+        )
+        self.assertEqual(
+            record.evidence_partitions[2].source_role_levels,
+            [SourceRoleLevel.MEDIUM],
+        )
+        self.assertEqual(
+            [citation.source_id for citation in record.evidence_partitions[2].citations],
+            ["category_project_source"],
+        )
+        bundle = compose_answer_bundle(
+            "Synthetic question?",
+            [annex_entry, categories_entry],
+            query_intent=_intent("relying_party_registration_information"),
+            relation_hint_report=report,
+        )
+        report_output = build_blind_validation_report(
+            SimpleNamespace(
+                question="Synthetic question?",
+                query_intent=_intent("relying_party_registration_information"),
+                rendered_answer=bundle.rendered_answer,
+                ledger_entries=[annex_entry, categories_entry],
+                approved_entries=[annex_entry, categories_entry],
+                relation_hint_report=report,
+                facet_coverage_report=None,
+                pinpoint_evidence_report=bundle.pinpoint_evidence_report,
+                answer_alignment_report=bundle.answer_alignment_report,
+            )
+        )
+        self.assertNotIn("relation_hint_integrity", report_output.missing_facets)
+
     def test_blind_validation_fails_when_rendered_relation_hint_is_not_mirrored(self) -> None:
         entries = [
             _entry(

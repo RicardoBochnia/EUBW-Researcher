@@ -621,6 +621,13 @@ def _entry_citations_for_roles(
     entry: LedgerEntry,
     allowed_roles: set[SourceRoleLevel],
 ) -> list[Citation]:
+    evidence_citations = [
+        evidence.citation
+        for evidence in [*entry.governing_evidence, *entry.supporting_evidence]
+        if evidence.source_role_level in allowed_roles
+    ]
+    if evidence_citations:
+        return _dedupe_citations(evidence_citations)
     return _dedupe_citations(
         citation for citation in entry.citations if citation.source_role_level in allowed_roles
     )
