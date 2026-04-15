@@ -14,6 +14,7 @@ from eubw_researcher.evaluation.real_question_pack import (
     _build_question_verdict,
     default_real_question_pack_output_dir,
     _git_metadata,
+    _prepare_question_output_dir,
     run_real_question_pack,
 )
 from eubw_researcher.models import ManualReviewArtifact, ManualReviewCheck
@@ -67,6 +68,17 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         bundle_dir.mkdir(parents=True, exist_ok=True)
         for artifact_name in artifact_names:
             (bundle_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+    def test_prepare_question_output_dir_cleans_relation_hints_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            question_dir = Path(tmp_dir) / "question"
+            question_dir.mkdir(parents=True, exist_ok=True)
+            stale_path = question_dir / "relation_hints.json"
+            stale_path.write_text("stale", encoding="utf-8")
+
+            _prepare_question_output_dir(question_dir)
+
+            self.assertFalse(stale_path.exists())
 
     def _write_pack_config(self, root: Path) -> Path:
         pack_path = root / "pack.json"
@@ -124,7 +136,7 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         )
         return SimpleNamespace(
             contract_version="option_a_runtime.v2",
-            result_schema_version="agent_runtime_result.v3",
+            result_schema_version="agent_runtime_result.v4",
             catalog_path=resolved_catalog_path,
             corpus_state_id="synthetic-state",
             output_dir=output_dir.resolve(),
@@ -617,7 +629,10 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             run_summary = payload["question_runs"][0]
             # facet_coverage.json is expected for topology but was never written; it remains
             # missing even after the runner's rewrite of verdict.json / manual_review_report.md
-            self.assertEqual(run_summary["missing_artifacts"], ["facet_coverage.json"])
+            self.assertEqual(
+                run_summary["missing_artifacts"],
+                ["facet_coverage.json", "relation_hints.json"],
+            )
             self.assertTrue(run_summary["has_missing_artifacts"])
             # artifacts_present and missing_artifacts are consistent: facet_coverage.json is absent
             self.assertNotIn("facet_coverage.json", run_summary["artifacts_present"])

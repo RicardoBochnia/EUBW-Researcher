@@ -58,7 +58,7 @@ The facade is the stable runtime contract for:
 - writing the standard reviewable artifact bundle
 
 The contract is documented in `docs/architecture/options/option-a/RUNTIME_FACADE_CONTRACT.md`.
-The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`. The current result schema is `agent_runtime_result.v3`.
+The current facade envelope is `option_a_runtime.v2`, and `AgentRuntimeResponse.result` is the narrowed `AgentRuntimeResult` payload rather than the internal pipeline `AnswerResult`. The current result schema is `agent_runtime_result.v4`.
 
 Anything below that facade boundary should be treated as internal implementation detail.
 
@@ -124,6 +124,7 @@ The highest-value artifacts are:
 - `approved_ledger.json`
 - `pinpoint_evidence.json`
 - `answer_alignment.json`
+- `relation_hints.json` for supported relation-hint intents
 - `blind_validation_report.json`
 - `gap_records.json`
 - `web_fetch_records.json`
@@ -135,6 +136,10 @@ The highest-value artifacts are:
 For Scenario D closeout runs, also inspect:
 - `spawned_validator_request.json`
 - `spawned_validator_result.json`
+
+For relation-hint-supported intents:
+- treat `relation_hints.json` as a supplemental, post-ledger cross-reference artifact rather than a new reasoning substrate
+- if a relation hint is rendered into `final_answer.txt`, expect to see the same claim mirrored in `pinpoint_evidence.json` and `answer_alignment.json`
 
 For Wave 3 web-review runs, also inspect the per-record governance fields in `web_fetch_records.json` and the approved fetched-source section in `manual_review_report.md`:
 - `policy_id`

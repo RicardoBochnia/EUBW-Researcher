@@ -45,6 +45,7 @@ _SPAWNED_VALIDATOR_REQUIRED_ARTIFACTS = [
 ]
 _SPAWNED_VALIDATOR_OPTIONAL_REQUIRED_ARTIFACTS = [
     "facet_coverage.json",
+    "relation_hints.json",
 ]
 _SPAWNED_VALIDATOR_GATE_VALIDATION_MODE = "structural_plus_spawned_validator_gate"
 

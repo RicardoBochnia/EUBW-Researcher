@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
+from eubw_researcher.answering import supports_relation_hints
 from eubw_researcher.models import (
     AnswerAlignmentReport,
     BlindValidationReport,
@@ -14,8 +16,25 @@ from eubw_researcher.models import (
 )
 
 
+class CitationLike(Protocol):
+    source_id: str
+    source_role_level: object
+    source_kind: object
+    jurisdiction: Optional[str]
+    citation_quality: object
+    document_path: Optional[Path]
+    canonical_url: Optional[str]
+    document_status: object
+    source_origin: object
+    anchor_label: Optional[str]
+    structure_poor: bool
+    anchor_audit_note: Optional[str]
+    document_title: str
+
+
 class LedgerEvidenceLike(Protocol):
     anchor_audit_note: Optional[str]
+    citation: CitationLike
 
 
 class LedgerEntryLike(Protocol):
@@ -23,6 +42,26 @@ class LedgerEntryLike(Protocol):
     final_claim_state: ClaimState
     citation_quality: CitationQuality
     governing_evidence: Sequence[LedgerEvidenceLike]
+    supporting_evidence: Sequence[LedgerEvidenceLike]
+    citations: Sequence[CitationLike]
+
+
+class RelationHintEvidencePartitionLike(Protocol):
+    partition_label: str
+    source_ids: Sequence[str]
+    citations: Sequence[CitationLike]
+
+
+class RelationHintRecordLike(Protocol):
+    hint_id: str
+    supporting_source_ids: Sequence[str]
+    evidence_partitions: Sequence[RelationHintEvidencePartitionLike]
+    rendered_in_answer: bool
+
+
+class RelationHintReportLike(Protocol):
+    intent_type: str
+    records: Sequence[RelationHintRecordLike]
 
 
 class TrustResultLike(Protocol):
@@ -30,6 +69,8 @@ class TrustResultLike(Protocol):
     query_intent: QueryIntent
     rendered_answer: str
     ledger_entries: Sequence[LedgerEntryLike]
+    approved_entries: Sequence[LedgerEntryLike]
+    relation_hint_report: Optional[RelationHintReportLike]
     facet_coverage_report: Optional[FacetCoverageReport]
     pinpoint_evidence_report: Optional[PinpointEvidenceReport]
     answer_alignment_report: Optional[AnswerAlignmentReport]
@@ -146,6 +187,112 @@ def answer_alignment_status(result: TrustResultLike) -> tuple[bool, str]:
     )
 
 
+def _citation_fingerprint(citation: CitationLike) -> tuple[object, ...]:
+    return (
+        getattr(citation, "source_id", None),
+        getattr(citation, "document_title", None),
+        getattr(citation, "source_role_level", None),
+        getattr(citation, "source_kind", None),
+        getattr(citation, "jurisdiction", None),
+        getattr(citation, "citation_quality", None),
+        str(getattr(citation, "document_path", None))
+        if getattr(citation, "document_path", None) is not None
+        else None,
+        getattr(citation, "canonical_url", None),
+        getattr(citation, "document_status", None),
+        getattr(citation, "source_origin", None),
+        getattr(citation, "anchor_label", None),
+        getattr(citation, "structure_poor", None),
+        getattr(citation, "anchor_audit_note", None),
+    )
+
+
+def _approved_ledger_citations(result: TrustResultLike) -> list[CitationLike]:
+    citations: list[CitationLike] = []
+    for entry in result.approved_entries:
+        citations.extend(getattr(entry, "citations", ()))
+        citations.extend(
+            evidence.citation for evidence in getattr(entry, "governing_evidence", ())
+        )
+        citations.extend(
+            evidence.citation for evidence in getattr(entry, "supporting_evidence", ())
+        )
+    return citations
+
+
+def relation_hint_integrity_status(
+    result: TrustResultLike,
+) -> tuple[bool, str, list[str]]:
+    if not supports_relation_hints(result.query_intent.intent_type):
+        return True, "Relation hints are not applicable for this intent.", []
+
+    report = getattr(result, "relation_hint_report", None)
+    if report is None:
+        return (
+            False,
+            "relation_hints.json should be present for this supported intent, but no relation-hint report was built.",
+            ["relation_hint_integrity"],
+        )
+
+    if report.intent_type != result.query_intent.intent_type:
+        return (
+            False,
+            "Relation-hint report intent does not match the result intent.",
+            ["relation_hint_integrity"],
+        )
+
+    approved_citations = _approved_ledger_citations(result)
+    approved_source_ids = {citation.source_id for citation in approved_citations}
+    approved_citation_fingerprints = {
+        _citation_fingerprint(citation)
+        for citation in approved_citations
+    }
+    alignment_ids = {
+        record.answer_claim_id
+        for record in (result.answer_alignment_report.records if result.answer_alignment_report else [])
+    }
+    pinpoint_ids = {
+        record.answer_claim_id
+        for record in (result.pinpoint_evidence_report.records if result.pinpoint_evidence_report else [])
+    }
+
+    missing_facets: list[str] = []
+    issues: list[str] = []
+    for record in report.records:
+        missing_source_ids = sorted(
+            set(record.supporting_source_ids) - approved_source_ids
+        )
+        if missing_source_ids:
+            missing_facets.append("relation_hint_integrity")
+            issues.append(
+                f"{record.hint_id} references source ids outside approved_ledger.json: {', '.join(missing_source_ids)}."
+            )
+        for partition in record.evidence_partitions:
+            for citation in partition.citations:
+                if _citation_fingerprint(citation) not in approved_citation_fingerprints:
+                    missing_facets.append("relation_hint_integrity")
+                    issues.append(
+                        f"{record.hint_id} contains citation drift in partition `{partition.partition_label}`."
+                    )
+                    break
+        if record.rendered_in_answer:
+            answer_claim_id = f"relation_hint:{record.hint_id}"
+            if answer_claim_id not in alignment_ids or answer_claim_id not in pinpoint_ids:
+                missing_facets.append(f"rendered_relation_hint_contract:{record.hint_id}")
+                issues.append(
+                    f"{record.hint_id} is marked rendered_in_answer but is not fully mirrored in answer_alignment.json and pinpoint_evidence.json."
+                )
+
+    deduped_missing = list(dict.fromkeys(missing_facets))
+    if deduped_missing:
+        return False, " ".join(dict.fromkeys(issues)), deduped_missing
+    return (
+        True,
+        f"{len(report.records)} relation-hint record(s) stayed bound to approved-ledger citations and rendered-contract coverage.",
+        [],
+    )
+
+
 def build_blind_validation_report(result: TrustResultLike) -> BlindValidationReport:
     artifacts_used = [
         "final_answer.txt",
@@ -153,6 +300,8 @@ def build_blind_validation_report(result: TrustResultLike) -> BlindValidationRep
         "pinpoint_evidence.json",
         "answer_alignment.json",
     ]
+    if supports_relation_hints(result.query_intent.intent_type):
+        artifacts_used.append("relation_hints.json")
     if result.facet_coverage_report is not None:
         artifacts_used.append("facet_coverage.json")
 
@@ -165,10 +314,16 @@ def build_blind_validation_report(result: TrustResultLike) -> BlindValidationRep
     alignment_ok, _ = answer_alignment_status(result)
     if not alignment_ok:
         missing_facets.append("answer_evidence_alignment")
+    relation_hints_ok, _relation_hints_message, relation_hint_missing_facets = (
+        relation_hint_integrity_status(result)
+    )
+    if not relation_hints_ok:
+        missing_facets.extend(relation_hint_missing_facets)
     if result.query_intent.intent_type == "certificate_topology_analysis":
         if result.facet_coverage_report is None or not result.facet_coverage_report.all_addressed():
             missing_facets.append("topology_facet_coverage")
         missing_facets.extend(_topology_structure_missing_facets(result))
+    missing_facets = list(dict.fromkeys(missing_facets))
 
     passed = not missing_facets
     raw_document_dependency = "none" if passed else "central_reconstruction"

@@ -6,6 +6,7 @@ from typing import Dict, List
 
 from eubw_researcher.answering import (
     build_provisional_grouping,
+    build_relation_hint_report,
     compose_answer_bundle,
 )
 from eubw_researcher.evidence import build_ledger, has_direct_admissible_support
@@ -404,6 +405,11 @@ class ResearchPipeline:
         approved_entries = [
             entry for entry in ledger_entries if entry.final_claim_state != ClaimState.BLOCKED
         ]
+        relation_hint_report = build_relation_hint_report(
+            question,
+            approved_entries,
+            query_intent,
+        )
 
         gap_records = self._build_gap_records(
             query_intent=query_intent,
@@ -431,6 +437,7 @@ class ResearchPipeline:
             query_intent=query_intent,
             clarification_note=query_intent.clarification_note,
             documents=self.ingestion_bundle.documents,
+            relation_hint_report=relation_hint_report,
         )
         provisional_grouping = build_provisional_grouping(query_intent, approved_entries)
         result = AnswerResult(
@@ -444,6 +451,7 @@ class ResearchPipeline:
             approved_entries=approved_entries,
             rendered_answer=composed_answer.rendered_answer,
             provisional_grouping=provisional_grouping,
+            relation_hint_report=relation_hint_report,
             facet_coverage_report=composed_answer.facet_coverage_report,
             pinpoint_evidence_report=composed_answer.pinpoint_evidence_report,
             answer_alignment_report=composed_answer.answer_alignment_report,

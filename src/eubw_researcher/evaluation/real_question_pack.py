@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
 
+from eubw_researcher.answering import supports_relation_hints
 from eubw_researcher import ResearchRuntimeFacade
 from eubw_researcher.config import (
     load_real_question_pack,
@@ -52,6 +53,7 @@ REQUIRED_BUNDLE_ARTIFACTS = [
 OPTIONAL_BUNDLE_ARTIFACTS = [
     "provisional_grouping.json",
     "facet_coverage.json",
+    "relation_hints.json",
     "corpus_coverage_report.json",
     "verdict.json",
 ]
@@ -413,6 +415,8 @@ def _expected_bundle_artifacts(result, catalog_path: Path) -> list[str]:
     expected = list(REQUIRED_BUNDLE_ARTIFACTS) + ["verdict.json"]
     if result.query_intent.intent_type == "certificate_topology_analysis":
         expected.append("facet_coverage.json")
+    if supports_relation_hints(result.query_intent.intent_type):
+        expected.append("relation_hints.json")
     if result.provisional_grouping:
         expected.append("provisional_grouping.json")
     if is_real_corpus_catalog(catalog_path):

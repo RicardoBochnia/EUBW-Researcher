@@ -33,6 +33,9 @@ from eubw_researcher.models import (
     NormalizationStatus,
     PinpointEvidenceRecord,
     PinpointEvidenceReport,
+    RelationHintEvidencePartition,
+    RelationHintRecord,
+    RelationHintReport,
     ScenarioVerdict,
     SourceKind,
     SourceOrigin,
@@ -311,6 +314,12 @@ class EvaluationRunnerTests(unittest.TestCase):
                     cited_source_roles=[SourceRoleLevel.HIGH],
                 ),
             ],
+        )
+        result.relation_hint_report = RelationHintReport(
+            question=result.question,
+            intent_type="certificate_topology_analysis",
+            families_considered=["certificate_role_topology"],
+            records=[],
         )
 
         report = build_blind_validation_report(result)
@@ -804,6 +813,26 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(report.pinpoint_traceability_verdict, "needs_follow_up")
         self.assertEqual(report.final_judgment, "reject")
 
+    def test_manual_review_report_flags_missing_supported_relation_hint_report(self) -> None:
+        result = _minimal_result("fetch")
+        result.query_intent = SimpleNamespace(intent_type="wallet_requirements_summary")
+        result.relation_hint_report = None
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="synthetic_relation_hint_review",
+                passed=True,
+                checks=[],
+            ),
+            scenario_id="synthetic_relation_hint_review",
+            catalog_path="/tmp/synthetic_catalog.json",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertFalse(report.relation_hints_artifact_present)
+        self.assertEqual(report.relation_hint_integrity_verdict, "needs_follow_up")
+
     def test_manual_review_report_includes_germany_dependency_summary_for_germany_intent(self) -> None:
         result = _minimal_result("fetch")
         result.query_intent = SimpleNamespace(intent_type="germany_wallet_implementation_status")
@@ -886,6 +915,39 @@ class WriteArtifactBundleCoverageTests(unittest.TestCase):
             output_dir = Path(tmp)
             write_artifact_bundle(output_dir, result)
             self.assertFalse((output_dir / "corpus_coverage_summary.md").exists())
+
+    def test_write_artifact_bundle_writes_relation_hints_when_present(self):
+        result = self._make_result()
+        result.query_intent = SimpleNamespace(
+            intent_type="wallet_requirements_summary",
+            claim_targets=[],
+        )
+        result.relation_hint_report = RelationHintReport(
+            question="Synthetic question?",
+            intent_type="wallet_requirements_summary",
+            families_considered=["registration_requirement_layering"],
+            records=[
+                RelationHintRecord(
+                    hint_id="layering_requirement_to_annex_detail",
+                    family_id="registration_requirement_layering",
+                    relation_state="confirmed",
+                    summary="Synthetic summary",
+                    supporting_source_ids=["synthetic-local-source"],
+                    evidence_partitions=[
+                        RelationHintEvidencePartition(
+                            partition_label="Synthetic partition",
+                            source_role_levels=[SourceRoleLevel.HIGH],
+                            source_ids=["synthetic-local-source"],
+                        )
+                    ],
+                )
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            write_artifact_bundle(output_dir, result)
+
+            self.assertTrue((output_dir / "relation_hints.json").exists())
 
 
 class ScenarioRunnerArtifactTests(unittest.TestCase):

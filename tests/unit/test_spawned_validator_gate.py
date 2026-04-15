@@ -29,6 +29,18 @@ class SpawnedValidatorGateTests(unittest.TestCase):
 
         self.assertIn("facet_coverage.json", request_with_facet["required_artifacts"])
 
+    def test_build_spawned_validator_request_includes_relation_hints_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bundle_dir = Path(tmp_dir)
+            (bundle_dir / "relation_hints.json").write_text("{}", encoding="utf-8")
+
+            request = _build_spawned_validator_request(
+                bundle_dir,
+                "Synthetic supported-intent question?",
+            )
+
+        self.assertIn("relation_hints.json", request["required_artifacts"])
+
     def test_resolve_selected_scenarios_rejects_duplicate_requested_ids(self) -> None:
         scenarios = [
             EvaluationScenario(

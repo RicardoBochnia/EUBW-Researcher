@@ -11,7 +11,7 @@ The stable agent-facing package-root surface for the current Option A runtime is
 ## Contract version
 
 - runtime contract id: `option_a_runtime.v2`
-- result schema id: `agent_runtime_result.v3`
+- result schema id: `agent_runtime_result.v4`
 
 The runtime contract version covers the facade entrypoints and response envelope.
 The result schema version covers the narrowed `AgentRuntimeResult` payload carried in `AgentRuntimeResponse.result`.
@@ -85,6 +85,7 @@ Each facade call returns `AgentRuntimeResponse` with:
 - `approved_entries`
 - `rendered_answer`
 - `provisional_grouping`
+- `relation_hint_report`
 - `facet_coverage_report`
 - `pinpoint_evidence_report`
 - `answer_alignment_report`
@@ -92,6 +93,8 @@ Each facade call returns `AgentRuntimeResponse` with:
 - `corpus_coverage_report`
 
 These fields are returned as stable plain-data structures suitable for agent consumption.
+
+For supported intents, `relation_hint_report` is the stable per-run post-ledger relation-hint surface used both for `relation_hints.json` artifact writing and, when allowed, for rendering supplemental answer bullets that still flow through the normal `pinpoint_evidence_report` / `answer_alignment_report` trust chain.
 
 ## Stability boundary
 
