@@ -752,6 +752,76 @@ class RetrievalTests(unittest.TestCase):
             "Broad question: continue with an EU-first first-pass answer.",
         )
 
+    def test_analyze_query_classifies_eubw_role_boundary_question(self) -> None:
+        intent = analyze_query(
+            "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "eubw_role_boundary_analysis")
+        self.assertEqual(intent.answer_pattern, "eubw_role_boundaries")
+        self.assertGreaterEqual(len(intent.claim_targets), 4)
+
+    def test_analyze_query_classifies_eubw_lifecycle_question(self) -> None:
+        intent = analyze_query(
+            "Wie sollte der Lebenszyklus organisatorischer Nachweise und Mandate im EUBW aussehen, wenn sich Registerdaten, Vertretungsrechte oder Unternehmensstatus ändern?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "eubw_lifecycle_analysis")
+        self.assertEqual(intent.answer_pattern, "eubw_lifecycle")
+        self.assertGreaterEqual(len(intent.claim_targets), 3)
+
+    def test_analyze_query_classifies_eubw_audit_trail_question(self) -> None:
+        intent = analyze_query(
+            "Welche Audit- und Ereignisspuren müssten für Streitfälle oder Compliance-Nachweise erhalten bleiben, ohne in eine unverhältnismäßige Vollprotokollierung abzugleiten?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "eubw_audit_trail_analysis")
+        self.assertEqual(intent.answer_pattern, "eubw_audit_trails")
+        self.assertGreaterEqual(len(intent.claim_targets), 3)
+
+    def test_analyze_query_classifies_eubw_identity_authority_question(self) -> None:
+        intent = analyze_query(
+            "Wie sollte ein EUBW in einem grenzüberschreitenden Verfahren die Identität einer natürlichen Person sauber von ihrer Handlungsbefugnis für eine juristische Person trennen?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "eubw_identity_authority_analysis")
+        self.assertEqual(intent.answer_pattern, "eubw_identity_authority")
+        self.assertGreaterEqual(len(intent.claim_targets), 3)
+
+    def test_analyze_query_classifies_eubw_architecture_bucket_question(self) -> None:
+        intent = analyze_query(
+            "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+            self.terminology,
+        )
+        self.assertEqual(intent.intent_type, "eubw_architecture_bucket_analysis")
+        self.assertEqual(intent.answer_pattern, "eubw_architecture_buckets")
+        self.assertGreaterEqual(len(intent.claim_targets), 4)
+
+    def test_eubw_alias_and_umlaut_variants_do_not_fall_back_to_broad_regulation(self) -> None:
+        cases = [
+            (
+                "EBW ecosystem responsibility boundaries between wallet provider, issuer, verifier, registrar and QTSP?",
+                "eubw_role_boundary_analysis",
+            ),
+            (
+                "Wie sollte der Lebenszyklus der Mandate im Business Wallet aussehen, wenn Vertretungsrechte und Unternehmensstatus wechseln?",
+                "eubw_lifecycle_analysis",
+            ),
+            (
+                "Welche Ereignisspuren und Audit Trails braucht das EBW gegen Vollprotokollierung?",
+                "eubw_audit_trail_analysis",
+            ),
+            (
+                "Wie trennt das Business Wallet die Identität einer natürlichen Person von ihrer Handlungsbefugnis für eine juristische Person?",
+                "eubw_identity_authority_analysis",
+            ),
+        ]
+        for question, expected_intent_type in cases:
+            with self.subTest(question=question):
+                intent = analyze_query(question, self.terminology)
+                self.assertEqual(intent.intent_type, expected_intent_type)
+                self.assertNotEqual(intent.intent_type, "broad_regulation_question")
+
     def test_analyze_query_classifies_germany_wallet_question_with_umlauts(self) -> None:
         intent = analyze_query(
             "Wie ist der Stand der SPRIND-EUDI-Wallet und des eIDAS-Durchführungsgesetzes in Deutschland?",

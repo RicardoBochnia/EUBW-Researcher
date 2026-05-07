@@ -48,6 +48,76 @@
       "expected_intent_type": "certificate_topology_analysis",
       "target_id": "topology_access_certificate_role",
       "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "eubw_q1_registrar_boundary",
+      "question": "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?",
+      "expected_intent_type": "eubw_role_boundary_analysis",
+      "target_id": "eubw_registrar_boundary",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "eubw_q1_qtsp_boundary",
+      "question": "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?",
+      "expected_intent_type": "eubw_role_boundary_analysis",
+      "target_id": "eubw_qtsp_boundary",
+      "expected_source_ids": ["celex_32024R1183_fulltext_en"]
+    },
+    {
+      "case_id": "eubw_q2_registration_updates",
+      "question": "Wie sollte der Lebenszyklus organisatorischer Nachweise und Mandate im EUBW aussehen, wenn sich Registerdaten, Vertretungsrechte oder Unternehmensstatus ändern?",
+      "expected_intent_type": "eubw_lifecycle_analysis",
+      "target_id": "eubw_registration_updates",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "eubw_q2_mandate_revocation_controls",
+      "question": "Wie sollte der Lebenszyklus organisatorischer Nachweise und Mandate im EUBW aussehen, wenn sich Registerdaten, Vertretungsrechte oder Unternehmensstatus ändern?",
+      "expected_intent_type": "eubw_lifecycle_analysis",
+      "target_id": "eubw_mandate_revocation_controls",
+      "expected_source_ids": ["ebw_proposal_com_2025_0838"]
+    },
+    {
+      "case_id": "eubw_q3_dispute_record_retention",
+      "question": "Welche Audit- und Ereignisspuren müssten für Streitfälle oder Compliance-Nachweise erhalten bleiben, ohne in eine unverhältnismäßige Vollprotokollierung abzugleiten?",
+      "expected_intent_type": "eubw_audit_trail_analysis",
+      "target_id": "eubw_dispute_record_retention",
+      "expected_source_ids": ["celex_32025R0848_fulltext_en"]
+    },
+    {
+      "case_id": "eubw_q3_authorisation_event_proofs",
+      "question": "Welche Audit- und Ereignisspuren müssten für Streitfälle oder Compliance-Nachweise erhalten bleiben, ohne in eine unverhältnismäßige Vollprotokollierung abzugleiten?",
+      "expected_intent_type": "eubw_audit_trail_analysis",
+      "target_id": "eubw_authorisation_event_proofs",
+      "expected_source_ids": ["ebw_proposal_com_2025_0838"]
+    },
+    {
+      "case_id": "eubw_q4_identity_separation",
+      "question": "Wie sollte ein EUBW in einem grenzüberschreitenden Verfahren die Identität einer natürlichen Person sauber von ihrer Handlungsbefugnis für eine juristische Person trennen?",
+      "expected_intent_type": "eubw_identity_authority_analysis",
+      "target_id": "eubw_natural_legal_person_separation",
+      "expected_source_ids": ["celex_32024R1183_fulltext_en"]
+    },
+    {
+      "case_id": "eubw_q5_direct_architecture_constraints",
+      "question": "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+      "expected_intent_type": "eubw_architecture_bucket_analysis",
+      "target_id": "eubw_direct_architecture_constraints",
+      "expected_source_ids": ["ebw_proposal_com_2025_0838"]
+    },
+    {
+      "case_id": "eubw_q5_identifier_delegated_specs",
+      "question": "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+      "expected_intent_type": "eubw_architecture_bucket_analysis",
+      "target_id": "eubw_identifier_delegated_specs",
+      "expected_source_ids": ["ebw_proposal_com_2025_0838"]
+    },
+    {
+      "case_id": "eubw_q5_trust_model_open",
+      "question": "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+      "expected_intent_type": "eubw_architecture_bucket_analysis",
+      "target_id": "eubw_trust_model_still_open",
+      "expected_source_ids": ["ebw_proposal_com_2025_0838"]
     }
   ]
 }

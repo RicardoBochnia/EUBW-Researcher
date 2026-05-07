@@ -214,7 +214,7 @@ def _wallet_requirements_targets() -> List[ClaimTarget]:
             ),
             claim_type=ClaimType.OBLIGATION,
             required_source_role_level=SourceRoleLevel.HIGH,
-            preferred_kinds=[SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
             scope_terms=["access certificate", "wallet-mediated access", "relying party service"],
             primary_terms=["access certificate", "relying party", "wallet access"],
             support_groups=[
@@ -275,7 +275,7 @@ def _certificate_layer_targets() -> List[ClaimTarget]:
             ),
             claim_type=ClaimType.OBLIGATION,
             required_source_role_level=SourceRoleLevel.HIGH,
-            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
             scope_terms=["access", "certificate"],
             primary_terms=["access", "certificate", "relying"],
             support_groups=[
@@ -775,6 +775,98 @@ def _is_germany_wallet_implementation_question(lowered: str) -> bool:
     return has_germany_signal and has_wallet_signal
 
 
+def _is_eubw_role_boundary_question(lowered: str) -> bool:
+    tokens = token_set(lowered)
+    role_score = _phrase_score(
+        lowered,
+        [
+            "verantwortungsgrenzen",
+            "responsibility boundaries",
+            "wallet provider",
+            "issuer",
+            "aussteller",
+            "verifier",
+            "pruefer",
+            "registerbetreiber",
+            "vertrauensdiensteanbieter",
+            "trust service provider",
+        ],
+    )
+    return role_score >= 2 or (
+        _token_overlap(
+            tokens,
+            [
+                "wallet",
+                "provider",
+                "issuer",
+                "aussteller",
+                "verifier",
+                "pruefer",
+                "register",
+                "registerbetreiber",
+                "vertrauensdiensteanbieter",
+            ],
+        )
+        >= 4
+    )
+
+
+def _is_eubw_lifecycle_question(lowered: str) -> bool:
+    tokens = token_set(lowered)
+    return _contains_any(
+        lowered,
+        ["lebenszyklus", "lifecycle", "registerdaten", "vertretungsrechte", "unternehmensstatus"],
+    ) or (
+        _token_overlap(
+            tokens,
+            [
+                "lebenszyklus",
+                "lifecycle",
+                "mandate",
+                "registerdaten",
+                "vertretungsrechte",
+                "unternehmensstatus",
+            ],
+        )
+        >= 3
+    )
+
+
+def _is_eubw_audit_trail_question(lowered: str) -> bool:
+    tokens = token_set(lowered)
+    return _contains_any(
+        lowered,
+        ["audit", "ereignisspuren", "streitfaelle", "streitfalle", "compliance-nachweise"],
+    ) or _token_overlap(
+        tokens,
+        ["audit", "ereignisspuren", "streitfaelle", "compliance", "nachweise", "vollprotokollierung"],
+    ) >= 3
+
+
+def _is_eubw_identity_authority_question(lowered: str) -> bool:
+    tokens = token_set(lowered)
+    return (
+        _contains_any(lowered, ["natuerlichen person", "natural person"])
+        and _contains_any(lowered, ["juristische person", "legal person"])
+        and (
+            _contains_any(lowered, ["handlungsbefugnis", "mandate", "vertretung", "authority"])
+            or _token_overlap(tokens, ["mandate", "vertretung", "handlungsbefugnis", "authority"]) >= 1
+        )
+    )
+
+
+def _is_eubw_architecture_bucket_question(lowered: str) -> bool:
+    tokens = token_set(lowered)
+    return (
+        _contains_any(lowered, ["proposal", "annex"])
+        and _contains_any(lowered, ["architektur", "architecture"])
+        and (
+            _contains_any(lowered, ["technical specifications", "technische spezifikationen"])
+            or _token_overlap(tokens, ["proposal", "annex", "architecture", "technical", "specifications"]) >= 4
+        )
+    )
+
+
 def _arf_boundary_targets() -> List[ClaimTarget]:
     return [
         _protocol_comparison_targets()[1],
@@ -798,12 +890,483 @@ def _arf_boundary_targets() -> List[ClaimTarget]:
     ]
 
 
+def _eubw_role_boundary_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="eubw_registrar_boundary",
+            claim_text=(
+                "Member States designate registrars to manage and operate national registers "
+                "and to publish registered relying-party information through a website and API."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["registrar", "national register", "wallet-relying party"],
+            primary_terms=["registrar", "manage", "operate", "api", "website"],
+            support_groups=[
+                ["designate at least one registrar", "manage and operate at least one national register"],
+                ["single common application programming interface", "national website"],
+            ],
+            contradiction_groups=[["wallet provider manages the national register"]],
+            grouping_label="Governance and discretion",
+        ),
+        ClaimTarget(
+            target_id="eubw_certificate_provider_boundary",
+            claim_text=(
+                "Providers of relying-party access and registration certificates are persons "
+                "mandated by Member States to issue those certificates to registered relying parties."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["provider", "certificate", "mandated by a member state"],
+            primary_terms=["access certificate", "registration certificate", "mandated", "issue"],
+            support_groups=[
+                ["provider of wallet-relying party access certificates", "mandated by a member state"],
+                ["provider of wallet-relying party registration certificates", "mandated by a member state"],
+            ],
+            contradiction_groups=[["registrar issues every certificate directly"]],
+            grouping_label="Certificates and identity",
+        ),
+        ClaimTarget(
+            target_id="eubw_verifier_boundary",
+            claim_text=(
+                "Wallet-relying parties declare intended use and entitlements and may request "
+                "only data that fall within their registered or authorised scope."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["wallet-relying party", "intended use", "entitlement"],
+            primary_terms=["request", "data", "intended use", "authorised", "entitlements"],
+            support_groups=[
+                ["including their entitlement or entitlements", "national registers"],
+                ["not to request users to provide any data other than those indicated for the intended use"],
+            ],
+            contradiction_groups=[["wallet-relying parties may request any data"]],
+            grouping_label="Registration information",
+        ),
+        ClaimTarget(
+            target_id="eubw_wallet_provider_boundary",
+            claim_text=(
+                "Proposal-stage EUBW sources assign wallet providers responsibility for "
+                "access-control enforcement, transaction logging, and wallet-unit-attestation revocation."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["wallet provider", "access control", "transaction logs"],
+            primary_terms=["wallet provider", "logging policy", "revocation", "access control"],
+            support_groups=[
+                ["providers of european business wallets shall provide an appropriate logging policy"],
+                ["conditions and the timeframe for the revocation of wallets unit attestations"],
+            ],
+            contradiction_groups=[["wallet providers have no logging responsibilities"]],
+            grouping_label="Operational controls",
+        ),
+        ClaimTarget(
+            target_id="eubw_qtsp_boundary",
+            claim_text=(
+                "Qualified trust service providers verify authentic-source attributes, including "
+                "powers and mandates, and issue qualified electronic attestations of attributes."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["qualified trust service provider", "attestation of attributes", "mandates"],
+            primary_terms=["verify", "authenticity", "powers and mandates", "qualified electronic attestation"],
+            support_groups=[
+                ["qualified trust service providers of electronic attestations of attributes", "verify by electronic means"],
+                ["powers and mandates to represent natural or legal persons"],
+            ],
+            contradiction_groups=[["qualified trust service providers do not verify attributes"]],
+            grouping_label="Certificates and identity",
+        ),
+    ]
+
+
+def _eubw_lifecycle_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="eubw_registration_updates",
+            claim_text=(
+                "National registration policies may include automated means to register "
+                "or update existing registrations."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["registration", "update", "national registration policies"],
+            primary_terms=["register", "update", "registration"],
+            support_groups=[
+                ["automated means of enabling wallet-relying parties to register or to update an existing registration"],
+            ],
+            contradiction_groups=[["no update an existing registration"]],
+            grouping_label="Lifecycle and change handling",
+        ),
+        ClaimTarget(
+            target_id="eubw_registration_suspension_cancellation",
+            claim_text=(
+                "Registrars may suspend or cancel registrations when registered information "
+                "is inaccurate, out of date, misleading, or otherwise non-compliant."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["registrars", "suspend", "cancel", "registration"],
+            primary_terms=["inaccurate", "out of date", "misleading", "suspend", "cancel"],
+            support_groups=[
+                ["suspend or cancel the registration", "inaccurate, out of date or misleading"],
+                ["suspend or cancel the registration", "not complying with the registration policy"],
+            ],
+            contradiction_groups=[["registrations cannot be suspended"]],
+            grouping_label="Lifecycle and change handling",
+        ),
+        ClaimTarget(
+            target_id="eubw_lifecycle_record_retention",
+            claim_text=(
+                "Registrars keep registration information for 10 years for ex post monitoring, "
+                "investigations, and dispute handling."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["registrars", "records", "10 years", "dispute handling"],
+            primary_terms=["records", "10 years", "monitoring", "dispute"],
+            support_groups=[
+                ["keep records of all the information provided", "10 years"],
+                ["ex post monitoring", "dispute handling"],
+            ],
+            contradiction_groups=[["delete all records immediately"]],
+            grouping_label="Lifecycle and change handling",
+        ),
+        ClaimTarget(
+            target_id="eubw_mandate_revocation_controls",
+            claim_text=(
+                "Proposal-stage EUBW sources require role and mandate mappings to be verifiable, "
+                "auditable, revocable, and protected against expired authorisations."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["roles", "mandates", "revocable", "expired authorisations"],
+            primary_terms=["verifiable", "auditable", "revocable", "expired authorisations"],
+            support_groups=[
+                ["mappings between roles and attributes are verifiable, auditable, revocable"],
+                ["expired authorisations are automatically detected and prevented in real time"],
+            ],
+            contradiction_groups=[["expired authorisations may continue indefinitely"]],
+            grouping_label="Lifecycle and change handling",
+        ),
+    ]
+
+
+def _eubw_audit_trail_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="eubw_dispute_record_retention",
+            claim_text=(
+                "Registrars retain registration information for 10 years for ex post "
+                "monitoring, investigations, and dispute handling."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT],
+            scope_terms=["records", "10 years", "dispute handling", "registrars"],
+            primary_terms=["records", "10 years", "investigations", "dispute"],
+            support_groups=[
+                ["keep records of all the information provided", "10 years"],
+                ["ex post monitoring", "investigations", "dispute handling"],
+            ],
+            contradiction_groups=[["no records are kept"]],
+            grouping_label="Audit and evidence",
+        ),
+        ClaimTarget(
+            target_id="eubw_transaction_logging_minimum",
+            claim_text=(
+                "Proposal-stage EUBW sources require a logging policy that covers at least "
+                "electronic signing, sealing, and transaction notifications."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["transaction logs", "logging policy", "signing", "sealing"],
+            primary_terms=["logging policy", "electronic signing", "electronic sealing", "notifications"],
+            support_groups=[
+                ["logging policy", "electronic signing", "electronic sealing"],
+                ["notifications of all transactions"],
+            ],
+            contradiction_groups=[["no transaction logging"]],
+            grouping_label="Audit and evidence",
+        ),
+        ClaimTarget(
+            target_id="eubw_authorisation_event_proofs",
+            claim_text=(
+                "Proposal-stage EUBW sources require access and execution events to be logged, "
+                "timestamped, and bound to cryptographically verifiable proofs of authorisation."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["access", "execution events", "authorisation", "audit"],
+            primary_terms=["logged", "timestamped", "cryptographically verifiable proofs of authorisation"],
+            support_groups=[
+                ["all access and execution events are logged, timestamped"],
+                ["cryptographically verifiable proofs of authorisation"],
+            ],
+            contradiction_groups=[["authorisation events need not be auditable"]],
+            grouping_label="Audit and evidence",
+        ),
+        ClaimTarget(
+            target_id="eubw_log_retention_boundary",
+            claim_text=(
+                "Proposal-stage EUBW sources tie log accessibility to Union or national law "
+                "instead of unlimited full retention."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["logs", "accessible", "union law", "national law"],
+            primary_terms=["logs", "accessible", "required by union law", "national law"],
+            support_groups=[
+                ["shall remain accessible for as long as required to be accessible by union law or national law"],
+            ],
+            contradiction_groups=[["retain all logs forever"]],
+            grouping_label="Audit and evidence",
+        ),
+    ]
+
+
+def _eubw_identity_authority_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="eubw_qtsp_mandate_verification",
+            claim_text=(
+                "Qualified trust service providers may verify authentic-source attributes, including "
+                "powers and mandates to represent natural or legal persons."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["qualified trust service providers", "powers and mandates", "natural or legal persons"],
+            primary_terms=["verify", "authenticity", "powers", "mandates", "represent"],
+            support_groups=[
+                ["qualified trust service providers of electronic attestations of attributes", "verify by electronic means"],
+                ["powers and mandates to represent natural or legal persons"],
+            ],
+            contradiction_groups=[["mandates cannot be verified electronically"]],
+            grouping_label="Identity and authority",
+        ),
+        ClaimTarget(
+            target_id="eubw_natural_legal_person_separation",
+            claim_text=(
+                "EU sources separate natural-person certificate data from legal-person certificate data."
+            ),
+            claim_type=ClaimType.OBLIGATION,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["natural persons", "legal persons", "certificate"],
+            primary_terms=["natural persons", "legal persons", "certificate", "registration number"],
+            support_groups=[
+                ["for natural persons: at least the name of the person"],
+                ["for legal persons: a unique set of data unambiguously representing the legal person"],
+            ],
+            contradiction_groups=[["natural and legal persons use the same certificate identity fields"]],
+            grouping_label="Identity and authority",
+        ),
+        ClaimTarget(
+            target_id="eubw_identity_role_mandate_layering",
+            claim_text=(
+                "Proposal-stage EUBW sources layer acting-subject identity, formal role, "
+                "and mandate scope and validity as separate inputs to authorisation decisions."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["acting subject", "formal role", "mandate", "power of attorney"],
+            primary_terms=["acting subject", "formal role", "scope", "validity", "mandate"],
+            support_groups=[
+                ["electronic attestation of attributes of the acting subject"],
+                ["the formal role of the acting subjects"],
+                ["the scope, validity and constraints of any mandate, delegation, or power of attorney"],
+            ],
+            contradiction_groups=[["one undifferentiated identity blob"]],
+            grouping_label="Identity and authority",
+        ),
+    ]
+
+
+def _eubw_architecture_bucket_targets() -> List[ClaimTarget]:
+    return [
+        ClaimTarget(
+            target_id="eubw_direct_architecture_constraints",
+            claim_text=(
+                "Proposal-stage EUBW sources directly require digital management of representation rights "
+                "and mandates and a secure channel supported by a common directory."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["representation rights", "mandates", "common directory"],
+            primary_terms=["representation rights", "mandates", "secure channel", "common directory"],
+            support_groups=[
+                ["digital management of representation rights and mandates"],
+                ["secure channel for exchanging official documents and attestations supported by a common directory"],
+            ],
+            contradiction_groups=[["no common directory or secure channel"]],
+            grouping_label="Architecture and layering",
+        ),
+        ClaimTarget(
+            target_id="eubw_arf_subordination",
+            claim_text=(
+                "Proposal-stage EUBW sources treat the Architecture and Reference Framework as applicable helper material, "
+                "with regulation specifications taking precedence where they conflict."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["architecture and reference framework", "specifications", "precedence"],
+            primary_terms=["architecture and reference framework", "taking precedence", "inconsistency"],
+            support_groups=[
+                ["architecture and reference framework", "should apply"],
+                ["specifications laid down in this regulation taking precedence"],
+            ],
+            contradiction_groups=[["arf overrides the regulation"]],
+            grouping_label="Architecture and layering",
+        ),
+        ClaimTarget(
+            target_id="eubw_identifier_delegated_specs",
+            claim_text=(
+                "Proposal-stage EUBW sources delegate the detailed structure and technical specifications "
+                "of the business-wallet identifier to implementing acts."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["identifier", "technical specifications", "implementing acts"],
+            primary_terms=["structure", "technical specifications", "identifier", "implementing acts"],
+            support_groups=[
+                ["structure and technical specifications of this identifier", "will be defined by implementing acts"],
+            ],
+            contradiction_groups=[["identifier structure is fully fixed in the proposal text"]],
+            grouping_label="Governance and discretion",
+        ),
+        ClaimTarget(
+            target_id="eubw_access_control_delegated_specs",
+            claim_text=(
+                "Proposal-stage EUBW sources delegate detailed access-control formats, interoperability mechanisms, "
+                "protocols, and logging requirements to implementing acts."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.REGULATION],
+            scope_terms=["access control mechanism", "implementing acts", "protocols", "logging"],
+            primary_terms=["reference standards", "technical specifications", "protocols", "logging"],
+            support_groups=[
+                ["list of reference standards, technical specifications and procedures", "shall be defined in the implementing acts"],
+                ["formats for the representation of roles and attributes"],
+                ["requirements for secure logging, timestamping and auditability of authorisation events"],
+            ],
+            contradiction_groups=[["all access-control details are fully specified already"]],
+            grouping_label="Governance and discretion",
+        ),
+        ClaimTarget(
+            target_id="eubw_trust_model_still_open",
+            claim_text=(
+                "Proposal-stage EUBW sources leave room for later assessment of concrete trust models "
+                "and alternative standards rather than fixing one final model now."
+            ),
+            claim_type=ClaimType.SYNTHESIS,
+            required_source_role_level=SourceRoleLevel.HIGH,
+            preferred_kinds=[SourceKind.IMPLEMENTING_ACT, SourceKind.REGULATION],
+            scope_terms=["trust models", "alternative standards", "assessed"],
+            primary_terms=["trust models", "alternative standards", "assessed"],
+            support_groups=[
+                ["trust models that have proven their efficacy and security", "should be assessed"],
+                ["new or alternative standards", "could be implemented"],
+            ],
+            contradiction_groups=[["the proposal fixes one immutable trust model"]],
+            grouping_label="Architecture and layering",
+        ),
+    ]
+
+
 def analyze_query(question: str, terminology: TerminologyConfig) -> QueryIntent:
     normalized_question = normalize_query_terms(question, terminology)
     lowered = normalize_text_for_matching(normalized_question)
     original_lowered = normalize_text_for_matching(question)
     tokens = token_set(normalized_question)
     eu_first = True
+
+    if _is_eubw_role_boundary_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="eubw_role_boundary_analysis",
+            eu_first=eu_first,
+            claim_targets=_eubw_role_boundary_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+            answer_pattern="eubw_role_boundaries",
+        )
+
+    if _is_eubw_lifecycle_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="eubw_lifecycle_analysis",
+            eu_first=eu_first,
+            claim_targets=_eubw_lifecycle_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+            answer_pattern="eubw_lifecycle",
+        )
+
+    if _is_eubw_audit_trail_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="eubw_audit_trail_analysis",
+            eu_first=eu_first,
+            claim_targets=_eubw_audit_trail_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+            answer_pattern="eubw_audit_trails",
+        )
+
+    if _is_eubw_identity_authority_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="eubw_identity_authority_analysis",
+            eu_first=eu_first,
+            claim_targets=_eubw_identity_authority_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+            answer_pattern="eubw_identity_authority",
+        )
+
+    if _is_eubw_architecture_bucket_question(lowered):
+        return QueryIntent(
+            question=question,
+            intent_type="eubw_architecture_bucket_analysis",
+            eu_first=eu_first,
+            claim_targets=_eubw_architecture_bucket_targets(),
+            preferred_kinds=[
+                SourceKind.REGULATION,
+                SourceKind.IMPLEMENTING_ACT,
+                SourceKind.PROJECT_ARTIFACT,
+            ],
+            answer_pattern="eubw_architecture_buckets",
+        )
 
     if _is_protocol_authorization_server_question(lowered):
         return QueryIntent(

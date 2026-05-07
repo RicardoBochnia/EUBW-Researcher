@@ -19,6 +19,128 @@ from eubw_researcher.trust import (
 )
 
 
+EUBW_STRUCTURED_INTENT_TYPES = {
+    "eubw_role_boundary_analysis",
+    "eubw_lifecycle_analysis",
+    "eubw_audit_trail_analysis",
+    "eubw_identity_authority_analysis",
+    "eubw_architecture_bucket_analysis",
+}
+EUBW_ARCHITECTURE_BUCKET_CLAIMS = {
+    "direkt ableitbar:": {
+        "eubw_direct_architecture_constraints",
+        "eubw_arf_subordination",
+    },
+    "delegiert:": {
+        "eubw_identifier_delegated_specs",
+        "eubw_access_control_delegated_specs",
+    },
+    "plausible Annahme:": {
+        "eubw_trust_model_still_open",
+    },
+}
+
+
+def _is_eubw_structured_intent(intent_type: str) -> bool:
+    return intent_type in EUBW_STRUCTURED_INTENT_TYPES
+
+
+def _approved_claim_ids(result) -> set[str]:
+    return {
+        claim_id
+        for claim_id in (
+            getattr(entry, "claim_id", None)
+            for entry in getattr(result, "approved_entries", [])
+        )
+        if isinstance(claim_id, str) and claim_id
+    }
+
+
+def _has_eubw_parity_question_signal(question: str) -> bool:
+    lowered = question.casefold()
+    return any(
+        marker in lowered
+        for marker in [
+            "eubw",
+            "ebw",
+            "business wallet",
+            "verantwortungsgrenzen",
+            "registerdaten",
+            "vertretungsrechte",
+            "unternehmensstatus",
+            "ereignisspuren",
+            "vollprotokollierung",
+            "handlungsbefugnis",
+            "juristische person",
+            "proposal und annex",
+            "plausible architekturannahmen",
+        ]
+    )
+
+
+def _is_eubw_broad_fallback(result) -> bool:
+    intent_type = result.query_intent.intent_type
+    approved_claim_ids = _approved_claim_ids(result)
+    parity_signal = _is_eubw_structured_intent(intent_type) or _has_eubw_parity_question_signal(
+        result.question
+    )
+    return parity_signal and (
+        intent_type == "broad_regulation_question"
+        or "broad_regulatory_answer" in approved_claim_ids
+    )
+
+
+def _eubw_architecture_bucket_visibility(result) -> bool:
+    approved_claim_ids = _approved_claim_ids(result)
+    return all(
+        marker in result.rendered_answer
+        for marker, claim_ids in EUBW_ARCHITECTURE_BUCKET_CLAIMS.items()
+        if approved_claim_ids & claim_ids
+    )
+
+
+def _claim_state_visibility_ok(result) -> bool:
+    intent_type = result.query_intent.intent_type
+    if intent_type == "eubw_architecture_bucket_analysis":
+        return _eubw_architecture_bucket_visibility(result)
+    if _is_eubw_structured_intent(intent_type):
+        state_markers = {
+            "Normative evidence:": any(
+                entry.final_claim_state != ClaimState.OPEN
+                and entry.source_role_level != SourceRoleLevel.MEDIUM
+                for entry in result.approved_entries
+            ),
+            "Interpretation/context:": any(
+                entry.final_claim_state != ClaimState.OPEN
+                and entry.source_role_level == SourceRoleLevel.MEDIUM
+                for entry in result.approved_entries
+            ),
+            "Open issues:": any(
+                entry.final_claim_state == ClaimState.OPEN
+                for entry in result.approved_entries
+            ),
+        }
+    else:
+        state_markers = {
+            "Confirmed:": any(
+                entry.final_claim_state == ClaimState.CONFIRMED
+                for entry in result.approved_entries
+            ),
+            "Interpretive:": any(
+                entry.final_claim_state == ClaimState.INTERPRETIVE
+                for entry in result.approved_entries
+            ),
+            "Open:": any(
+                entry.final_claim_state == ClaimState.OPEN
+                for entry in result.approved_entries
+            ),
+        }
+    return all(
+        (not expected) or marker in result.rendered_answer
+        for marker, expected in state_markers.items()
+    )
+
+
 def _topology_facet_status(result, facet_id: str) -> tuple[bool, str]:
     if result.facet_coverage_report is None:
         return False, "facet_coverage.json was not produced for the topology intent."
@@ -58,15 +180,7 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
         )
     )
 
-    state_markers = {
-        "Confirmed:": any(entry.final_claim_state == ClaimState.CONFIRMED for entry in result.approved_entries),
-        "Interpretive:": any(entry.final_claim_state == ClaimState.INTERPRETIVE for entry in result.approved_entries),
-        "Open:": any(entry.final_claim_state == ClaimState.OPEN for entry in result.approved_entries),
-    }
-    states_visible = all(
-        (not expected) or marker in result.rendered_answer
-        for marker, expected in state_markers.items()
-    )
+    states_visible = _claim_state_visibility_ok(result)
     checks.append(
         ManualReviewCheck(
             check_id="claim_state_visibility",
@@ -100,8 +214,9 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
         )
     )
 
-    grouped_ok = bool(result.provisional_grouping) or not any(
-        target.grouping_label for target in result.query_intent.claim_targets
+    grouped_ok = bool(getattr(result, "provisional_grouping", [])) or not any(
+        target.grouping_label
+        for target in getattr(result.query_intent, "claim_targets", [])
     )
     checks.append(
         ManualReviewCheck(
@@ -111,6 +226,19 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
                 "Grouping artifact is present for grouping-capable intent."
                 if grouped_ok
                 else "Grouping-capable intent produced no provisional grouping."
+            ),
+        )
+    )
+
+    eubw_fallback_ok = not _is_eubw_broad_fallback(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="eubw_parity_fallback_not_accepted",
+            status="pass" if eubw_fallback_ok else "fail",
+            evidence=(
+                "EUBW parity answer did not use the broad regulatory fallback."
+                if eubw_fallback_ok
+                else "EUBW parity-shaped question approved a broad regulatory fallback claim."
             ),
         )
     )
@@ -281,6 +409,7 @@ def build_manual_review_report(
 ) -> ManualReviewReport:
     has_approved_entries = bool(result.approved_entries)
     blocked_visible = "Blocked:" in result.rendered_answer
+    eubw_fallback_ok = not _is_eubw_broad_fallback(result)
     hierarchy_ok = all(
         entry.citations
         and all(
@@ -289,13 +418,7 @@ def build_manual_review_report(
         )
         for entry in result.approved_entries
     )
-    uncertainty_ok = not blocked_visible and all(
-        (
-            entry.final_claim_state != ClaimState.CONFIRMED
-            or "Confirmed:" in result.rendered_answer
-        )
-        for entry in result.approved_entries
-    )
+    uncertainty_ok = not blocked_visible and _claim_state_visibility_ok(result)
     gap_exercised = any(gap.next_allowed_action == "official_web_search" for gap in result.gap_records)
     gap_ok = (
         all(
@@ -335,10 +458,12 @@ def build_manual_review_report(
         if relation_hint_report is not None
         else []
     )
-    source_bound_ok = has_approved_entries and not blocked_visible
+    source_bound_ok = has_approved_entries and not blocked_visible and eubw_fallback_ok
     correctness_verdict = "acceptable" if verdict.passed else "needs_follow_up"
     usefulness_verdict = (
-        "acceptable" if has_approved_entries and topology_facets_ok else "needs_follow_up"
+        "acceptable"
+        if has_approved_entries and topology_facets_ok and eubw_fallback_ok
+        else "needs_follow_up"
     )
     hierarchy_verdict = "acceptable" if hierarchy_ok else "needs_follow_up"
     uncertainty_verdict = "acceptable" if uncertainty_ok else "needs_follow_up"
@@ -386,6 +511,10 @@ def build_manual_review_report(
     if not topology_facets_ok:
         open_follow_ups.append(
             "Topology facet coverage is incomplete; inspect facet_coverage.json before treating this run as reusable."
+        )
+    if not eubw_fallback_ok:
+        open_follow_ups.append(
+            "EUBW parity-shaped question fell back to the broad regulatory answer; inspect intent routing and approved_ledger.json before reuse."
         )
     if not pinpoint_ok:
         open_follow_ups.append(

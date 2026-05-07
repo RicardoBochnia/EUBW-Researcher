@@ -607,6 +607,65 @@ class ComposerTests(unittest.TestCase):
         self.assertIn("Confirmed:", bundle.rendered_answer)
         self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
 
+    def test_eubw_structured_answer_uses_parity_sections(self) -> None:
+        bundle = compose_answer_bundle(
+            "Synthetic EUBW role question?",
+            [
+                _entry(
+                    "eubw_registrar_boundary",
+                    "Registrars manage national registers.",
+                    ClaimState.CONFIRMED,
+                ),
+                _project_entry(
+                    "eubw_project_context",
+                    "Project artifacts add implementation context.",
+                    ClaimState.INTERPRETIVE,
+                ),
+                _entry(
+                    "eubw_open_boundary",
+                    "A later specification boundary remains open.",
+                    ClaimState.OPEN,
+                ),
+            ],
+            query_intent=_generic_intent("eubw_role_boundary_analysis"),
+        )
+
+        self.assertIn("Kurzantwort:", bundle.rendered_answer)
+        self.assertIn("Normative evidence:", bundle.rendered_answer)
+        self.assertIn("Interpretation/context:", bundle.rendered_answer)
+        self.assertIn("Open issues:", bundle.rendered_answer)
+        self.assertNotIn("Confirmed:", bundle.rendered_answer)
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
+    def test_eubw_architecture_answer_renders_three_buckets(self) -> None:
+        bundle = compose_answer_bundle(
+            "Synthetic EUBW architecture question?",
+            [
+                _entry(
+                    "eubw_direct_architecture_constraints",
+                    "Proposal-stage sources directly support a secure channel constraint.",
+                    ClaimState.INTERPRETIVE,
+                ),
+                _entry(
+                    "eubw_identifier_delegated_specs",
+                    "Identifier structure is delegated to implementing acts.",
+                    ClaimState.INTERPRETIVE,
+                ),
+                _entry(
+                    "eubw_trust_model_still_open",
+                    "The concrete trust model remains open.",
+                    ClaimState.OPEN,
+                ),
+            ],
+            query_intent=_generic_intent("eubw_architecture_bucket_analysis"),
+        )
+
+        self.assertIn("Kurzantwort:", bundle.rendered_answer)
+        self.assertIn("direkt ableitbar:", bundle.rendered_answer)
+        self.assertIn("delegiert:", bundle.rendered_answer)
+        self.assertIn("plausible Annahme:", bundle.rendered_answer)
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
     def test_alignment_fails_when_governing_boundary_wording_uses_open_claims(self) -> None:
         bundle = compose_answer_bundle(
             "Synthetic topology question?",

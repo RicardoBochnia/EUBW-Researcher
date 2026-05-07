@@ -64,6 +64,20 @@ TOPOLOGY_UNRESOLVED_NO_APPROVED_SUPPORT_SENTENCE = (
     "governing EU law. This run does not surface approved governing-boundary support or "
     "approved medium-rank project-artifact support for that interpretation."
 )
+EUBW_STRUCTURED_INTENT_TYPES = {
+    "eubw_role_boundary_analysis",
+    "eubw_lifecycle_analysis",
+    "eubw_audit_trail_analysis",
+    "eubw_identity_authority_analysis",
+    "eubw_architecture_bucket_analysis",
+}
+EUBW_ARCHITECTURE_BUCKET_SECTIONS = {
+    "eubw_direct_architecture_constraints": "direkt ableitbar",
+    "eubw_arf_subordination": "direkt ableitbar",
+    "eubw_identifier_delegated_specs": "delegiert",
+    "eubw_access_control_delegated_specs": "delegiert",
+    "eubw_trust_model_still_open": "plausible Annahme",
+}
 
 
 @dataclass
@@ -762,6 +776,78 @@ def _compose_generic_bullets(
     return bullets
 
 
+def _is_eubw_structured_intent(query_intent: Optional[QueryIntent]) -> bool:
+    return (
+        query_intent is not None
+        and query_intent.intent_type in EUBW_STRUCTURED_INTENT_TYPES
+    )
+
+
+def _eubw_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
+    return _AnswerBullet(
+        bullet_id=entry.claim_id,
+        section=section,
+        text=_status_qualified_claim_text(entry),
+        rationale=entry.rationale,
+        wording_category="eubw_state_forwarded",
+        claim_ids=[entry.claim_id],
+        claim_states=[entry.final_claim_state],
+        evidence_lines=[
+            _EvidenceLine(label="Evidence", citations=_dedupe_citations(entry.citations))
+        ],
+    )
+
+
+def _eubw_structured_section(entry: LedgerEntry) -> str:
+    if entry.final_claim_state == ClaimState.OPEN:
+        return "Open issues"
+    if entry.source_role_level == SourceRoleLevel.MEDIUM:
+        return "Interpretation/context"
+    return "Normative evidence"
+
+
+def _compose_eubw_structured_bullets(
+    entries: Sequence[LedgerEntry],
+    query_intent: QueryIntent,
+) -> List[_AnswerBullet]:
+    if query_intent.intent_type == "eubw_architecture_bucket_analysis":
+        entry_by_id = {entry.claim_id: entry for entry in entries}
+        bullets: List[_AnswerBullet] = []
+        covered_claim_ids: set[str] = set()
+        for claim_id, section in EUBW_ARCHITECTURE_BUCKET_SECTIONS.items():
+            entry = entry_by_id.get(claim_id)
+            if entry is None:
+                continue
+            bullets.append(_eubw_entry_bullet(entry, section))
+            covered_claim_ids.add(claim_id)
+        for entry in entries:
+            if entry.claim_id not in covered_claim_ids:
+                bullets.append(_eubw_entry_bullet(entry, _eubw_structured_section(entry)))
+        return bullets
+
+    bullets = []
+    for section in ["Normative evidence", "Interpretation/context", "Open issues"]:
+        bullets.extend(
+            _eubw_entry_bullet(entry, section)
+            for entry in entries
+            if _eubw_structured_section(entry) == section
+        )
+    return bullets
+
+
+def _eubw_structured_summary(query_intent: QueryIntent) -> str:
+    if query_intent.intent_type == "eubw_architecture_bucket_analysis":
+        return (
+            "Kurzantwort: Proposal und Annex stuetzen direkte Architekturgrenzen, "
+            "delegieren technische Detailfragen an spaetere Spezifikationen und lassen "
+            "plausible Architekturannahmen sichtbar getrennt."
+        )
+    return (
+        "Kurzantwort: Die Antwort trennt belastbare normative Evidenz, "
+        "Interpretation bzw. Kontext und offene Punkte fuer die EUBW-Paritaetsfrage."
+    )
+
+
 def _classify_locator(citation: Citation) -> tuple[str, str, str, Optional[str]]:
     if citation.anchor_label:
         anchor_path = citation.anchor_label.strip()
@@ -1150,6 +1236,11 @@ def compose_answer_bundle(
             query_intent,
             bullets,
         )
+    elif _is_eubw_structured_intent(query_intent):
+        assert query_intent is not None
+        summary = _eubw_structured_summary(query_intent)
+        bullets = _compose_eubw_structured_bullets(entries, query_intent)
+        facet_coverage_report = None
     else:
         summary = "Source-bound answer:"
         if len(entries) >= 2:

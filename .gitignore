@@ -2,13 +2,17 @@ artifacts/_debug_v2/
 artifacts/eval_runs/**
 !artifacts/eval_runs/.gitkeep
 artifacts/eval_runs_real_corpus/
+artifacts/manual_runs/
 artifacts/review_demo*/
 artifacts/review_fixture/
 artifacts/review_real/
+artifacts/tmp/
 artifacts/tmp_eval_probe/
 artifacts/real_corpus/
+paper/**
 tmp_review_all/
 tmp_review_real/
+.venv/
 .DS_Store
 __pycache__/
 *.py[cod]

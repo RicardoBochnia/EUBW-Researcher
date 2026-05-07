@@ -734,6 +734,61 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
         self.assertTrue(verdict.passed)
         self.assertEqual(verdict.checks, ["intent_type:synthetic_intent:ok"])
 
+    def test_question_verdict_enforces_parity_claim_gates(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+            min_approved_claims=2,
+            required_facets=["claim_a", "claim_b"],
+            forbidden_claim_ids=["broad_regulatory_answer"],
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            approved_entries=[
+                SimpleNamespace(claim_id="claim_a"),
+                SimpleNamespace(claim_id="claim_b"),
+            ],
+            provisional_grouping=[],
+            facet_coverage_report=None,
+            rendered_answer="Claim A and claim B are surfaced.",
+        )
+
+        verdict = _build_question_verdict(question, result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("approved_claims:min:2:ok:2", verdict.checks)
+        self.assertIn("forbidden_claim_ids:none:ok", verdict.checks)
+        self.assertIn("required_facet:claim_a:ok", verdict.checks)
+        self.assertIn("required_facet:claim_b:ok", verdict.checks)
+
+    def test_question_verdict_rejects_forbidden_or_missing_parity_claims(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+            min_approved_claims=2,
+            required_facets=["claim_a", "claim_b"],
+            forbidden_claim_ids=["broad_regulatory_answer"],
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            approved_entries=[
+                SimpleNamespace(claim_id="claim_a"),
+                SimpleNamespace(claim_id="broad_regulatory_answer"),
+            ],
+            provisional_grouping=[],
+            facet_coverage_report=None,
+            rendered_answer="Only claim A is surfaced.",
+        )
+
+        verdict = _build_question_verdict(question, result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn(
+            "forbidden_claim_ids:fail:broad_regulatory_answer",
+            verdict.checks,
+        )
+        self.assertIn("required_facet:claim_b:fail", verdict.checks)
+
     def test_runner_passes_review_artifact_to_write_artifact_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_root = Path(tmp_dir)

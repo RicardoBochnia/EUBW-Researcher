@@ -165,6 +165,88 @@ def _minimal_result(record_type: str) -> SimpleNamespace:
 
 
 class EvaluationRunnerTests(unittest.TestCase):
+    def test_manual_review_rejects_eubw_broad_fallback(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen "
+            "Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und "
+            "Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?"
+        )
+        result.query_intent = SimpleNamespace(
+            intent_type="broad_regulation_question",
+            claim_targets=[],
+        )
+        result.approved_entries[0].claim_id = "broad_regulatory_answer"
+        result.rendered_answer = "Confirmed:\n- The answer requires EU-level regulatory support."
+
+        artifact = build_manual_review_artifact(result, scenario_id="eubw_parity")
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="eubw_parity",
+                passed=True,
+                checks=["intent_type:broad_regulation_question:ok"],
+            ),
+            scenario_id="eubw_parity",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        fallback_check = next(
+            check
+            for check in artifact.checks
+            if check.check_id == "eubw_parity_fallback_not_accepted"
+        )
+        self.assertEqual(fallback_check.status, "fail")
+        self.assertEqual(report.usefulness_verdict, "needs_follow_up")
+        self.assertEqual(report.source_bound_verdict, "needs_follow_up")
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("broad regulatory answer" in follow_up for follow_up in report.open_follow_ups)
+        )
+
+    def test_manual_review_accepts_eubw_structured_state_markers(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = "Synthetic EUBW role-boundary question?"
+        result.query_intent = SimpleNamespace(
+            intent_type="eubw_role_boundary_analysis",
+            claim_targets=[],
+        )
+        result.approved_entries[0].claim_id = "eubw_registrar_boundary"
+        result.rendered_answer = (
+            "Kurzantwort: structured EUBW answer.\n"
+            "Normative evidence:\n"
+            "- Registrars manage national registers."
+        )
+        result.answer_alignment_report = AnswerAlignmentReport(
+            question=result.question,
+            intent_type="eubw_role_boundary_analysis",
+            records=[
+                AnswerAlignmentRecord(
+                    answer_claim_id="eubw_registrar_boundary",
+                    answer_section="Normative evidence",
+                    wording_category="eubw_state_forwarded",
+                    claim_ids=["eubw_registrar_boundary"],
+                    claim_states=[ClaimState.CONFIRMED],
+                    cited_source_ids=["synthetic-local-source"],
+                    cited_source_roles=[SourceRoleLevel.HIGH],
+                )
+            ],
+        )
+
+        artifact = build_manual_review_artifact(result, scenario_id="eubw_parity")
+        state_check = next(
+            check for check in artifact.checks if check.check_id == "claim_state_visibility"
+        )
+        fallback_check = next(
+            check
+            for check in artifact.checks
+            if check.check_id == "eubw_parity_fallback_not_accepted"
+        )
+
+        self.assertEqual(state_check.status, "pass")
+        self.assertEqual(fallback_check.status, "pass")
+
     def test_pinpoint_traceability_rejects_approximate_only_locators(self) -> None:
         result = _minimal_result("fetch")
         result.pinpoint_evidence_report.records[0].locator_precision = "approximate"

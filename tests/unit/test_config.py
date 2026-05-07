@@ -159,7 +159,30 @@ class ConfigLoadingTests(unittest.TestCase):
                 "scenario_c_protocol_authorization_server",
                 "scenario_d_certificate_topology_anchor",
                 "germany_wallet_implementation_status",
+                "eubw_parity_responsibility_boundaries",
+                "eubw_parity_lifecycle_credentials_mandates",
+                "eubw_parity_audit_event_trails",
+                "eubw_parity_identity_authority_separation",
+                "eubw_parity_architecture_claim_buckets",
             ],
+        )
+        eubw_role_question = next(
+            question
+            for question in real_question_pack.questions
+            if question.question_id == "eubw_parity_responsibility_boundaries"
+        )
+        self.assertEqual(
+            eubw_role_question.expected_intent_type,
+            "eubw_role_boundary_analysis",
+        )
+        self.assertEqual(eubw_role_question.min_approved_claims, 5)
+        self.assertIn(
+            "eubw_registrar_boundary",
+            eubw_role_question.required_facets,
+        )
+        self.assertEqual(
+            eubw_role_question.forbidden_claim_ids,
+            ["broad_regulatory_answer"],
         )
         self.assertTrue(all(question.review_prompts for question in real_question_pack.questions))
         self.assertTrue(terminology.generator_owned)
@@ -457,6 +480,9 @@ class ConfigLoadingTests(unittest.TestCase):
                                 "question": "Question?",
                                 "review_focus": "Focus",
                                 "expected_intent_type": " synthetic_intent ",
+                                "min_approved_claims": 2,
+                                "required_facets": [" facet_a ", "   "],
+                                "forbidden_claim_ids": [" broad_regulatory_answer "],
                                 "seed_from_scenario_id": "   ",
                                 "review_prompts": ["Prompt"],
                             }
@@ -470,6 +496,59 @@ class ConfigLoadingTests(unittest.TestCase):
 
             self.assertEqual(pack.questions[0].expected_intent_type, "synthetic_intent")
             self.assertIsNone(pack.questions[0].seed_from_scenario_id)
+            self.assertEqual(pack.questions[0].min_approved_claims, 2)
+            self.assertEqual(pack.questions[0].required_facets, ["facet_a"])
+            self.assertEqual(
+                pack.questions[0].forbidden_claim_ids,
+                ["broad_regulatory_answer"],
+            )
+
+    def test_real_question_pack_rejects_invalid_parity_gate_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "real_question_pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "safe_id",
+                                "title": "Title",
+                                "question": "Question?",
+                                "review_focus": "Focus",
+                                "min_approved_claims": -1,
+                                "review_prompts": ["Prompt"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "min_approved_claims"):
+                load_real_question_pack(pack_path)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "real_question_pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "safe_id",
+                                "title": "Title",
+                                "question": "Question?",
+                                "review_focus": "Focus",
+                                "required_facets": "facet_a",
+                                "review_prompts": ["Prompt"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "required_facets"):
+                load_real_question_pack(pack_path)
 
     def test_evaluation_scenarios_reject_duplicate_scenario_ids(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

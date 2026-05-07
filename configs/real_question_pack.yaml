@@ -82,6 +82,112 @@
         "Are draft or provisional DE legal sources described as provisional rather than binding law?",
         "Would a reviewer understand which parts of the answer depend on DE implementation sources?"
       ]
+    },
+    {
+      "question_id": "eubw_parity_responsibility_boundaries",
+      "title": "EUBW Responsibility Boundaries",
+      "question": "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?",
+      "review_focus": "Catch regressions where the role-boundary question falls back to a broad regulatory answer instead of surfacing concrete actor claims.",
+      "expected_intent_type": "eubw_role_boundary_analysis",
+      "min_approved_claims": 5,
+      "required_facets": [
+        "eubw_registrar_boundary",
+        "eubw_certificate_provider_boundary",
+        "eubw_verifier_boundary",
+        "eubw_wallet_provider_boundary",
+        "eubw_qtsp_boundary"
+      ],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["eubw", "parity", "roles", "responsibility-boundaries"],
+      "review_prompts": [
+        "Does the answer separate wallet provider, issuer, verifier, registrar, and QTSP responsibilities?",
+        "Are organizational boundaries kept distinct from technical enforcement points?",
+        "Does approved_ledger.json avoid the broad_regulatory_answer fallback?"
+      ]
+    },
+    {
+      "question_id": "eubw_parity_lifecycle_credentials_mandates",
+      "title": "EUBW Credential and Mandate Lifecycle",
+      "question": "Wie sollte der Lebenszyklus organisatorischer Nachweise und Mandate im EUBW aussehen, wenn sich Registerdaten, Vertretungsrechte oder Unternehmensstatus ändern?",
+      "review_focus": "Catch regressions where lifecycle change handling is answered as generic regulation instead of register, suspension, retention, and revocation controls.",
+      "expected_intent_type": "eubw_lifecycle_analysis",
+      "min_approved_claims": 4,
+      "required_facets": [
+        "eubw_registration_updates",
+        "eubw_registration_suspension_cancellation",
+        "eubw_lifecycle_record_retention",
+        "eubw_mandate_revocation_controls"
+      ],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["eubw", "parity", "lifecycle", "mandates"],
+      "review_prompts": [
+        "Does the answer cover register updates, suspension or cancellation, retention, and mandate revocation controls?",
+        "Are proposal-stage mandate controls qualified without flattening them into final law?",
+        "Does the bundle make stale-register or expired-authorisation handling reviewable?"
+      ]
+    },
+    {
+      "question_id": "eubw_parity_audit_event_trails",
+      "title": "EUBW Audit and Event Trails",
+      "question": "Welche Audit- und Ereignisspuren müssten für Streitfälle oder Compliance-Nachweise erhalten bleiben, ohne in eine unverhältnismäßige Vollprotokollierung abzugleiten?",
+      "review_focus": "Catch regressions where audit trails become a generic logging answer instead of minimal dispute, transaction, authorisation, and retention-boundary claims.",
+      "expected_intent_type": "eubw_audit_trail_analysis",
+      "min_approved_claims": 4,
+      "required_facets": [
+        "eubw_dispute_record_retention",
+        "eubw_transaction_logging_minimum",
+        "eubw_authorisation_event_proofs",
+        "eubw_log_retention_boundary"
+      ],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["eubw", "parity", "audit", "event-trails"],
+      "review_prompts": [
+        "Does the answer separate dispute records, transaction logging, authorisation proofs, and retention boundaries?",
+        "Does it avoid implying unlimited full logging where the evidence only supports bounded accessibility?",
+        "Are compliance and dispute-use traces backed by approved claims rather than meta-level fallback?"
+      ]
+    },
+    {
+      "question_id": "eubw_parity_identity_authority_separation",
+      "title": "EUBW Identity and Authority Separation",
+      "question": "Wie sollte ein EUBW in einem grenzüberschreitenden Verfahren die Identität einer natürlichen Person sauber von ihrer Handlungsbefugnis für eine juristische Person trennen?",
+      "review_focus": "Catch regressions where natural-person identity, legal-person identity, and mandate authority are merged into one undifferentiated identity answer.",
+      "expected_intent_type": "eubw_identity_authority_analysis",
+      "min_approved_claims": 3,
+      "required_facets": [
+        "eubw_qtsp_mandate_verification",
+        "eubw_natural_legal_person_separation",
+        "eubw_identity_role_mandate_layering"
+      ],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["eubw", "parity", "identity", "authority"],
+      "review_prompts": [
+        "Does the answer keep natural-person identity separate from legal-person identity and mandate authority?",
+        "Does it preserve the verifier or relying-party check as a separate step?",
+        "Are mandate and representation claims traceable to approved evidence?"
+      ]
+    },
+    {
+      "question_id": "eubw_parity_architecture_claim_buckets",
+      "title": "EUBW Architecture Claim Buckets",
+      "question": "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+      "review_focus": "Catch regressions where the architecture question does not render the three required buckets: directly derivable, delegated, and plausible assumptions.",
+      "expected_intent_type": "eubw_architecture_bucket_analysis",
+      "min_approved_claims": 5,
+      "required_facets": [
+        "eubw_direct_architecture_constraints",
+        "eubw_arf_subordination",
+        "eubw_identifier_delegated_specs",
+        "eubw_access_control_delegated_specs",
+        "eubw_trust_model_still_open"
+      ],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["eubw", "parity", "architecture", "buckets"],
+      "review_prompts": [
+        "Does the rendered answer contain the buckets direkt ableitbar, delegiert, and plausible Annahme?",
+        "Are direct Proposal or Annex claims separated from delegated technical specifications?",
+        "Do plausible architecture assumptions remain visibly non-final?"
+      ]
     }
   ]
 }

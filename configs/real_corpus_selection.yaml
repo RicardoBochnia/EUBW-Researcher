@@ -135,6 +135,45 @@
       "anchorability_hints": ["markdown_headings", "section_level"]
     },
     {
+      "archive_source_id": "SRC-W-TEC-26",
+      "source_id": "ec_ts01_wallet_trust_mark",
+      "title": "Specification of the wallet trust mark",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "document_status": "informational",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"],
+      "source_family_id": "eudi_project_specs"
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-27",
+      "source_id": "ec_ts02_provider_information",
+      "title": "Specification of systems enabling the notification and subsequent publication of Provider information",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "document_status": "informational",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"],
+      "source_family_id": "eudi_project_specs"
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-28",
+      "source_id": "ec_ts03_wallet_unit_attestation",
+      "title": "Wallet unit attestation and lifecycle management",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "document_status": "informational",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"],
+      "source_family_id": "eudi_project_specs"
+    },
+    {
       "archive_source_id": "SRC-W-TEC-30",
       "source_id": "ec_ts05_rp_registration_api",
       "title": "Common Formats and API for Relying Party Registration Information",
@@ -170,6 +209,32 @@
       "publication_date": null,
       "anchorability_hints": ["expect_anchors", "section_level"],
       "admission_reason": "Admit the most relevant already-archived official project artifact for certificate-topology questions about multiple access or registration certificates, relying party instances, and intended-use scoping."
+    },
+    {
+      "archive_source_id": "SRC-L-EBW-04",
+      "source_id": "ebw_proposal_com_2025_0838",
+      "title": "COM(2025)838 final EN proposal text (Part 1 PDF)",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "proposal",
+      "document_status": "proposal",
+      "publication_date": null,
+      "anchorability_hints": ["expect_anchors", "section_level"],
+      "source_family_id": "ebw_proposal_52025pc0838"
+    },
+    {
+      "archive_source_id": "SRC-L-EBW-05",
+      "source_id": "ebw_annex_com_2025_0838",
+      "title": "COM(2025)838 final EN annex (Part 1 PDF)",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "proposal",
+      "document_status": "proposal",
+      "publication_date": null,
+      "anchorability_hints": ["expect_anchors", "section_level"],
+      "source_family_id": "ebw_proposal_52025pc0838"
     }
   ]
 }
