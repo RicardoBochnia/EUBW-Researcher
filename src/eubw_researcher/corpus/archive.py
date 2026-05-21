@@ -55,6 +55,20 @@ def build_catalog_from_archive(config: ArchiveCorpusConfig) -> SourceCatalog:
                 anchorability_hints=list(selection.anchorability_hints),
                 admission_reason=selection.admission_reason,
                 source_family_id=selection.source_family_id,
+                evidence_tier=selection.evidence_tier,
+                binding_level=selection.binding_level,
+                archive_source_id=selection.archive_source_id,
+                legacy_source_ids=[
+                    *selection.archive_source_id_aliases,
+                    *selection.legacy_source_ids,
+                ],
+                version_date=selection.version_date,
+                effective_date=selection.effective_date,
+                content_digest=selection.content_digest,
+                locator_strategy=selection.locator_strategy,
+                predecessor_source_ids=list(selection.predecessor_source_ids),
+                successor_source_ids=list(selection.successor_source_ids),
+                governance_metadata=dict(selection.governance_metadata),
             )
         )
 

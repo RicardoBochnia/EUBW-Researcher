@@ -104,13 +104,24 @@ def _kind_precedence_weight(match: EvidenceMatch, hierarchy: SourceHierarchyConf
     return 100 - hierarchy.rank_for(match.candidate.chunk.source_kind)
 
 
+def _document_status_weight(status: DocumentStatus) -> int:
+    return {
+        DocumentStatus.FINAL: 5,
+        DocumentStatus.ADOPTED_PENDING_EFFECTIVE_DATE: 4,
+        DocumentStatus.PROPOSAL: 2,
+        DocumentStatus.DRAFT: 2,
+        DocumentStatus.INFORMATIONAL: 1,
+    }[status]
+
+
 def _precedence_key(
     match: EvidenceMatch,
     target: ClaimTarget,
     hierarchy: SourceHierarchyConfig,
-) -> Tuple[int, int, int]:
+) -> Tuple[int, int, int, int]:
     return (
         _role_weight(match.candidate.chunk.source_role_level),
+        _document_status_weight(match.candidate.chunk.document_status),
         _preferred_kind_weight(match, target),
         _kind_precedence_weight(match, hierarchy),
     )
@@ -120,7 +131,7 @@ def _sort_key(
     match: EvidenceMatch,
     target: ClaimTarget,
     hierarchy: SourceHierarchyConfig,
-) -> Tuple[int, int, int, int, int, int]:
+) -> Tuple[int, int, int, int, int, int, int]:
     return (
         *_precedence_key(match, target, hierarchy),
         1 if match.support_directness == SupportDirectness.DIRECT else 0,
@@ -153,6 +164,7 @@ def _to_ledger_evidence(
             if match.candidate.chunk.anchor_audit is not None
             else None
         ),
+        chunk_id=match.candidate.chunk.chunk_id,
     )
 
 
@@ -169,7 +181,13 @@ def collect_target_evidence(
     candidates: Sequence[RetrievalCandidate],
     hierarchy: SourceHierarchyConfig,
 ) -> Tuple[List[EvidenceMatch], List[EvidenceMatch]]:
-    classified = [_classify_candidate(target, candidate) for candidate in candidates]
+    required_source_ids = set(getattr(target, "source_ids", []) or [])
+    scoped_candidates = [
+        candidate
+        for candidate in candidates
+        if not required_source_ids or candidate.chunk.source_id in required_source_ids
+    ]
+    classified = [_classify_candidate(target, candidate) for candidate in scoped_candidates]
     support_matches = [
         match
         for match in classified

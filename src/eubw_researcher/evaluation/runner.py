@@ -9,6 +9,7 @@ from eubw_researcher.answering import TOPOLOGY_FACET_IDS, supports_relation_hint
 from eubw_researcher.config import (
     load_evaluation_scenarios,
     load_runtime_config,
+    load_source_governance,
     load_source_hierarchy,
     load_terminology_config,
     load_web_allowlist,
@@ -541,6 +542,7 @@ def _run_pipeline(
         catalog_path or repo_root / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
     )
     _, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(resolved_catalog_path)
+    source_governance_path = repo_root / "configs" / "source_governance.yaml"
     pipeline = ResearchPipeline(
         runtime_config=runtime,
         hierarchy=hierarchy,
@@ -549,6 +551,11 @@ def _run_pipeline(
         terminology=terminology,
         catalog_path=resolved_catalog_path,
         corpus_state_id=corpus_state_id,
+        source_governance=(
+            load_source_governance(source_governance_path)
+            if source_governance_path.is_file()
+            else None
+        ),
     )
     return (
         pipeline,
@@ -661,6 +668,66 @@ def write_artifact_bundle(
     if result.answer_alignment_report is not None:
         (output_dir / "answer_alignment.json").write_text(
             json.dumps(dataclass_to_dict(result.answer_alignment_report), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "evidence_clusters", None):
+        (output_dir / "evidence_clusters.json").write_text(
+            json.dumps(dataclass_to_dict(result.evidence_clusters), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "selected_evidence", None):
+        (output_dir / "selected_evidence.json").write_text(
+            json.dumps(dataclass_to_dict(result.selected_evidence), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "claim_verification", None):
+        (output_dir / "claim_verification.json").write_text(
+            json.dumps(dataclass_to_dict(result.claim_verification), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "relation_graph_slice", None):
+        (output_dir / "relation_graph_slice.json").write_text(
+            json.dumps(dataclass_to_dict(result.relation_graph_slice), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "open_issues", None):
+        (output_dir / "open_issues.json").write_text(
+            json.dumps(dataclass_to_dict(result.open_issues), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "navigation_session_trace", None) is not None:
+        (output_dir / "navigation_session_trace.json").write_text(
+            json.dumps(dataclass_to_dict(result.navigation_session_trace), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "source_hierarchy_report", None) is not None:
+        (output_dir / "source_hierarchy_report.json").write_text(
+            json.dumps(dataclass_to_dict(result.source_hierarchy_report), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "research_profile_trace", None) is not None:
+        (output_dir / "research_profile_trace.json").write_text(
+            json.dumps(dataclass_to_dict(result.research_profile_trace), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "reading_plan", None) is not None:
+        (output_dir / "reading_plan.json").write_text(
+            json.dumps(dataclass_to_dict(result.reading_plan), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "opened_passages", None):
+        (output_dir / "opened_passages.json").write_text(
+            json.dumps(dataclass_to_dict(result.opened_passages), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "evidence_synthesis_matrix", None) is not None:
+        (output_dir / "evidence_synthesis_matrix.json").write_text(
+            json.dumps(dataclass_to_dict(result.evidence_synthesis_matrix), indent=2),
+            encoding="utf-8",
+        )
+    if getattr(result, "knowledge_retrieval_diagnostics", None) is not None:
+        (output_dir / "knowledge_retrieval_diagnostics.json").write_text(
+            json.dumps(result.knowledge_retrieval_diagnostics, indent=2),
             encoding="utf-8",
         )
     if getattr(result, "relation_hint_report", None) is not None:

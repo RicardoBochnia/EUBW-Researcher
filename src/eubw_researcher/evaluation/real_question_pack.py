@@ -22,6 +22,7 @@ from eubw_researcher.evaluation.review import (
 from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.evaluation.runner import write_artifact_bundle
 from eubw_researcher.models import (
+    ExpectedConceptStatus,
     ManualReviewArtifact,
     RealQuestionPack,
     RealQuestionPackQuestion,
@@ -54,6 +55,17 @@ OPTIONAL_BUNDLE_ARTIFACTS = [
     "provisional_grouping.json",
     "facet_coverage.json",
     "relation_hints.json",
+    "evidence_clusters.json",
+    "selected_evidence.json",
+    "claim_verification.json",
+    "relation_graph_slice.json",
+    "open_issues.json",
+    "navigation_session_trace.json",
+    "source_hierarchy_report.json",
+    "research_profile_trace.json",
+    "reading_plan.json",
+    "opened_passages.json",
+    "evidence_synthesis_matrix.json",
     "corpus_coverage_report.json",
     "verdict.json",
 ]
@@ -370,6 +382,135 @@ def _prepare_question_output_dir(question_output_dir: Path) -> None:
             artifact_path.unlink()
 
 
+def _approved_claim_ids(result) -> set[str]:
+    return {
+        claim_id
+        for claim_id in (
+            getattr(entry, "claim_id", None)
+            for entry in getattr(result, "approved_entries", [])
+        )
+        if isinstance(claim_id, str) and claim_id
+    }
+
+
+def _surfaced_requirement_keys(result) -> set[str]:
+    surfaced: set[str] = set()
+    for claim_id in _approved_claim_ids(result):
+        surfaced.add(claim_id)
+        surfaced.add(claim_id.casefold())
+
+    for group in getattr(result, "provisional_grouping", []) or []:
+        label = getattr(group, "label", None)
+        if isinstance(label, str) and label:
+            surfaced.add(label)
+            surfaced.add(label.casefold())
+        for claim_id in getattr(group, "claim_ids", []) or []:
+            if isinstance(claim_id, str) and claim_id:
+                surfaced.add(claim_id)
+                surfaced.add(claim_id.casefold())
+
+    facet_report = getattr(result, "facet_coverage_report", None)
+    if facet_report is not None:
+        for facet in getattr(facet_report, "facets", []) or []:
+            if not getattr(facet, "addressed", False):
+                continue
+            facet_id = getattr(facet, "facet_id", None)
+            if isinstance(facet_id, str) and facet_id:
+                surfaced.add(facet_id)
+                surfaced.add(facet_id.casefold())
+            for evidence in getattr(facet, "evidence", []) or []:
+                if isinstance(evidence, str) and evidence:
+                    surfaced.add(evidence)
+                    surfaced.add(evidence.casefold())
+
+    return surfaced
+
+
+def _required_facet_satisfied(result, required_facet: str) -> bool:
+    normalized = required_facet.casefold()
+    surfaced = _surfaced_requirement_keys(result)
+    if required_facet in surfaced or normalized in surfaced:
+        return True
+
+    rendered_answer = getattr(result, "rendered_answer", "")
+    if isinstance(rendered_answer, str) and normalized in rendered_answer.casefold():
+        return True
+
+    facet_report = getattr(result, "facet_coverage_report", None)
+    if facet_report is None:
+        return False
+    facet_by_id = getattr(facet_report, "by_id", lambda: {})()
+    facet = facet_by_id.get(required_facet)
+    if facet is not None and getattr(facet, "addressed", False):
+        return True
+    return False
+
+
+def _cluster_text_surface(result) -> str:
+    parts: list[str] = []
+    for cluster in getattr(result, "evidence_clusters", []) or []:
+        parts.append(str(getattr(cluster, "cluster_id", "")))
+        parts.append(str(getattr(cluster, "label", "")))
+        parts.extend(str(item) for item in getattr(cluster, "matched_concepts", []) or [])
+        parts.extend(str(item) for item in getattr(cluster, "candidate_claim_ids", []) or [])
+        parts.extend(str(item) for item in getattr(cluster, "source_ids", []) or [])
+        for record in getattr(cluster, "records", []) or []:
+            parts.append(str(getattr(record, "source_id", "")))
+            parts.append(str(getattr(record, "chunk_id", "")))
+            parts.append(str(getattr(record, "locator", "") or ""))
+            parts.append(str(getattr(record, "snippet", "")))
+    return "\n".join(parts).casefold()
+
+
+def _result_text_surface(result) -> str:
+    parts = [_cluster_text_surface(result), str(getattr(result, "rendered_answer", ""))]
+    for gap in getattr(result, "gap_records", []) or []:
+        parts.append(str(getattr(gap, "sub_question", "")))
+        parts.append(str(getattr(gap, "reason_local_evidence_insufficient", "")))
+        parts.append(str(getattr(gap, "next_allowed_action", "")))
+    for record in getattr(result, "claim_verification", []) or []:
+        parts.append(str(getattr(record, "claim_id", "")))
+        parts.append(str(getattr(record, "decision_reason", "")))
+        parts.extend(str(item) for item in getattr(record, "source_ids", []) or [])
+        parts.extend(str(item) for item in getattr(record, "locators", []) or [])
+    matrix = getattr(result, "evidence_synthesis_matrix", None)
+    if matrix is not None:
+        for record in getattr(matrix, "records", []) or []:
+            parts.append(str(getattr(record, "statement", "")))
+            parts.extend(str(item) for item in getattr(record, "source_ids", []) or [])
+            parts.extend(str(item) for item in getattr(record, "caveats", []) or [])
+    return "\n".join(parts).casefold()
+
+
+def _expected_concept_satisfied(result, concept_candidate) -> bool:
+    surface = _result_text_surface(result)
+    terms = list(getattr(concept_candidate, "terms", []) or [])
+    if not terms:
+        terms = [getattr(concept_candidate, "concept_id", "")]
+    term_hit = any(str(term).casefold() in surface for term in terms if str(term).strip())
+    source_ids = list(getattr(concept_candidate, "source_ids", []) or [])
+    if not source_ids:
+        return term_hit
+    surfaced_sources = _cluster_source_ids(result)
+    surfaced_sources.update(
+        citation.source_id
+        for entry in getattr(result, "ledger_entries", []) or []
+        for citation in getattr(entry, "citations", []) or []
+    )
+    return term_hit and any(source_id in surfaced_sources for source_id in source_ids)
+
+
+def _cluster_source_ids(result) -> set[str]:
+    source_ids: set[str] = set()
+    for cluster in getattr(result, "evidence_clusters", []) or []:
+        source_ids.update(str(item) for item in getattr(cluster, "source_ids", []) or [])
+        for record in getattr(cluster, "records", []) or []:
+            source_id = getattr(record, "source_id", None)
+            if source_id:
+                source_ids.add(str(source_id))
+    return source_ids
+
+
 def _build_question_verdict(
     question: RealQuestionPackQuestion,
     result,
@@ -391,6 +532,94 @@ def _build_question_verdict(
             passed = False
     else:
         checks.append("intent_type:not_specified")
+
+    min_approved_claims = getattr(question, "min_approved_claims", 0)
+    if min_approved_claims:
+        approved_count = len(result.approved_entries)
+        if approved_count >= min_approved_claims:
+            checks.append(f"approved_claims:min:{min_approved_claims}:ok:{approved_count}")
+        else:
+            checks.append(
+                f"approved_claims:min:{min_approved_claims}:fail:{approved_count}"
+            )
+            passed = False
+
+    min_evidence_clusters = getattr(question, "min_evidence_clusters", 0)
+    if min_evidence_clusters:
+        cluster_count = len(getattr(result, "evidence_clusters", []) or [])
+        if cluster_count >= min_evidence_clusters:
+            checks.append(
+                f"evidence_clusters:min:{min_evidence_clusters}:ok:{cluster_count}"
+            )
+        else:
+            checks.append(
+                f"evidence_clusters:min:{min_evidence_clusters}:fail:{cluster_count}"
+            )
+            passed = False
+
+    if getattr(question, "require_claim_verification", False):
+        verification_count = len(getattr(result, "claim_verification", []) or [])
+        if verification_count:
+            checks.append(f"claim_verification:present:ok:{verification_count}")
+        else:
+            checks.append("claim_verification:present:fail:0")
+            passed = False
+
+    approved_claim_ids = _approved_claim_ids(result)
+    forbidden_claim_ids = set(getattr(question, "forbidden_claim_ids", []) or [])
+    if forbidden_claim_ids:
+        forbidden_present = sorted(approved_claim_ids & forbidden_claim_ids)
+        if forbidden_present:
+            checks.append("forbidden_claim_ids:fail:" + ",".join(forbidden_present))
+            passed = False
+        else:
+            checks.append("forbidden_claim_ids:none:ok")
+
+    for required_facet in getattr(question, "required_facets", []) or []:
+        if _required_facet_satisfied(result, required_facet):
+            checks.append(f"required_facet:{required_facet}:ok")
+        else:
+            checks.append(f"required_facet:{required_facet}:fail")
+            passed = False
+
+    cluster_surface = _cluster_text_surface(result)
+    for required_cluster_term in getattr(question, "required_cluster_terms", []) or []:
+        normalized = required_cluster_term.casefold()
+        if normalized in cluster_surface:
+            checks.append(f"required_cluster_term:{required_cluster_term}:ok")
+        else:
+            checks.append(f"required_cluster_term:{required_cluster_term}:fail")
+            passed = False
+
+    surfaced_cluster_source_ids = _cluster_source_ids(result)
+    for required_source_id in getattr(question, "required_cluster_source_ids", []) or []:
+        if required_source_id in surfaced_cluster_source_ids:
+            checks.append(f"required_cluster_source_id:{required_source_id}:ok")
+        else:
+            checks.append(f"required_cluster_source_id:{required_source_id}:fail")
+            passed = False
+
+    for expected_concept in getattr(question, "expected_concept_candidates", []) or []:
+        satisfied = _expected_concept_satisfied(result, expected_concept)
+        status = getattr(expected_concept, "status", None)
+        if status == ExpectedConceptStatus.SOURCE_BACKED_REQUIRED:
+            if satisfied:
+                checks.append(f"expected_concept:{expected_concept.concept_id}:required:ok")
+            else:
+                checks.append(f"expected_concept:{expected_concept.concept_id}:required:fail")
+                passed = False
+        elif status == ExpectedConceptStatus.LEGACY_ONLY_GAP:
+            if satisfied:
+                checks.append(f"expected_concept:{expected_concept.concept_id}:legacy_gap:ok")
+            else:
+                checks.append(f"expected_concept:{expected_concept.concept_id}:legacy_gap:not_surfaced")
+        elif status == ExpectedConceptStatus.REJECTED_OR_OUTDATED:
+            checks.append(f"expected_concept:{expected_concept.concept_id}:rejected_or_outdated:reference_only")
+        else:
+            checks.append(
+                f"expected_concept:{expected_concept.concept_id}:optional:"
+                + ("ok" if satisfied else "not_surfaced")
+            )
 
     if missing_artifacts:
         checks.append(
@@ -419,6 +648,28 @@ def _expected_bundle_artifacts(result, catalog_path: Path) -> list[str]:
         expected.append("relation_hints.json")
     if result.provisional_grouping:
         expected.append("provisional_grouping.json")
+    if getattr(result, "evidence_clusters", None):
+        expected.append("evidence_clusters.json")
+    if getattr(result, "selected_evidence", None):
+        expected.append("selected_evidence.json")
+    if getattr(result, "claim_verification", None):
+        expected.append("claim_verification.json")
+    if getattr(result, "relation_graph_slice", None):
+        expected.append("relation_graph_slice.json")
+    if getattr(result, "open_issues", None):
+        expected.append("open_issues.json")
+    if getattr(result, "navigation_session_trace", None):
+        expected.append("navigation_session_trace.json")
+    if getattr(result, "source_hierarchy_report", None):
+        expected.append("source_hierarchy_report.json")
+    if getattr(result, "research_profile_trace", None):
+        expected.append("research_profile_trace.json")
+    if getattr(result, "reading_plan", None):
+        expected.append("reading_plan.json")
+    if getattr(result, "opened_passages", None):
+        expected.append("opened_passages.json")
+    if getattr(result, "evidence_synthesis_matrix", None):
+        expected.append("evidence_synthesis_matrix.json")
     if is_real_corpus_catalog(catalog_path):
         expected.append("corpus_coverage_report.json")
     return sorted(expected)

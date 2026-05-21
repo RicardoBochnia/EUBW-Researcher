@@ -78,6 +78,10 @@ Reuse may be discussed later, but only after the requirement basis is strong eno
 
 This repository no longer contains only requirements and architecture artifacts.
 It also contains a working Option A V2 backend research implementation.
+The current implementation is being migrated toward the Agentic RAG target picture:
+the RAG layer should primarily expose navigable, policy-annotated evidence,
+source relationships, source-governance checks, and explicit gaps instead of
+pre-composed answers.
 
 When a task is about using, validating, reviewing, or exercising the implemented system:
 - do not ask the user how the project is supposed to run if the repo already defines the path
@@ -86,12 +90,31 @@ When a task is about using, validating, reviewing, or exercising the implemented
 - treat artifact bundles, not answer text alone, as the authoritative review surface
 - assume the default real-corpus catalog is `artifacts/real_corpus/curated_catalog.json`
 - if that catalog is missing or stale, rebuild it with `python3 scripts/build_real_corpus_catalog.py`
+- treat imported legacy EUBW claims/chunks as candidate/reference material until
+  the current ledger and verification gates re-admit them
+- treat `configs/runtime.knowledge_shadow.yaml` as non-governing evidence-only
+  migration mode
+- treat `configs/runtime.knowledge_assistive.yaml` as experimental assistive mode:
+  dynamic evidence may enter retrieval, but strict verification must gate answer use
+- treat `configs/runtime.knowledge_composer_vnext.yaml` as experimental vNext
+  composition mode: it uses the Knowledge Service reading loop and renders
+  source/governance detail more explicitly, but it is not the default path
+- treat `configs/legacy_parity_question_pack.yaml` as the main benchmark pack
+  for comparing the new Agentic-RAG path against legacy EUBW answer quality
 
 For current implementation tasks, the main entrypoints are:
 - `python3 scripts/run_tests.py`
 - `python3 scripts/run_eval.py --all`
 - `python3 scripts/run_eval.py --all --catalog artifacts/real_corpus/curated_catalog.json`
 - `python3 scripts/answer_question.py "<question>" --catalog artifacts/real_corpus/curated_catalog.json --output-dir <run-dir>`
+- `python3 scripts/build_real_corpus_catalog.py`
+- `python3 scripts/build_source_crosswalk.py`
+- `python3 scripts/import_legacy_knowledge.py --legacy-root tests/fixtures/legacy_knowledge --output-root /tmp/eubw_legacy_import_fixture --catalog tests/fixtures/catalog/source_catalog.yaml`
+- `python3 scripts/run_real_question_pack.py --all --runtime-config configs/runtime.knowledge_shadow.yaml`
+- `python3 scripts/run_real_question_pack.py --all --pack configs/migration_question_pack.yaml --runtime-config configs/runtime.knowledge_assistive.yaml`
+- `python3 scripts/run_real_question_pack.py --all --pack configs/legacy_parity_question_pack.yaml --runtime-config configs/runtime.knowledge_composer_vnext.yaml`
+- `python3 scripts/build_legacy_parity_freeze_manifest.py`
+- `python3 scripts/run_legacy_parity.py`
 
 The default reviewable surfaces are:
 - `final_answer.txt`
@@ -101,6 +124,17 @@ The default reviewable surfaces are:
 - `web_fetch_records.json`
 - `provisional_grouping.json` when grouping is applicable
 - `corpus_coverage_report.json` for corpus-backed runs
+- `evidence_clusters.json` when the Knowledge Service is enabled or emitting clusters
+- `selected_evidence.json` when assistive dynamic evidence selection is active
+- `claim_verification.json` when the Knowledge Service is enabled or emitting clusters
+- `navigation_session_trace.json` for agentic evidence-navigation traces
+- `source_hierarchy_report.json` for source-role and binding-level review
+- `relation_graph_slice.json` and `open_issues.json` when relation/open-issue material is available
+- `research_profile_trace.json` for activated generic research profiles
+- `reading_plan.json` for the evidence clusters and questions selected for opening
+- `opened_passages.json` for passage-level reading-loop records
+- `evidence_synthesis_matrix.json` for source-backed synthesis rows used by vNext answers
+- `legacy_parity_report.json` and `legacy_parity_report.md` for legacy-parity gates
 
 ## Shared rules across all modes
 

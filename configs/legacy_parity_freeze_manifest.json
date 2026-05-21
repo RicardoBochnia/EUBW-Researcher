@@ -1,0 +1,16 @@
+{
+  "schema_version": "legacy_parity_freeze_manifest.v1",
+  "created_at": "2026-05-11T13:01:55.908514+00:00",
+  "commit_sha": "90b207f0a9426f86b18cd0daa7339d48ddcb2c48",
+  "git_dirty": true,
+  "question_pack_path": "/mnt/c/Users/Admin/Documents/GitHub/EUBW-Researcher/configs/legacy_parity_question_pack.yaml",
+  "question_pack_digest": "1dc764d18c4da00f5bf6fe683a1c43447b563ddbb2d46339703d4edd42ca4598",
+  "holdout_pack_path": "/mnt/c/Users/Admin/Documents/GitHub/EUBW-Researcher/configs/migration_question_pack.yaml",
+  "holdout_digest": "ecadab77c386fa0a9bd4b3c867d72d417ab7e8e10a4888d34b1f2f13dee01047",
+  "catalog_path": "/mnt/c/Users/Admin/Documents/GitHub/EUBW-Researcher/artifacts/real_corpus/curated_catalog.json",
+  "catalog_digest": "4965a149b4af72b145659250d5d93a7c377e6a1f7461564d0dd6d729296d0db1",
+  "legacy_root": "/mnt/c/Users/Admin/PycharmProjects/EUBW",
+  "legacy_reference_file_count": 44,
+  "legacy_reference_digest": "00b49cc25666294bc846af896c2ab21504debe602c91bbb387b8bfb79f9e1b6c",
+  "anti_overfit_note": "Aliases, research profiles, source-family rules, and rendering patterns changed after this freeze must be audited for benchmark-specific risk."
+}

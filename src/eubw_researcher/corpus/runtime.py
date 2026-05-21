@@ -22,6 +22,8 @@ from eubw_researcher.models import (
 )
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
+_INGESTION_CACHE_SCHEMA_VERSION = "normalized_bundle.v2"
+
 
 def is_real_corpus_catalog(catalog_path: Optional[Path]) -> bool:
     return (
@@ -39,6 +41,25 @@ def _catalog_state_id(catalog_path: Path, catalog: SourceCatalog) -> str:
         digest.update(entry.source_id.encode("utf-8"))
         digest.update(entry.title.encode("utf-8"))
         digest.update(entry.source_kind.value.encode("utf-8"))
+        digest.update(
+            json.dumps(
+                {
+                    "source_role_level": entry.source_role_level.value,
+                    "document_status": entry.document_status.value,
+                    "evidence_tier": entry.evidence_tier.value,
+                    "binding_level": entry.binding_level.value,
+                    "publication_date": entry.publication_date,
+                    "version_date": entry.version_date,
+                    "effective_date": entry.effective_date,
+                    "archive_source_id": entry.archive_source_id,
+                    "legacy_source_ids": sorted(entry.legacy_source_ids),
+                    "content_digest": entry.content_digest,
+                    "locator_strategy": entry.locator_strategy,
+                    "governance_metadata": dataclass_to_dict(entry.governance_metadata),
+                },
+                sort_keys=True,
+            ).encode("utf-8")
+        )
         if entry.local_path:
             digest.update(entry.local_path.resolve().as_posix().encode("utf-8"))
             stat = entry.local_path.stat()
@@ -226,7 +247,10 @@ def load_or_build_ingestion_bundle(
     if bundle_cache_path.exists() and metadata_path.exists():
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            if metadata.get("corpus_state_id") == corpus_state_id:
+            if (
+                metadata.get("corpus_state_id") == corpus_state_id
+                and metadata.get("schema_version") == _INGESTION_CACHE_SCHEMA_VERSION
+            ):
                 with bundle_cache_path.open("rb") as handle:
                     bundle = pickle.load(handle)
         except Exception:
@@ -241,6 +265,7 @@ def load_or_build_ingestion_bundle(
                 {
                     "catalog_path": str(catalog_path.resolve()),
                     "corpus_state_id": corpus_state_id,
+                    "schema_version": _INGESTION_CACHE_SCHEMA_VERSION,
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                 },
                 indent=2,

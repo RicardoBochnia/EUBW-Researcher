@@ -13,6 +13,8 @@ from eubw_researcher.models import (
     ClaimType,
     ContradictionStatus,
     DocumentStatus,
+    EvidenceSynthesisMatrix,
+    EvidenceSynthesisRecord,
     LedgerEvidence,
     LedgerEntry,
     QueryIntent,
@@ -605,6 +607,118 @@ class ComposerTests(unittest.TestCase):
 
         self.assertIsNone(bundle.facet_coverage_report)
         self.assertIn("Confirmed:", bundle.rendered_answer)
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
+    def test_vnext_dynamic_entries_are_rendered_as_opened_evidence_not_raw_claims(self) -> None:
+        raw_snippet = (
+            "Parliament and of the Council generic front matter that is useful as a "
+            "retrieval hit but should not be promoted into composed answer prose."
+        )
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            [
+                _entry(
+                    "dynamic_cluster_1_regulation_document",
+                    raw_snippet,
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+        )
+
+        self.assertIn("Opened", bundle.rendered_answer)
+        self.assertIn("standalone composed claim", bundle.rendered_answer)
+        self.assertNotIn(raw_snippet, bundle.rendered_answer)
+        categories_by_claim = {
+            record.answer_claim_id: record.wording_category
+            for record in bundle.answer_alignment_report.records
+        }
+        self.assertEqual(
+            categories_by_claim["dynamic_cluster_1_regulation_document"],
+            "dynamic_evidence_support",
+        )
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
+    def test_vnext_review_details_compact_long_candidate_claims(self) -> None:
+        long_claim = (
+            " ".join(["Legacy imported snippet text that should be reviewable but compact."] * 40)
+            + " TAIL_MARKER_SHOULD_NOT_RENDER"
+        )
+
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            [_entry("CLM-LEGACY-LONG", long_claim, ClaimState.CONFIRMED)],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+        )
+
+        self.assertIn("Pruefdetails:", bundle.rendered_answer)
+        self.assertIn("Legacy imported snippet text", bundle.rendered_answer)
+        self.assertIn("...", bundle.rendered_answer)
+        self.assertNotIn("TAIL_MARKER_SHOULD_NOT_RENDER", bundle.rendered_answer)
+        self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
+    def test_vnext_product_summary_uses_reading_matrix_before_review_details(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Provider portability?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="synthesis_1",
+                    claim_id=None,
+                    cluster_id="cluster_portability",
+                    answer_role="candidate_core_claim",
+                    statement=(
+                        "The MigrationObject exportable object contains "
+                        "TransactionLogObject, ListOfCredentials, and all "
+                        "non-device-bound attestations files."
+                    ),
+                    source_ids=["ec_ts10_data_portability_export"],
+                    chunk_ids=["chunk_1"],
+                    locators=["4.2 Migration Object Structure"],
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="synthesis_2",
+                    claim_id=None,
+                    cluster_id="cluster_wua",
+                    answer_role="candidate_core_claim",
+                    statement="Wallet Unit Attestation lifecycle and revocation status anchor the target wallet unit.",
+                    source_ids=["ec_ts03_wallet_unit_attestation"],
+                    chunk_ids=["chunk_2"],
+                    locators=["2.4 Life Cycle"],
+                )
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Was passiert bei einem Wechsel des Wallet-Providers mit Nachweisen, Mandaten, Vertrauenskette und Auditspur, wenn echte Portabilitaet gefordert wird?",
+            [
+                _entry(
+                    "dynamic_cluster_1_ts10",
+                    "Raw MigrationObject snippet that should remain in review details.",
+                    ClaimState.CONFIRMED,
+                ),
+                _entry(
+                    "portability_reviewed_claim",
+                    "Providerwechsel braucht eine kontrollierte Migration.",
+                    ClaimState.CONFIRMED,
+                ),
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        summary_index = bundle.rendered_answer.index("Kurzantwort:")
+        details_index = bundle.rendered_answer.index("Pruefdetails:")
+        opened_index = bundle.rendered_answer.index("Opened evidence")
+        self.assertLess(summary_index, details_index)
+        self.assertLess(details_index, opened_index)
+        self.assertIn("MigrationObject", bundle.rendered_answer[:details_index])
+        self.assertIn("ec_ts10_data_portability_export", bundle.rendered_answer[:details_index])
+        self.assertIn("Mandate", bundle.rendered_answer[:details_index])
+        self.assertIn("Vertrauenskette", bundle.rendered_answer[:details_index])
+        self.assertIn("ec_ts03_wallet_unit_attestation", bundle.rendered_answer[:details_index])
         self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
 
     def test_eubw_structured_answer_uses_parity_sections(self) -> None:

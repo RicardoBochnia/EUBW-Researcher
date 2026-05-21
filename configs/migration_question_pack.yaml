@@ -1,0 +1,300 @@
+{
+  "questions": [
+    {
+      "question_id": "migration_q1_role_boundaries",
+      "title": "EUBW Role Boundaries",
+      "question": "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?",
+      "review_focus": "Regression gate for actor separation without broad fallback claims.",
+      "expected_intent_type": "eubw_role_boundary_analysis",
+      "min_approved_claims": 5,
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_facets": [
+        "eubw_registrar_boundary",
+        "eubw_certificate_provider_boundary",
+        "eubw_verifier_boundary",
+        "eubw_wallet_provider_boundary",
+        "eubw_qtsp_boundary"
+      ],
+      "required_cluster_terms": ["wallet", "provider"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "eubw", "parity", "roles"],
+      "review_prompts": [
+        "Are wallet provider, issuer, verifier, registrar, and QTSP roles separated?",
+        "Do evidence clusters include decisive role/source families?",
+        "Is broad_regulatory_answer absent from approved claims?"
+      ]
+    },
+    {
+      "question_id": "migration_q2_lifecycle",
+      "title": "EUBW Lifecycle",
+      "question": "Wie sollte der Lebenszyklus organisatorischer Nachweise und Mandate im EUBW aussehen, wenn sich Registerdaten, Vertretungsrechte oder Unternehmensstatus ändern?",
+      "review_focus": "Regression gate for lifecycle, status, revocation, and retention handling.",
+      "expected_intent_type": "eubw_lifecycle_analysis",
+      "min_approved_claims": 4,
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_facets": [
+        "eubw_registration_updates",
+        "eubw_registration_suspension_cancellation",
+        "eubw_lifecycle_record_retention",
+        "eubw_mandate_revocation_controls"
+      ],
+      "required_cluster_terms": ["registration", "revocation"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "eubw", "parity", "lifecycle"],
+      "review_prompts": [
+        "Does the answer handle register updates and registration suspension/cancellation?",
+        "Are mandate and revocation controls qualified by source status?",
+        "Do cluster artifacts show which source families support lifecycle claims?"
+      ]
+    },
+    {
+      "question_id": "migration_q3_audit_trails",
+      "title": "EUBW Audit Trails",
+      "question": "Welche Audit- und Ereignisspuren müssten für Streitfälle oder Compliance-Nachweise erhalten bleiben, ohne in eine unverhältnismäßige Vollprotokollierung abzugleiten?",
+      "review_focus": "Regression gate for bounded audit and event trails.",
+      "expected_intent_type": "eubw_audit_trail_analysis",
+      "min_approved_claims": 4,
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_facets": [
+        "eubw_dispute_record_retention",
+        "eubw_transaction_logging_minimum",
+        "eubw_authorisation_event_proofs",
+        "eubw_log_retention_boundary"
+      ],
+      "required_cluster_terms": ["audit", "transaction"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "eubw", "parity", "audit"],
+      "review_prompts": [
+        "Are dispute evidence and compliance traces bounded rather than full logging?",
+        "Are authorisation and transaction events distinguishable?",
+        "Do verification artifacts preserve source status and qualifiers?"
+      ]
+    },
+    {
+      "question_id": "migration_q4_identity_authority",
+      "title": "EUBW Identity Authority Separation",
+      "question": "Wie sollte ein EUBW in einem grenzüberschreitenden Verfahren die Identität einer natürlichen Person sauber von ihrer Handlungsbefugnis für eine juristische Person trennen?",
+      "review_focus": "Regression gate for natural-person identity, legal-person identity, and mandate authority separation.",
+      "expected_intent_type": "eubw_identity_authority_analysis",
+      "min_approved_claims": 3,
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_facets": [
+        "eubw_qtsp_mandate_verification",
+        "eubw_natural_legal_person_separation",
+        "eubw_identity_role_mandate_layering"
+      ],
+      "required_cluster_terms": ["identity", "legal"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "eubw", "parity", "identity"],
+      "review_prompts": [
+        "Are natural-person identity and legal-person authority separated?",
+        "Is mandate verification presented as a distinct relying-party/QTSP check?",
+        "Do evidence clusters cover both identity and authority source families?"
+      ]
+    },
+    {
+      "question_id": "migration_q5_architecture_buckets",
+      "title": "EUBW Architecture Buckets",
+      "question": "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+      "review_focus": "Regression gate for direct, delegated, and plausible architecture buckets.",
+      "expected_intent_type": "eubw_architecture_bucket_analysis",
+      "min_approved_claims": 5,
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_facets": [
+        "eubw_direct_architecture_constraints",
+        "eubw_arf_subordination",
+        "eubw_identifier_delegated_specs",
+        "eubw_access_control_delegated_specs",
+        "eubw_trust_model_still_open"
+      ],
+      "required_cluster_terms": ["architecture", "specification"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "eubw", "parity", "architecture"],
+      "review_prompts": [
+        "Are direct proposal/annex claims separated from delegated technical specs?",
+        "Are plausible assumptions visibly non-final?",
+        "Does the rendered answer expose all three buckets?"
+      ]
+    },
+    {
+      "question_id": "migration_q6_provider_change_portability",
+      "title": "Provider Change Portability",
+      "question": "Was passiert bei einem Wechsel des Wallet-Providers mit Nachweisen, Mandaten, Vertrauenskette und Auditspur, wenn echte Portabilität gefordert wird?",
+      "review_focus": "Holdout gate for provider migration without requiring a Q6-specific intent.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["portability", "audit"],
+      "required_cluster_source_ids": ["ec_ts10_data_portability_export"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "holdout", "provider-change", "portability"],
+      "review_prompts": [
+        "Does the answer use portability/export evidence rather than only generic wallet evidence?",
+        "Are re-binding/re-issuance, trust anchoring, and audit continuity separated?",
+        "Are unresolved mandate interoperability details visible?"
+      ]
+    },
+    {
+      "question_id": "migration_q7_delegation_chain",
+      "title": "Delegation Chain",
+      "question": "Wie könnte eine mehrstufige Delegationskette technisch modelliert werden, etwa Geschäftsführer → Bereichsleiter → Mitarbeiter, ohne dass Nachvollziehbarkeit und Prüfbarkeit verloren gehen?",
+      "review_focus": "Holdout gate for flexible delegation-chain synthesis without a Q7-specific intent.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["delegation", "mandate"],
+      "required_cluster_source_ids": ["ec_ts11_catalogue_attributes_schemes"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "holdout", "delegation", "mandates"],
+      "review_prompts": [
+        "Does the answer mark the chain model as synthesis where no direct legal rule exists?",
+        "Are parent delegation, scope narrowing, revocation/status checks, and audit records included?",
+        "Are source limitations and open issues visible?"
+      ]
+    },
+    {
+      "question_id": "migration_q8_source_conflict_priority",
+      "title": "Source Conflict Priority",
+      "question": "Welche Quelle sollte im Konfliktfall Vorrang haben, wenn Registerdaten, Wallet-gehaltene Nachweise und die aktuelle Unternehmensrealität auseinanderfallen?",
+      "review_focus": "Holdout gate for authentic-source priority without a Q8-specific intent.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["authentic", "source"],
+      "required_cluster_source_ids": ["celex_32024R1183_fulltext_en"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "tags": ["migration", "holdout", "authentic-source", "conflict"],
+      "review_prompts": [
+        "Does the answer prioritize authentic sources without treating business reality as self-authenticating?",
+        "Are wallet-held credentials treated as evidence to validate, not as higher authority?",
+        "Are conflict/escalation gaps visible?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_mixed_language_trust_list",
+      "title": "Mixed Language Trust List",
+      "question": "How should an EBW verifier behandeln, ob ein Provider gelistet/notifiziert ist, bevor er eine Wallet Unit Attestation akzeptiert?",
+      "review_focus": "Mixed-language holdout for trust-list and wallet-unit-attestation navigation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["provider", "attestation"],
+      "required_cluster_source_ids": ["ec_ts03_wallet_unit_attestation"],
+      "tags": ["migration", "holdout", "mixed-language", "trust"],
+      "review_prompts": [
+        "Does the system navigate from mixed-language input to provider and wallet-unit-attestation sources?",
+        "Are technical trust checks separated from legal status claims?",
+        "Are source-status qualifiers preserved?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_rp_scope",
+      "title": "Relying Party Scope",
+      "question": "Darf eine Wallet-Relying-Party beliebige Attribute abfragen, wenn sie einmal registriert ist, oder muss der konkrete Scope prüfbar bleiben?",
+      "review_focus": "Holdout for relying-party scope and registration/access evidence.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["registration", "attribute"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "tags": ["migration", "holdout", "relying-party", "scope"],
+      "review_prompts": [
+        "Does the answer avoid overgeneralizing registration into unlimited attribute access?",
+        "Are relying-party registration sources surfaced?",
+        "Are unresolved certificate-topology assumptions qualified?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_proposal_vs_final",
+      "title": "Proposal Versus Final Law",
+      "question": "Welche EBW-Aussagen darf ich heute als geltendes Recht formulieren, und welche muss ich als Vorschlag oder technische Annahme qualifizieren?",
+      "review_focus": "Holdout for binding-level and document-status qualification.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["proposal", "regulation"],
+      "required_cluster_source_ids": ["ebw_proposal_com_2025_0838"],
+      "tags": ["migration", "holdout", "source-governance", "qualification"],
+      "review_prompts": [
+        "Does the answer keep proposal-stage EBW material out of current-law wording?",
+        "Are final eIDAS sources separated from EBW proposal/annex material?",
+        "Do claim verification records show binding-level checks?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_missing_specific_source",
+      "title": "Missing Specific Source",
+      "question": "Gibt es eine finale EBW-Spezifikation für das Format eines mehrstufigen Mandats-Credentials?",
+      "review_focus": "Holdout for graceful gap handling when the specific source is not in the corpus or not final.",
+      "min_evidence_clusters": 1,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["mandate"],
+      "tags": ["migration", "holdout", "gap-handling", "mandates"],
+      "review_prompts": [
+        "Does the answer expose that final EBW mandate-credential formats are not yet evidenced?",
+        "Are adjacent evidence sources used only to bound the answer?",
+        "Does the bundle contain gap records or open qualifiers instead of false certainty?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_authentic_source_vs_issuer",
+      "title": "Authentic Source Versus Issuer",
+      "question": "Wenn ein Aussteller eine Attestation ausstellt, ersetzt er damit die authentic source oder bleibt die Quelle weiterhin separat prüfbar?",
+      "review_focus": "Holdout for issuer/source separation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["authentic", "attestation"],
+      "required_cluster_source_ids": ["celex_32024R1183_fulltext_en"],
+      "tags": ["migration", "holdout", "issuer", "authentic-source"],
+      "review_prompts": [
+        "Does the answer avoid treating issuer output as replacing the authentic source?",
+        "Are verification and status/revocation responsibilities separated?",
+        "Are final-law and proposal-stage claims qualified?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_audit_minimization",
+      "title": "Audit Minimization",
+      "question": "Welche Ereignisse müsste ein EBW für Auditierbarkeit protokollieren, ohne Inhalte jeder Präsentation dauerhaft vollständig zu speichern?",
+      "review_focus": "Holdout for auditability versus data-minimization tension.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["audit", "log"],
+      "tags": ["migration", "holdout", "audit", "minimization"],
+      "review_prompts": [
+        "Does the answer distinguish event proof from full payload retention?",
+        "Are transaction or authorization logs sourced rather than invented?",
+        "Are retention and proportionality gaps visible?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_cross_border_company_identity",
+      "title": "Cross Border Company Identity",
+      "question": "Wie kann ein Prüfer grenzüberschreitend erkennen, ob die handelnde Person für genau diese juristische Person und nicht nur für eine ähnlich benannte Firma handelt?",
+      "review_focus": "Holdout for cross-border legal-person identity and representation evidence.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["legal", "person"],
+      "tags": ["migration", "holdout", "cross-border", "legal-person"],
+      "review_prompts": [
+        "Does the answer separate natural person, legal person, and representation evidence?",
+        "Are register or official-record identifiers surfaced?",
+        "Are country-specific unresolved issues visible?"
+      ]
+    },
+    {
+      "question_id": "migration_holdout_architecture_assumption",
+      "title": "Architecture Assumption",
+      "question": "Ist es Architekturvorgabe, dass Mandate lokal im Wallet gespeichert werden, oder kann das auch über externe Register-/Issuer-Abfragen modelliert werden?",
+      "review_focus": "Holdout for architecture assumptions versus delegated technical design.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["wallet", "register"],
+      "tags": ["migration", "holdout", "architecture", "assumptions"],
+      "review_prompts": [
+        "Does the answer separate direct architecture constraints from plausible implementation choices?",
+        "Are delegated specs/open issues visible?",
+        "Does it avoid pretending one storage pattern is already mandated?"
+      ]
+    }
+  ]
+}

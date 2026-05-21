@@ -1,0 +1,27 @@
+{
+  "policy_version": "source_governance.v1",
+  "claim_type_compatibility": {
+    "obligation": {
+      "allowed_binding_levels": ["binding", "proposed"],
+      "binding_required_for_current_law": true
+    },
+    "allowance": {
+      "allowed_binding_levels": ["binding", "proposed"],
+      "binding_required_for_current_law": true
+    },
+    "protocol_behavior": {
+      "allowed_binding_levels": ["binding", "official_non_binding", "non_binding", "unknown"],
+      "binding_required_for_current_law": false
+    },
+    "synthesis": {
+      "allowed_binding_levels": ["binding", "proposed", "official_non_binding", "non_binding", "unknown"],
+      "binding_required_for_current_law": false
+    }
+  },
+  "effective_date_policy": {
+    "current_law_claims_require_effective_date_or_final_status": true,
+    "adopted_pending_effective_date_must_be_qualified": true,
+    "proposal_must_not_support_final_law_wording": true
+  }
+}
+

@@ -181,6 +181,7 @@ def _registration_mandatory_targets() -> List[ClaimTarget]:
             ],
             contradiction_groups=[["optional everywhere"]],
             grouping_label="Certificates and identity",
+            source_ids=["celex_32024R1183_fulltext_en", "eidas_regulation_business_wallet"],
         ),
         ClaimTarget(
             target_id="member_state_discretion",
@@ -199,6 +200,7 @@ def _registration_mandatory_targets() -> List[ClaimTarget]:
             ],
             contradiction_groups=[["mandatory everywhere"]],
             grouping_label="Governance and discretion",
+            source_ids=["celex_32024R1183_fulltext_en", "eidas_regulation_business_wallet"],
         ),
     ]
 
@@ -521,6 +523,7 @@ def _relying_party_registration_information_targets() -> List[ClaimTarget]:
             ],
             contradiction_groups=[["no registration information"], ["outside annex i"]],
             grouping_label="Registration information",
+            source_ids=["celex_32024R1183_fulltext_en", "eidas_regulation_business_wallet"],
         ),
         ClaimTarget(
             target_id="rp_registration_information_categories",

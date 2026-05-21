@@ -12,6 +12,7 @@ from eubw_researcher.models import (
     ClaimState,
     ClaimTarget,
     ClaimType,
+    DocumentStatus,
     QueryIntent,
     RetrievalCandidate,
     SourceChunk,
@@ -32,6 +33,7 @@ def make_candidate(
     anchor_label: str = "Section 1",
     anchor_audit: AnchorAudit = None,
     anchor_quality: AnchorQuality = None,
+    document_status: DocumentStatus = DocumentStatus.FINAL,
 ) -> RetrievalCandidate:
     citation = Citation(
         source_id=source_id,
@@ -63,6 +65,7 @@ def make_candidate(
             if citation_quality == CitationQuality.ANCHOR_GROUNDED
             else AnchorQuality.WEAK
         ),
+        document_status=document_status,
         extracted_anchor_label=anchor_label if citation_quality == CitationQuality.ANCHOR_GROUNDED else None,
         anchor_audit=anchor_audit,
     )
@@ -319,6 +322,40 @@ class LedgerControllerTests(unittest.TestCase):
         ledger = build_ledger(intent, {"step_1": [support, contradiction]}, self.hierarchy)
         self.assertEqual(ledger[0].final_claim_state, ClaimState.CONFIRMED)
         self.assertEqual(ledger[0].citations[0].source_kind, SourceKind.REGULATION)
+
+    def test_final_source_governs_over_same_role_proposal_source(self) -> None:
+        target = make_regulation_target()
+        intent = QueryIntent(
+            question="test",
+            intent_type="test",
+            eu_first=True,
+            claim_targets=[target],
+            preferred_kinds=[SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT],
+        )
+        proposal = make_candidate(
+            "proposal_regulation",
+            "This regulation requires a registration certificate for the access flow.",
+            SourceKind.REGULATION,
+            SourceRoleLevel.HIGH,
+            CitationQuality.ANCHOR_GROUNDED,
+            document_status=DocumentStatus.PROPOSAL,
+        )
+        final_regulation = make_candidate(
+            "final_regulation",
+            "This regulation requires a registration certificate for the access flow.",
+            SourceKind.REGULATION,
+            SourceRoleLevel.HIGH,
+            CitationQuality.ANCHOR_GROUNDED,
+            document_status=DocumentStatus.FINAL,
+        )
+
+        ledger = build_ledger(
+            intent,
+            {"step_1": [proposal, final_regulation]},
+            self.hierarchy,
+        )
+        self.assertEqual(ledger[0].final_claim_state, ClaimState.CONFIRMED)
+        self.assertEqual(ledger[0].citations[0].source_id, "final_regulation")
 
 
 if __name__ == "__main__":

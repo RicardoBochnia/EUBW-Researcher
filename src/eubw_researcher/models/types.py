@@ -12,6 +12,21 @@ class SourceRoleLevel(str, Enum):
     LOW = "low"
 
 
+class EvidenceTier(str, Enum):
+    A = "A"
+    B = "B"
+    C = "C"
+    UNKNOWN = "unknown"
+
+
+class BindingLevel(str, Enum):
+    BINDING = "binding"
+    PROPOSED = "proposed"
+    OFFICIAL_NON_BINDING = "official_non_binding"
+    NON_BINDING = "non_binding"
+    UNKNOWN = "unknown"
+
+
 class SourceKind(str, Enum):
     REGULATION = "regulation"
     IMPLEMENTING_ACT = "implementing_act"
@@ -70,6 +85,34 @@ class ClaimState(str, Enum):
     BLOCKED = "blocked"
 
 
+class CandidateClaimStatus(str, Enum):
+    CANDIDATE = "candidate"
+    DRAFT = "draft"
+    REVIEWED = "reviewed"
+    APPROVED = "approved"
+    DEPRECATED = "deprecated"
+
+
+class VerificationDecisionStatus(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+    QUALIFIED = "qualified"
+
+
+class RelationReviewStatus(str, Enum):
+    SUPPLEMENTAL = "supplemental"
+    CANDIDATE = "candidate"
+    REVIEWED = "reviewed"
+    VERIFIED = "verified"
+
+
+class ExpectedConceptStatus(str, Enum):
+    SOURCE_BACKED_REQUIRED = "source_backed_required"
+    SOURCE_BACKED_OPTIONAL = "source_backed_optional"
+    LEGACY_ONLY_GAP = "legacy_only_gap"
+    REJECTED_OR_OUTDATED = "rejected_or_outdated"
+
+
 class NormalizationStatus(str, Enum):
     SUCCESS = "success"
     FAILED = "failed"
@@ -91,6 +134,17 @@ class SourceCatalogEntry:
     anchorability_hints: List[str] = field(default_factory=list)
     admission_reason: Optional[str] = None
     source_family_id: Optional[str] = None
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    archive_source_id: Optional[str] = None
+    legacy_source_ids: List[str] = field(default_factory=list)
+    version_date: Optional[str] = None
+    effective_date: Optional[str] = None
+    content_digest: Optional[str] = None
+    locator_strategy: Optional[str] = None
+    predecessor_source_ids: List[str] = field(default_factory=list)
+    successor_source_ids: List[str] = field(default_factory=list)
+    governance_metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -133,6 +187,10 @@ class Citation:
     anchor_label: Optional[str] = None
     structure_poor: bool = False
     anchor_audit_note: Optional[str] = None
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    effective_date: Optional[str] = None
+    version_date: Optional[str] = None
 
     def render(self) -> str:
         role_label = self.source_role_level.value
@@ -160,6 +218,10 @@ class SourceChunk:
     anchor_quality: AnchorQuality = AnchorQuality.MISSING
     extracted_anchor_label: Optional[str] = None
     anchor_audit: Optional[AnchorAudit] = None
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    effective_date: Optional[str] = None
+    version_date: Optional[str] = None
 
     @property
     def citation_quality(self) -> CitationQuality:
@@ -195,6 +257,11 @@ class IngestionReportEntry:
     normalization_status: NormalizationStatus = NormalizationStatus.SUCCESS
     normalization_format: Optional[str] = None
     normalization_note: Optional[str] = None
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    effective_date: Optional[str] = None
+    version_date: Optional[str] = None
+    content_digest: Optional[str] = None
 
 
 @dataclass
@@ -371,6 +438,17 @@ class ArchiveSourceSelection:
     admission_reason: Optional[str] = None
     source_family_id: Optional[str] = None
     successor_candidate_urls: List[str] = field(default_factory=list)
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    archive_source_id_aliases: List[str] = field(default_factory=list)
+    legacy_source_ids: List[str] = field(default_factory=list)
+    version_date: Optional[str] = None
+    effective_date: Optional[str] = None
+    content_digest: Optional[str] = None
+    locator_strategy: Optional[str] = None
+    predecessor_source_ids: List[str] = field(default_factory=list)
+    successor_source_ids: List[str] = field(default_factory=list)
+    governance_metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -437,6 +515,18 @@ class RuntimeConfig:
     web_max_admitted_per_run: int
     local_retrieval_backend: str = "sqlite_fts"
     local_index_candidate_pool: int = 5
+    knowledge_service_enabled: bool = False
+    knowledge_service_emit_clusters: bool = False
+    knowledge_service_discovery_mode: str = "shadow"
+    knowledge_service_strict_verification_required: bool = True
+    knowledge_service_reading_loop_enabled: bool = False
+    knowledge_service_max_reading_clusters: int = 5
+    knowledge_service_max_opened_passages: int = 10
+    knowledge_service_max_adjacent_passages_per_cluster: int = 1
+    knowledge_service_reading_timeout_seconds: int = 30
+    knowledge_service_legacy_assets_root: Optional[str] = None
+    knowledge_service_max_candidate_claim_targets: int = 8
+    answer_composer_mode: str = "classic"
 
     def __post_init__(self) -> None:
         if self.local_retrieval_backend not in {"scan", "sqlite_fts"}:
@@ -449,6 +539,44 @@ class RuntimeConfig:
                 "local_index_candidate_pool must be >= retrieval_top_k: "
                 f"{self.local_index_candidate_pool} < {self.retrieval_top_k}"
             )
+        if self.knowledge_service_discovery_mode not in {"shadow", "assistive", "disabled"}:
+            raise ValueError(
+                "Unsupported knowledge_service_discovery_mode: "
+                f"{self.knowledge_service_discovery_mode}"
+            )
+        if self.answer_composer_mode not in {"classic", "vnext"}:
+            raise ValueError(
+                "Unsupported answer_composer_mode: "
+                f"{self.answer_composer_mode}"
+            )
+        for field_name in [
+            "knowledge_service_max_reading_clusters",
+            "knowledge_service_max_opened_passages",
+            "knowledge_service_max_adjacent_passages_per_cluster",
+            "knowledge_service_reading_timeout_seconds",
+        ]:
+            if getattr(self, field_name) < 0:
+                raise ValueError(f"{field_name} must be non-negative")
+
+
+@dataclass
+class ClaimTypeGovernanceRule:
+    allowed_binding_levels: List[BindingLevel] = field(default_factory=list)
+    binding_required_for_current_law: bool = False
+
+
+@dataclass
+class EffectiveDatePolicy:
+    current_law_claims_require_effective_date_or_final_status: bool = True
+    adopted_pending_effective_date_must_be_qualified: bool = True
+    proposal_must_not_support_final_law_wording: bool = True
+
+
+@dataclass
+class SourceGovernanceConfig:
+    policy_version: str = "source_governance.default"
+    claim_type_compatibility: Dict[ClaimType, ClaimTypeGovernanceRule] = field(default_factory=dict)
+    effective_date_policy: EffectiveDatePolicy = field(default_factory=EffectiveDatePolicy)
 
 
 @dataclass
@@ -480,12 +608,29 @@ class EvaluationScenario:
 
 
 @dataclass
+class ExpectedConceptCandidate:
+    concept_id: str
+    status: ExpectedConceptStatus
+    terms: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    rationale: Optional[str] = None
+
+
+@dataclass
 class RealQuestionPackQuestion:
     question_id: str
     title: str
     question: str
     review_focus: str
     expected_intent_type: Optional[str] = None
+    min_approved_claims: int = 0
+    min_evidence_clusters: int = 0
+    require_claim_verification: bool = False
+    required_facets: List[str] = field(default_factory=list)
+    required_cluster_terms: List[str] = field(default_factory=list)
+    required_cluster_source_ids: List[str] = field(default_factory=list)
+    expected_concept_candidates: List[ExpectedConceptCandidate] = field(default_factory=list)
+    forbidden_claim_ids: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     review_prompts: List[str] = field(default_factory=list)
     seed_from_scenario_id: Optional[str] = None
@@ -508,6 +653,7 @@ class ClaimTarget:
     support_groups: List[List[str]]
     contradiction_groups: List[List[str]]
     grouping_label: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -552,6 +698,262 @@ class QueryIntent:
     clarification_note: Optional[str] = None
     answer_pattern: Optional[str] = None
     undefined_terms: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SourceCrosswalkEntry:
+    source_id: str
+    archive_source_id: Optional[str] = None
+    legacy_source_ids: List[str] = field(default_factory=list)
+    source_family_id: Optional[str] = None
+    content_digest: Optional[str] = None
+
+
+@dataclass
+class ConceptRecord:
+    concept_id: str
+    canonical_label: str
+    aliases: List[str] = field(default_factory=list)
+    related_concept_ids: List[str] = field(default_factory=list)
+    linked_claim_ids: List[str] = field(default_factory=list)
+    linked_chunk_ids: List[str] = field(default_factory=list)
+    linked_source_ids: List[str] = field(default_factory=list)
+    review_status: str = "candidate"
+
+
+@dataclass
+class CandidateClaimRecord:
+    claim_id: str
+    normalized_statement: str
+    source_ids: List[str] = field(default_factory=list)
+    chunk_ids: List[str] = field(default_factory=list)
+    locators: List[str] = field(default_factory=list)
+    topic: Optional[str] = None
+    actor: Optional[str] = None
+    action: Optional[str] = None
+    object: Optional[str] = None
+    modality: Optional[str] = None
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    status: CandidateClaimStatus = CandidateClaimStatus.CANDIDATE
+    extraction_provenance: Optional[str] = None
+
+
+@dataclass
+class RelationGraphEdge:
+    edge_id: str
+    relation_type: str
+    source_id: str
+    target_id: str
+    confidence: float = 0.0
+    review_status: RelationReviewStatus = RelationReviewStatus.CANDIDATE
+    evidence_source_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
+class OpenIssueRecord:
+    issue_id: str
+    issue_statement: str
+    reason_open: str
+    bounded_by_evidence: List[str] = field(default_factory=list)
+    affected_concept_ids: List[str] = field(default_factory=list)
+    affected_claim_ids: List[str] = field(default_factory=list)
+    affected_source_ids: List[str] = field(default_factory=list)
+    affected_answer_facets: List[str] = field(default_factory=list)
+    severity: str = "medium"
+    answer_impact: str = "qualifies_answer"
+    blocks_claim_ids: List[str] = field(default_factory=list)
+    qualifies_claim_ids: List[str] = field(default_factory=list)
+    resolution_condition: Optional[str] = None
+    review_owner: Optional[str] = None
+    status: str = "open"
+    last_reviewed_date: Optional[str] = None
+
+
+@dataclass
+class EvidenceClusterRecord:
+    record_id: str
+    source_id: str
+    chunk_id: str
+    locator: Optional[str]
+    snippet: str
+    source_role_level: SourceRoleLevel
+    source_kind: SourceKind
+    document_status: DocumentStatus
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    jurisdiction: str = "unknown"
+    effective_date: Optional[str] = None
+    version_date: Optional[str] = None
+    score: float = 0.0
+
+
+@dataclass
+class EvidenceCluster:
+    cluster_id: str
+    label: str
+    matched_concepts: List[str] = field(default_factory=list)
+    candidate_claim_ids: List[str] = field(default_factory=list)
+    supporting_chunk_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    relation_edge_ids: List[str] = field(default_factory=list)
+    open_issue_ids: List[str] = field(default_factory=list)
+    records: List[EvidenceClusterRecord] = field(default_factory=list)
+    confidence: str = "candidate"
+    sufficiency_signals: List[str] = field(default_factory=list)
+    missing_evidence_signals: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SelectedEvidenceRecord:
+    claim_id: str
+    cluster_id: str
+    source_id: str
+    chunk_id: str
+    locator: Optional[str]
+    selection_reason: str
+
+
+@dataclass
+class NavigationTraceStep:
+    operation: str
+    query: str
+    result_ids: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class NavigationSessionTrace:
+    question: str
+    steps: List[NavigationTraceStep] = field(default_factory=list)
+
+
+@dataclass
+class VerificationCheckDecision:
+    check_id: str
+    status: VerificationDecisionStatus
+    reason: str
+
+
+@dataclass
+class ClaimVerificationRecord:
+    claim_id: str
+    claim_type: ClaimType
+    verification_result: ClaimState
+    decision_reason: str
+    source_ids: List[str] = field(default_factory=list)
+    chunk_ids: List[str] = field(default_factory=list)
+    locators: List[str] = field(default_factory=list)
+    evidence_tier: EvidenceTier = EvidenceTier.UNKNOWN
+    binding_level: BindingLevel = BindingLevel.UNKNOWN
+    source_role_level: SourceRoleLevel = SourceRoleLevel.LOW
+    document_status: DocumentStatus = DocumentStatus.INFORMATIONAL
+    jurisdiction: str = "unknown"
+    publication_date: Optional[str] = None
+    version_date: Optional[str] = None
+    effective_date: Optional[str] = None
+    source_digest: Optional[str] = None
+    corpus_state_id: Optional[str] = None
+    support_directness: SupportDirectness = SupportDirectness.INDIRECT
+    contradiction_candidate_ids: List[str] = field(default_factory=list)
+    higher_authority_candidate_source_ids: List[str] = field(default_factory=list)
+    attached_open_issue_ids: List[str] = field(default_factory=list)
+    answer_use_allowed: bool = False
+    checks: List[VerificationCheckDecision] = field(default_factory=list)
+
+
+@dataclass
+class SourceHierarchyReport:
+    question: str
+    source_ids_by_role: Dict[str, List[str]] = field(default_factory=dict)
+    source_ids_by_binding_level: Dict[str, List[str]] = field(default_factory=dict)
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ResearchProfile:
+    profile_id: str
+    description: str
+    concepts: List[str] = field(default_factory=list)
+    source_roles: List[SourceRoleLevel] = field(default_factory=list)
+    claim_types: List[ClaimType] = field(default_factory=list)
+    relation_types: List[str] = field(default_factory=list)
+    negative_controls: List[str] = field(default_factory=list)
+    preferred_source_kinds: List[SourceKind] = field(default_factory=list)
+    benchmark_specific_risk: str = "low"
+
+
+@dataclass
+class ResearchProfileConfig:
+    profiles: List[ResearchProfile] = field(default_factory=list)
+
+
+@dataclass
+class ResearchProfileActivation:
+    profile_id: str
+    matched_concepts: List[str] = field(default_factory=list)
+    matched_source_ids: List[str] = field(default_factory=list)
+    activation_reason: str = ""
+    benchmark_specific_risk: str = "low"
+
+
+@dataclass
+class ResearchProfileTrace:
+    question: str
+    activations: List[ResearchProfileActivation] = field(default_factory=list)
+    rejected_profile_ids: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ReadingPlanItem:
+    item_id: str
+    cluster_id: str
+    source_id: str
+    chunk_id: str
+    locator: Optional[str]
+    operation: str
+    reason: str
+
+
+@dataclass
+class ReadingPlan:
+    question: str
+    budget: Dict[str, int] = field(default_factory=dict)
+    items: List[ReadingPlanItem] = field(default_factory=list)
+    budget_exhausted: bool = False
+
+
+@dataclass
+class OpenedPassageRecord:
+    passage_id: str
+    cluster_id: str
+    source_id: str
+    chunk_id: str
+    locator: Optional[str]
+    passage_role: str
+    text_snippet: str
+
+
+@dataclass
+class EvidenceSynthesisRecord:
+    synthesis_id: str
+    claim_id: Optional[str]
+    cluster_id: str
+    answer_role: str
+    statement: str
+    source_ids: List[str] = field(default_factory=list)
+    chunk_ids: List[str] = field(default_factory=list)
+    locators: List[str] = field(default_factory=list)
+    verification_status: Optional[ClaimState] = None
+    caveats: List[str] = field(default_factory=list)
+
+
+@dataclass
+class EvidenceSynthesisMatrix:
+    question: str
+    records: List[EvidenceSynthesisRecord] = field(default_factory=list)
+    uncovered_answer_claim_ids: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -650,6 +1052,7 @@ class LedgerEvidence:
     citation_quality: CitationQuality
     document_status: DocumentStatus = DocumentStatus.FINAL
     anchor_audit_note: Optional[str] = None
+    chunk_id: Optional[str] = None
 
 
 @dataclass
@@ -942,6 +1345,18 @@ class AnswerResult:
     answer_alignment_report: Optional[AnswerAlignmentReport] = None
     blind_validation_report: Optional[BlindValidationReport] = None
     corpus_coverage_report: Optional[CorpusCoverageReport] = None
+    evidence_clusters: List[EvidenceCluster] = field(default_factory=list)
+    selected_evidence: List[SelectedEvidenceRecord] = field(default_factory=list)
+    claim_verification: List[ClaimVerificationRecord] = field(default_factory=list)
+    relation_graph_slice: List[RelationGraphEdge] = field(default_factory=list)
+    open_issues: List[OpenIssueRecord] = field(default_factory=list)
+    navigation_session_trace: Optional[NavigationSessionTrace] = None
+    source_hierarchy_report: Optional[SourceHierarchyReport] = None
+    research_profile_trace: Optional[ResearchProfileTrace] = None
+    reading_plan: Optional[ReadingPlan] = None
+    opened_passages: List[OpenedPassageRecord] = field(default_factory=list)
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix] = None
+    knowledge_retrieval_diagnostics: Optional[Dict[str, Any]] = None
 
 
 @dataclass

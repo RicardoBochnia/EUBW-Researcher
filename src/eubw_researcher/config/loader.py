@@ -10,17 +10,27 @@ from typing import List
 from eubw_researcher.models import (
     ArchiveCorpusConfig,
     ArchiveSourceSelection,
+    BindingLevel,
     ClaimState,
+    ClaimType,
+    ClaimTypeGovernanceRule,
     DiscoveryEntrypoint,
     DocumentStatus,
+    EffectiveDatePolicy,
+    EvidenceTier,
     EvaluationScenario,
+    ExpectedConceptCandidate,
+    ExpectedConceptStatus,
     TerminologyAlias,
     RealQuestionPack,
     RealQuestionPackQuestion,
     HierarchyRule,
+    ResearchProfile,
+    ResearchProfileConfig,
     RuntimeConfig,
     SourceHierarchyConfig,
     SourceKind,
+    SourceGovernanceConfig,
     SourceOrigin,
     SourceRoleLevel,
     TerminologyConfig,
@@ -45,6 +55,67 @@ def _optional_stripped(value: object) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _stripped_string_list(
+    value: object,
+    *,
+    field_name: str,
+    owner_id: str,
+    path: Path,
+) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(
+            f"Real-question pack question '{owner_id}' field '{field_name}' must be a list: {path}"
+        )
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"Real-question pack question '{owner_id}' field '{field_name}' must contain only strings: {path}"
+            )
+        stripped = item.strip()
+        if stripped:
+            normalized.append(stripped)
+    return normalized
+
+
+def _non_negative_int(
+    value: object,
+    *,
+    field_name: str,
+    owner_id: str,
+    path: Path,
+) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(
+            f"Real-question pack question '{owner_id}' field '{field_name}' must be a non-negative integer: {path}"
+        )
+    if value < 0:
+        raise ValueError(
+            f"Real-question pack question '{owner_id}' field '{field_name}' must be a non-negative integer: {path}"
+        )
+    return value
+
+
+def _optional_bool(
+    value: object,
+    *,
+    field_name: str,
+    owner_id: str,
+    path: Path,
+) -> bool:
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ValueError(
+            f"Real-question pack question '{owner_id}' field '{field_name}' must be a boolean: {path}"
+        )
+    return value
 
 
 def _validate_safe_config_id(
@@ -82,6 +153,68 @@ def load_source_hierarchy(path: Path) -> SourceHierarchyConfig:
     return SourceHierarchyConfig(
         rules=rules,
         default_eu_first=bool(payload.get("default_eu_first", True)),
+    )
+
+
+def load_source_governance(path: Path) -> SourceGovernanceConfig:
+    payload = _load_json_yaml(path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Source-governance config must be a JSON/YAML object: {path}")
+    raw_compatibility = payload.get("claim_type_compatibility", {})
+    if not isinstance(raw_compatibility, dict):
+        raise ValueError(
+            f"Source-governance config field 'claim_type_compatibility' must be an object: {path}"
+        )
+    claim_type_compatibility: dict[ClaimType, ClaimTypeGovernanceRule] = {}
+    for raw_claim_type, raw_rule in raw_compatibility.items():
+        if not isinstance(raw_rule, dict):
+            raise ValueError(
+                f"Source-governance rule for '{raw_claim_type}' must be an object: {path}"
+            )
+        claim_type = ClaimType(str(raw_claim_type))
+        raw_allowed_levels = raw_rule.get("allowed_binding_levels", [])
+        if not isinstance(raw_allowed_levels, list):
+            raise ValueError(
+                f"Source-governance rule for '{raw_claim_type}' must define list allowed_binding_levels: {path}"
+            )
+        claim_type_compatibility[claim_type] = ClaimTypeGovernanceRule(
+            allowed_binding_levels=[
+                BindingLevel(str(level)) for level in raw_allowed_levels
+            ],
+            binding_required_for_current_law=bool(
+                raw_rule.get("binding_required_for_current_law", False)
+            ),
+        )
+    raw_effective_date_policy = payload.get("effective_date_policy", {})
+    if raw_effective_date_policy is None:
+        raw_effective_date_policy = {}
+    if not isinstance(raw_effective_date_policy, dict):
+        raise ValueError(
+            f"Source-governance config field 'effective_date_policy' must be an object: {path}"
+        )
+    return SourceGovernanceConfig(
+        policy_version=str(payload.get("policy_version", "source_governance.unknown")),
+        claim_type_compatibility=claim_type_compatibility,
+        effective_date_policy=EffectiveDatePolicy(
+            current_law_claims_require_effective_date_or_final_status=bool(
+                raw_effective_date_policy.get(
+                    "current_law_claims_require_effective_date_or_final_status",
+                    True,
+                )
+            ),
+            adopted_pending_effective_date_must_be_qualified=bool(
+                raw_effective_date_policy.get(
+                    "adopted_pending_effective_date_must_be_qualified",
+                    True,
+                )
+            ),
+            proposal_must_not_support_final_law_wording=bool(
+                raw_effective_date_policy.get(
+                    "proposal_must_not_support_final_law_wording",
+                    True,
+                )
+            ),
+        ),
     )
 
 
@@ -164,6 +297,17 @@ def load_archive_corpus_config(path: Path) -> ArchiveCorpusConfig:
                 admission_reason=item.get("admission_reason"),
                 source_family_id=item.get("source_family_id"),
                 successor_candidate_urls=list(item.get("successor_candidate_urls", [])),
+                evidence_tier=EvidenceTier(item.get("evidence_tier", "unknown")),
+                binding_level=BindingLevel(item.get("binding_level", "unknown")),
+                archive_source_id_aliases=list(item.get("archive_source_id_aliases", [])),
+                legacy_source_ids=list(item.get("legacy_source_ids", [])),
+                version_date=item.get("version_date"),
+                effective_date=item.get("effective_date"),
+                content_digest=item.get("content_digest"),
+                locator_strategy=item.get("locator_strategy"),
+                predecessor_source_ids=list(item.get("predecessor_source_ids", [])),
+                successor_source_ids=list(item.get("successor_source_ids", [])),
+                governance_metadata=dict(item.get("governance_metadata", {})),
             )
             for item in payload["sources"]
         ],
@@ -173,6 +317,17 @@ def load_archive_corpus_config(path: Path) -> ArchiveCorpusConfig:
 def load_runtime_config(path: Path) -> RuntimeConfig:
     payload = _load_json_yaml(path)
     retrieval = payload["retrieval"]
+    knowledge_service = payload.get("knowledge_service", {})
+    reading_loop = knowledge_service.get("reading_loop", {})
+    if reading_loop is None:
+        reading_loop = {}
+    if not isinstance(reading_loop, dict):
+        raise ValueError(f"Runtime config field knowledge_service.reading_loop must be an object: {path}")
+    answer_composer = payload.get("answer_composer", {})
+    if answer_composer is None:
+        answer_composer = {}
+    if not isinstance(answer_composer, dict):
+        raise ValueError(f"Runtime config field answer_composer must be an object: {path}")
     return RuntimeConfig(
         logging_level=payload["logging"]["level"],
         retrieval_top_k=int(retrieval["top_k"]),
@@ -196,6 +351,38 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
         local_index_candidate_pool=int(
             retrieval.get("local_index_candidate_pool", retrieval["top_k"])
         ),
+        knowledge_service_enabled=bool(knowledge_service.get("enabled", False)),
+        knowledge_service_emit_clusters=bool(knowledge_service.get("emit_clusters", False)),
+        knowledge_service_discovery_mode=str(
+            knowledge_service.get("discovery_mode", "shadow")
+        ).strip(),
+        knowledge_service_strict_verification_required=bool(
+            knowledge_service.get("strict_verification_required", True)
+        ),
+        knowledge_service_reading_loop_enabled=bool(
+            reading_loop.get("enabled", False)
+        ),
+        knowledge_service_max_reading_clusters=int(
+            reading_loop.get("max_clusters", 5)
+        ),
+        knowledge_service_max_opened_passages=int(
+            reading_loop.get("max_opened_passages", 10)
+        ),
+        knowledge_service_max_adjacent_passages_per_cluster=int(
+            reading_loop.get("max_adjacent_passages_per_cluster", 1)
+        ),
+        knowledge_service_reading_timeout_seconds=int(
+            reading_loop.get("timeout_seconds", 30)
+        ),
+        knowledge_service_legacy_assets_root=(
+            str(knowledge_service["legacy_assets_root"]).strip()
+            if knowledge_service.get("legacy_assets_root")
+            else None
+        ),
+        knowledge_service_max_candidate_claim_targets=int(
+            knowledge_service.get("max_candidate_claim_targets", 8)
+        ),
+        answer_composer_mode=str(answer_composer.get("mode", "classic")).strip(),
     )
 
 
@@ -430,6 +617,52 @@ def load_evaluation_scenarios(path: Path) -> List[EvaluationScenario]:
 
 def load_real_question_pack(path: Path) -> RealQuestionPack:
     payload = _load_json_yaml(path)
+
+    def _expected_concept_candidates(item: dict) -> list[ExpectedConceptCandidate]:
+        question_id = item["question_id"].strip()
+        raw_candidates = item.get("expected_concept_candidates", [])
+        if not isinstance(raw_candidates, list):
+            raise ValueError(
+                f"Real-question pack question '{question_id}' field 'expected_concept_candidates' must be a list: {path}"
+            )
+        candidates: list[ExpectedConceptCandidate] = []
+        seen_concept_ids: set[str] = set()
+        for raw_candidate in raw_candidates:
+            if not isinstance(raw_candidate, dict):
+                raise ValueError(
+                    f"Real-question pack question '{question_id}' expected_concept_candidates entries must be objects: {path}"
+                )
+            concept_id = _validate_safe_config_id(
+                raw_id=str(raw_candidate["concept_id"]),
+                id_label=f"Real-question pack question '{question_id}' expected concept_id",
+                path=path,
+            )
+            if concept_id in seen_concept_ids:
+                raise ValueError(
+                    f"Real-question pack question '{question_id}' contains duplicate expected concept '{concept_id}': {path}"
+                )
+            seen_concept_ids.add(concept_id)
+            candidates.append(
+                ExpectedConceptCandidate(
+                    concept_id=concept_id,
+                    status=ExpectedConceptStatus(str(raw_candidate["status"])),
+                    terms=_stripped_string_list(
+                        raw_candidate.get("terms"),
+                        field_name=f"expected_concept_candidates.{concept_id}.terms",
+                        owner_id=question_id,
+                        path=path,
+                    ),
+                    source_ids=_stripped_string_list(
+                        raw_candidate.get("source_ids"),
+                        field_name=f"expected_concept_candidates.{concept_id}.source_ids",
+                        owner_id=question_id,
+                        path=path,
+                    ),
+                    rationale=_optional_stripped(raw_candidate.get("rationale")),
+                )
+            )
+        return candidates
+
     questions = [
         RealQuestionPackQuestion(
             question_id=item["question_id"].strip(),
@@ -437,10 +670,61 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
             question=item["question"].strip(),
             review_focus=item["review_focus"].strip(),
             expected_intent_type=_optional_stripped(item.get("expected_intent_type")),
-            tags=[tag.strip() for tag in item.get("tags", []) if tag.strip()],
-            review_prompts=[
-                prompt.strip() for prompt in item.get("review_prompts", []) if prompt.strip()
-            ],
+            min_approved_claims=_non_negative_int(
+                item.get("min_approved_claims"),
+                field_name="min_approved_claims",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            min_evidence_clusters=_non_negative_int(
+                item.get("min_evidence_clusters"),
+                field_name="min_evidence_clusters",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            require_claim_verification=_optional_bool(
+                item.get("require_claim_verification"),
+                field_name="require_claim_verification",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            required_facets=_stripped_string_list(
+                item.get("required_facets"),
+                field_name="required_facets",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            required_cluster_terms=_stripped_string_list(
+                item.get("required_cluster_terms"),
+                field_name="required_cluster_terms",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            required_cluster_source_ids=_stripped_string_list(
+                item.get("required_cluster_source_ids"),
+                field_name="required_cluster_source_ids",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            expected_concept_candidates=_expected_concept_candidates(item),
+            forbidden_claim_ids=_stripped_string_list(
+                item.get("forbidden_claim_ids"),
+                field_name="forbidden_claim_ids",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            tags=_stripped_string_list(
+                item.get("tags"),
+                field_name="tags",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
+            review_prompts=_stripped_string_list(
+                item.get("review_prompts"),
+                field_name="review_prompts",
+                owner_id=item["question_id"].strip(),
+                path=path,
+            ),
             seed_from_scenario_id=_optional_stripped(item.get("seed_from_scenario_id")),
         )
         for item in payload["questions"]
@@ -478,6 +762,65 @@ def load_real_question_pack(path: Path) -> RealQuestionPack:
         seen_question_ids.add(question.question_id)
 
     return RealQuestionPack(questions=questions)
+
+
+def load_research_profiles(path: Path) -> ResearchProfileConfig:
+    payload = _load_json_yaml(path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Research profiles config must be an object: {path}")
+    raw_profiles = payload.get("profiles", [])
+    if not isinstance(raw_profiles, list):
+        raise ValueError(f"Research profiles config must define a list 'profiles': {path}")
+    profiles: list[ResearchProfile] = []
+    seen_ids: set[str] = set()
+    for raw_profile in raw_profiles:
+        if not isinstance(raw_profile, dict):
+            raise ValueError(f"Research profile entries must be objects: {path}")
+        profile_id = _validate_safe_config_id(
+            raw_id=str(raw_profile["profile_id"]),
+            id_label="Research profile profile_id",
+            path=path,
+        )
+        if profile_id in seen_ids:
+            raise ValueError(f"Research profiles contain duplicate profile_id '{profile_id}': {path}")
+        seen_ids.add(profile_id)
+        profiles.append(
+            ResearchProfile(
+                profile_id=profile_id,
+                description=str(raw_profile.get("description", "")).strip(),
+                concepts=[
+                    str(value).strip()
+                    for value in raw_profile.get("concepts", [])
+                    if str(value).strip()
+                ],
+                source_roles=[
+                    SourceRoleLevel(str(value))
+                    for value in raw_profile.get("source_roles", [])
+                ],
+                claim_types=[
+                    ClaimType(str(value))
+                    for value in raw_profile.get("claim_types", [])
+                ],
+                relation_types=[
+                    str(value).strip()
+                    for value in raw_profile.get("relation_types", [])
+                    if str(value).strip()
+                ],
+                negative_controls=[
+                    str(value).strip()
+                    for value in raw_profile.get("negative_controls", [])
+                    if str(value).strip()
+                ],
+                preferred_source_kinds=[
+                    SourceKind(str(value))
+                    for value in raw_profile.get("preferred_source_kinds", [])
+                ],
+                benchmark_specific_risk=str(
+                    raw_profile.get("benchmark_specific_risk", "low")
+                ).strip(),
+            )
+        )
+    return ResearchProfileConfig(profiles=profiles)
 
 
 def configure_logging(runtime_config: RuntimeConfig) -> None:

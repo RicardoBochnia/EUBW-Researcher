@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from eubw_researcher.config import runtime_config_digest
+from eubw_researcher.config import load_real_question_pack, runtime_config_digest
 from eubw_researcher.evaluation.git_metadata import collect_git_metadata
 from eubw_researcher.evaluation.real_question_pack import (
     _build_question_verdict,
@@ -788,6 +788,193 @@ class RealQuestionPackRunnerTests(unittest.TestCase):
             verdict.checks,
         )
         self.assertIn("required_facet:claim_b:fail", verdict.checks)
+
+    def test_question_verdict_enforces_cluster_and_verification_gates(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+            min_evidence_clusters=1,
+            require_claim_verification=True,
+            required_cluster_terms=["registration certificate"],
+            required_cluster_source_ids=["SRC-REG"],
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            approved_entries=[],
+            provisional_grouping=[],
+            facet_coverage_report=None,
+            rendered_answer="",
+            evidence_clusters=[
+                SimpleNamespace(
+                    cluster_id="cluster-registration",
+                    label="Registration certificate",
+                    matched_concepts=["wallet registration"],
+                    candidate_claim_ids=[],
+                    source_ids=["SRC-REG"],
+                    records=[
+                        SimpleNamespace(
+                            source_id="SRC-REG",
+                            chunk_id="SRC-REG:1",
+                            locator="Article 12",
+                            snippet="The registration certificate identifies the organisation.",
+                        )
+                    ],
+                )
+            ],
+            claim_verification=[object()],
+        )
+
+        verdict = _build_question_verdict(question, result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("evidence_clusters:min:1:ok:1", verdict.checks)
+        self.assertIn("claim_verification:present:ok:1", verdict.checks)
+        self.assertIn("required_cluster_term:registration certificate:ok", verdict.checks)
+        self.assertIn("required_cluster_source_id:SRC-REG:ok", verdict.checks)
+
+    def test_question_verdict_rejects_missing_cluster_and_verification_gates(self) -> None:
+        question = SimpleNamespace(
+            question_id="synthetic_question",
+            expected_intent_type="synthetic_intent",
+            min_evidence_clusters=1,
+            require_claim_verification=True,
+            required_cluster_terms=["authentic source"],
+            required_cluster_source_ids=["SRC-AUTH"],
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            approved_entries=[],
+            provisional_grouping=[],
+            facet_coverage_report=None,
+            rendered_answer="",
+            evidence_clusters=[],
+            claim_verification=[],
+        )
+
+        verdict = _build_question_verdict(question, result)
+
+        self.assertFalse(verdict.passed)
+        self.assertIn("evidence_clusters:min:1:fail:0", verdict.checks)
+        self.assertIn("claim_verification:present:fail:0", verdict.checks)
+        self.assertIn("required_cluster_term:authentic source:fail", verdict.checks)
+        self.assertIn("required_cluster_source_id:SRC-AUTH:fail", verdict.checks)
+
+    def test_real_question_pack_loader_reads_agentic_cluster_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "agentic_gate",
+                                "title": "Agentic Gate",
+                                "question": "Which source governs?",
+                                "review_focus": "Cluster gates.",
+                                "min_evidence_clusters": 2,
+                                "require_claim_verification": True,
+                                "required_cluster_terms": ["authentic source"],
+                                "required_cluster_source_ids": ["SRC-L-02"],
+                                "review_prompts": ["Are cluster gates enforced?"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            pack = load_real_question_pack(pack_path)
+
+        question = pack.questions[0]
+        self.assertEqual(question.min_evidence_clusters, 2)
+        self.assertTrue(question.require_claim_verification)
+        self.assertEqual(question.required_cluster_terms, ["authentic source"])
+        self.assertEqual(question.required_cluster_source_ids, ["SRC-L-02"])
+
+    def test_real_question_pack_loader_reads_expected_concept_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pack_path = Path(tmp_dir) / "pack.json"
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "question_id": "legacy_concepts",
+                                "title": "Legacy Concepts",
+                                "question": "Which concept matters?",
+                                "review_focus": "Expected concepts.",
+                                "expected_concept_candidates": [
+                                    {
+                                        "concept_id": "authentic_source_priority",
+                                        "status": "source_backed_required",
+                                        "terms": ["authentic source"],
+                                        "source_ids": ["SRC-AUTH"],
+                                        "rationale": "Legacy answer requires this concept.",
+                                    }
+                                ],
+                                "review_prompts": ["Are expected concepts enforced?"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            pack = load_real_question_pack(pack_path)
+
+        candidate = pack.questions[0].expected_concept_candidates[0]
+        self.assertEqual(candidate.concept_id, "authentic_source_priority")
+        self.assertEqual(candidate.status.value, "source_backed_required")
+        self.assertEqual(candidate.terms, ["authentic source"])
+        self.assertEqual(candidate.source_ids, ["SRC-AUTH"])
+
+    def test_question_verdict_enforces_required_expected_concepts(self) -> None:
+        pack = load_real_question_pack(REPO_ROOT / "configs" / "legacy_parity_question_pack.yaml")
+        question = next(
+            item for item in pack.questions if item.question_id == "legacy_parity_q8_source_conflict_priority"
+        )
+        result = SimpleNamespace(
+            query_intent=SimpleNamespace(intent_type="synthetic_intent"),
+            approved_entries=[],
+            provisional_grouping=[],
+            facet_coverage_report=None,
+            rendered_answer=(
+                "The authentic source remains the official record to verify against; "
+                "wallet attestations are evidence to verify, and revocation status matters."
+            ),
+            evidence_clusters=[
+                SimpleNamespace(
+                    cluster_id="cluster-authentic-source",
+                    label="Authentic source",
+                    matched_concepts=["authentic source"],
+                    candidate_claim_ids=[],
+                    source_ids=["celex_32024R1183_fulltext_en"],
+                    records=[
+                        SimpleNamespace(
+                            source_id="celex_32024R1183_fulltext_en",
+                            chunk_id="SRC:1",
+                            locator="Article 3",
+                            snippet="An authentic source is an official record.",
+                        )
+                    ],
+                )
+            ],
+            claim_verification=[],
+            gap_records=[],
+            ledger_entries=[],
+            evidence_synthesis_matrix=None,
+        )
+
+        verdict = _build_question_verdict(question, result)
+
+        self.assertFalse(
+            any(check.endswith(":required:fail") for check in verdict.checks),
+            msg=verdict.checks,
+        )
+        self.assertIn(
+            "expected_concept:authentic_source_priority:required:ok",
+            verdict.checks,
+        )
 
     def test_runner_passes_review_artifact_to_write_artifact_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -125,11 +125,13 @@ class RuntimeFacadeTests(unittest.TestCase):
                 terminology="terminology",
                 catalog_path=catalog_path.resolve(),
                 corpus_state_id="state-123",
+                source_governance=None,
+                research_profiles=None,
             )
             pipeline_cls.return_value.answer_question.assert_called_once_with("Synthetic question?")
             write_bundle.assert_not_called()
             self.assertEqual(response.contract_version, "option_a_runtime.v2")
-            self.assertEqual(response.result_schema_version, "agent_runtime_result.v4")
+            self.assertEqual(response.result_schema_version, "agent_runtime_result.v5")
             self.assertEqual(response.mode, AgentRuntimeMode.ANSWER_QUESTION)
             self.assertEqual(response.catalog_path, catalog_path.resolve())
             self.assertIsNone(response.output_dir)

@@ -7,6 +7,8 @@ from typing import Optional, Union
 
 from eubw_researcher.config import (
     load_runtime_config,
+    load_research_profiles,
+    load_source_governance,
     load_source_hierarchy,
     load_terminology_config,
     load_web_allowlist,
@@ -17,6 +19,9 @@ from eubw_researcher.models import (
     AnswerResult,
     BlindValidationReport,
     CorpusCoverageReport,
+    ClaimVerificationRecord,
+    EvidenceCluster,
+    EvidenceSynthesisMatrix,
     FacetCoverageReport,
     GapRecord,
     IngestionReportEntry,
@@ -24,8 +29,16 @@ from eubw_researcher.models import (
     PinpointEvidenceReport,
     ProvisionalGroup,
     QueryIntent,
+    NavigationSessionTrace,
+    OpenIssueRecord,
+    OpenedPassageRecord,
+    ReadingPlan,
+    RelationGraphEdge,
     RelationHintReport,
     RetrievalPlan,
+    SelectedEvidenceRecord,
+    SourceHierarchyReport,
+    ResearchProfileTrace,
     WebFetchRecord,
 )
 from eubw_researcher.pipeline import ResearchPipeline
@@ -83,13 +96,33 @@ class AgentRuntimeResult:
     answer_alignment_report: Optional[AnswerAlignmentReport] = None
     blind_validation_report: Optional[BlindValidationReport] = None
     corpus_coverage_report: Optional[CorpusCoverageReport] = None
+    evidence_clusters: list[EvidenceCluster] = None
+    selected_evidence: list[SelectedEvidenceRecord] = None
+    claim_verification: list[ClaimVerificationRecord] = None
+    relation_graph_slice: list[RelationGraphEdge] = None
+    open_issues: list[OpenIssueRecord] = None
+    navigation_session_trace: Optional[NavigationSessionTrace] = None
+    source_hierarchy_report: Optional[SourceHierarchyReport] = None
+    research_profile_trace: Optional[ResearchProfileTrace] = None
+    reading_plan: Optional[ReadingPlan] = None
+    opened_passages: list[OpenedPassageRecord] = None
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix] = None
+    knowledge_retrieval_diagnostics: Optional[dict] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "evidence_clusters", list(self.evidence_clusters or []))
+        object.__setattr__(self, "selected_evidence", list(self.selected_evidence or []))
+        object.__setattr__(self, "claim_verification", list(self.claim_verification or []))
+        object.__setattr__(self, "relation_graph_slice", list(self.relation_graph_slice or []))
+        object.__setattr__(self, "open_issues", list(self.open_issues or []))
+        object.__setattr__(self, "opened_passages", list(self.opened_passages or []))
 
 
 class ResearchRuntimeFacade:
     """Stable agent-facing runtime facade for Option A."""
 
     CONTRACT_VERSION = "option_a_runtime.v2"
-    RESULT_SCHEMA_VERSION = "agent_runtime_result.v4"
+    RESULT_SCHEMA_VERSION = "agent_runtime_result.v5"
     DEFAULT_CATALOG_PATH = Path("artifacts/real_corpus/curated_catalog.json")
     DEFAULT_RUNTIME_CONFIG_PATH = Path("configs/runtime.yaml")
 
@@ -186,6 +219,8 @@ class ResearchRuntimeFacade:
         _, bundle, coverage_report, corpus_state_id = load_or_build_ingestion_bundle(
             resolved_catalog_path
         )
+        source_governance_path = self.repo_root / "configs" / "source_governance.yaml"
+        research_profiles_path = self.repo_root / "configs" / "research_profiles.yaml"
         pipeline = ResearchPipeline(
             runtime_config=load_runtime_config(
                 resolved_runtime_config_path
@@ -202,6 +237,16 @@ class ResearchRuntimeFacade:
             ),
             catalog_path=resolved_catalog_path,
             corpus_state_id=corpus_state_id,
+            source_governance=(
+                load_source_governance(source_governance_path)
+                if source_governance_path.is_file()
+                else None
+            ),
+            research_profiles=(
+                load_research_profiles(research_profiles_path)
+                if research_profiles_path.is_file()
+                else None
+            ),
         )
         result = pipeline.answer_question(question)
         result.corpus_coverage_report = coverage_report
@@ -303,6 +348,22 @@ class ResearchRuntimeFacade:
             answer_alignment_report=getattr(result, "answer_alignment_report", None),
             blind_validation_report=getattr(result, "blind_validation_report", None),
             corpus_coverage_report=getattr(result, "corpus_coverage_report", None),
+            evidence_clusters=list(getattr(result, "evidence_clusters", [])),
+            selected_evidence=list(getattr(result, "selected_evidence", [])),
+            claim_verification=list(getattr(result, "claim_verification", [])),
+            relation_graph_slice=list(getattr(result, "relation_graph_slice", [])),
+            open_issues=list(getattr(result, "open_issues", [])),
+            navigation_session_trace=getattr(result, "navigation_session_trace", None),
+            source_hierarchy_report=getattr(result, "source_hierarchy_report", None),
+            research_profile_trace=getattr(result, "research_profile_trace", None),
+            reading_plan=getattr(result, "reading_plan", None),
+            opened_passages=list(getattr(result, "opened_passages", [])),
+            evidence_synthesis_matrix=getattr(result, "evidence_synthesis_matrix", None),
+            knowledge_retrieval_diagnostics=getattr(
+                result,
+                "knowledge_retrieval_diagnostics",
+                None,
+            ),
         )
 
     @staticmethod

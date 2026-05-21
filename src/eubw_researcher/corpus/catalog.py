@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 from eubw_researcher.models import (
+    BindingLevel,
     DocumentStatus,
+    EvidenceTier,
     SourceCatalog,
     SourceCatalogEntry,
     SourceKind,
@@ -40,6 +42,17 @@ def load_source_catalog(path: Path) -> SourceCatalog:
                 anchorability_hints=list(item.get("anchorability_hints", [])),
                 admission_reason=item.get("admission_reason"),
                 source_family_id=item.get("source_family_id"),
+                evidence_tier=EvidenceTier(item.get("evidence_tier", "unknown")),
+                binding_level=BindingLevel(item.get("binding_level", "unknown")),
+                archive_source_id=item.get("archive_source_id"),
+                legacy_source_ids=list(item.get("legacy_source_ids", [])),
+                version_date=item.get("version_date"),
+                effective_date=item.get("effective_date"),
+                content_digest=item.get("content_digest"),
+                locator_strategy=item.get("locator_strategy"),
+                predecessor_source_ids=list(item.get("predecessor_source_ids", [])),
+                successor_source_ids=list(item.get("successor_source_ids", [])),
+                governance_metadata=dict(item.get("governance_metadata", {})),
             )
         )
     return SourceCatalog(entries=entries)
@@ -63,6 +76,17 @@ def write_source_catalog(catalog: SourceCatalog, path: Path) -> None:
                 "anchorability_hints": list(entry.anchorability_hints),
                 "admission_reason": entry.admission_reason,
                 "source_family_id": entry.source_family_id,
+                "evidence_tier": entry.evidence_tier.value,
+                "binding_level": entry.binding_level.value,
+                "archive_source_id": entry.archive_source_id,
+                "legacy_source_ids": list(entry.legacy_source_ids),
+                "version_date": entry.version_date,
+                "effective_date": entry.effective_date,
+                "content_digest": entry.content_digest,
+                "locator_strategy": entry.locator_strategy,
+                "predecessor_source_ids": list(entry.predecessor_source_ids),
+                "successor_source_ids": list(entry.successor_source_ids),
+                "governance_metadata": dict(entry.governance_metadata),
             }
             for entry in catalog.entries
         ]

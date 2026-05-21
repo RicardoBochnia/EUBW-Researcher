@@ -12,11 +12,27 @@ from eubw_researcher.models import (
     ManualReviewReport,
     SourceRoleLevel,
 )
+from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 from eubw_researcher.trust import (
     answer_alignment_status,
     pinpoint_traceability_status,
     relation_hint_integrity_status,
 )
+
+GENERIC_RETRIEVAL_TERMS = {
+    "attestation",
+    "eidas",
+    "eudi",
+    "party",
+    "parties",
+    "provider",
+    "providers",
+    "relying",
+    "service",
+    "services",
+    "wallet",
+    "wallets",
+}
 
 
 EUBW_STRUCTURED_INTENT_TYPES = {
@@ -56,6 +72,15 @@ def _approved_claim_ids(result) -> set[str]:
     }
 
 
+def _fetch_record_allowlist_ok(record) -> bool:
+    if record.record_type != "fetch":
+        return True
+    if record.allowed:
+        return True
+    reason = getattr(record, "reason", "") or ""
+    return bool(getattr(record, "policy_id", None)) and reason.startswith("Fetch failed:")
+
+
 def _has_eubw_parity_question_signal(question: str) -> bool:
     lowered = question.casefold()
     return any(
@@ -84,10 +109,14 @@ def _is_eubw_broad_fallback(result) -> bool:
     parity_signal = _is_eubw_structured_intent(intent_type) or _has_eubw_parity_question_signal(
         result.question
     )
-    return parity_signal and (
-        intent_type == "broad_regulation_question"
-        or "broad_regulatory_answer" in approved_claim_ids
+    if not parity_signal:
+        return False
+    if "broad_regulatory_answer" in approved_claim_ids:
+        return True
+    dynamic_claim_used = any(
+        claim_id.startswith("dynamic_") for claim_id in approved_claim_ids
     )
+    return intent_type == "broad_regulation_question" and not dynamic_claim_used
 
 
 def _eubw_architecture_bucket_visibility(result) -> bool:
@@ -101,6 +130,14 @@ def _eubw_architecture_bucket_visibility(result) -> bool:
 
 def _claim_state_visibility_ok(result) -> bool:
     intent_type = result.query_intent.intent_type
+    visible_entries = [
+        entry
+        for entry in result.approved_entries
+        if not (
+            entry.claim_id.startswith(("CLM-", "CLMSEED-"))
+            and not any(citation.anchor_label for citation in entry.citations)
+        )
+    ]
     if intent_type == "eubw_architecture_bucket_analysis":
         return _eubw_architecture_bucket_visibility(result)
     if _is_eubw_structured_intent(intent_type):
@@ -108,31 +145,31 @@ def _claim_state_visibility_ok(result) -> bool:
             "Normative evidence:": any(
                 entry.final_claim_state != ClaimState.OPEN
                 and entry.source_role_level != SourceRoleLevel.MEDIUM
-                for entry in result.approved_entries
+                for entry in visible_entries
             ),
             "Interpretation/context:": any(
                 entry.final_claim_state != ClaimState.OPEN
                 and entry.source_role_level == SourceRoleLevel.MEDIUM
-                for entry in result.approved_entries
+                for entry in visible_entries
             ),
             "Open issues:": any(
                 entry.final_claim_state == ClaimState.OPEN
-                for entry in result.approved_entries
+                for entry in visible_entries
             ),
         }
     else:
         state_markers = {
             "Confirmed:": any(
                 entry.final_claim_state == ClaimState.CONFIRMED
-                for entry in result.approved_entries
+                for entry in visible_entries
             ),
             "Interpretive:": any(
                 entry.final_claim_state == ClaimState.INTERPRETIVE
-                for entry in result.approved_entries
+                for entry in visible_entries
             ),
             "Open:": any(
                 entry.final_claim_state == ClaimState.OPEN
-                for entry in result.approved_entries
+                for entry in visible_entries
             ),
         }
     return all(
@@ -149,6 +186,87 @@ def _topology_facet_status(result, facet_id: str) -> tuple[bool, str]:
         return False, f"Required topology facet `{facet_id}` is missing from facet_coverage.json."
     evidence = ", ".join(facet.evidence) if facet.evidence else "No structural evidence recorded."
     return facet.addressed, evidence
+
+
+def _diagnostic_candidates(result) -> list[dict]:
+    diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None) or {}
+    candidates = diagnostics.get("top_source_candidates", [])
+    return [candidate for candidate in candidates if isinstance(candidate, dict)]
+
+
+def _surface_contains_any(surface: str, values: List[str]) -> bool:
+    normalized = normalize_text_for_matching(surface)
+    return any(
+        normalize_text_for_matching(value) in normalized
+        for value in values
+        if value
+    )
+
+
+def _topic_drift_status(result) -> tuple[bool, str]:
+    diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None)
+    if not diagnostics:
+        return True, "Knowledge retrieval diagnostics were not produced; topic-drift guard not exercised."
+    strong_candidates = [
+        candidate
+        for candidate in _diagnostic_candidates(result)
+        if float(candidate.get("score", 0.0)) >= 0.72
+    ]
+    if not strong_candidates:
+        return True, "No high-confidence source candidate required topic-drift gating."
+
+    opened_source_ids = {
+        passage.source_id for passage in getattr(result, "opened_passages", [])
+    }
+    if getattr(result, "reading_plan", None) is not None:
+        opened_source_ids.update(item.source_id for item in result.reading_plan.items)
+    matrix = getattr(result, "evidence_synthesis_matrix", None)
+    matrix_source_ids = {
+        source_id
+        for record in (matrix.records if matrix is not None else [])
+        for source_id in record.source_ids
+    }
+    final_answer = getattr(result, "rendered_answer", "")
+    matrix_surface = " ".join(
+        record.statement
+        for record in (matrix.records if matrix is not None else [])
+    )
+
+    for candidate in strong_candidates[:3]:
+        source_id = str(candidate.get("source_id", ""))
+        matched_terms = [
+            str(term)
+            for term in candidate.get("matched_terms", [])
+            if str(term) not in GENERIC_RETRIEVAL_TERMS and len(str(term)) > 3
+        ]
+        matched_phrases = [
+            str(phrase)
+            for phrase in candidate.get("matched_phrases", [])
+            if len(str(phrase)) > 3
+        ]
+        distinctive_values = [*matched_phrases, *matched_terms]
+        if source_id and source_id not in opened_source_ids:
+            return (
+                False,
+                f"High-confidence source candidate `{source_id}` was discovered but not opened in the reading plan.",
+            )
+        if source_id and source_id not in matrix_source_ids:
+            return (
+                False,
+                f"High-confidence source candidate `{source_id}` is absent from evidence_synthesis_matrix.json.",
+            )
+        if distinctive_values and not _surface_contains_any(final_answer, distinctive_values):
+            return (
+                False,
+                "The final answer does not surface the distinctive concept that drove the top source candidate.",
+            )
+        if distinctive_values and not _surface_contains_any(matrix_surface, distinctive_values):
+            return (
+                False,
+                "The synthesis matrix does not retain the distinctive concept that drove the top source candidate.",
+            )
+
+    return True, "High-confidence source candidates were opened and retained in the answer surface."
 
 
 def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> ManualReviewArtifact:
@@ -201,7 +319,9 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
         )
     )
 
-    web_allowed = all(record.allowed for record in result.web_fetch_records if record.record_type == "fetch")
+    web_allowed = all(
+        _fetch_record_allowlist_ok(record) for record in result.web_fetch_records
+    )
     checks.append(
         ManualReviewCheck(
             check_id="allowlisted_web_only",
@@ -258,6 +378,15 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
             check_id="answer_evidence_alignment",
             status="pass" if alignment_ok else "fail",
             evidence=alignment_evidence,
+        )
+    )
+
+    topic_drift_ok, topic_drift_evidence = _topic_drift_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="topic_drift_guard",
+            status="pass" if topic_drift_ok else "fail",
+            evidence=topic_drift_evidence,
         )
     )
 
@@ -434,6 +563,7 @@ def build_manual_review_report(
     ) if result.query_intent.intent_type == "certificate_topology_analysis" else True
     pinpoint_ok, _ = pinpoint_traceability_status(result)
     alignment_ok, _ = answer_alignment_status(result)
+    topic_drift_ok, topic_drift_evidence = _topic_drift_status(result)
     blind_validation_report = getattr(result, "blind_validation_report", None)
     blind_validation_ok = blind_validation_report is not None and blind_validation_report.passed
     relation_hints_ok, _relation_hints_evidence, _relation_hint_missing_facets = (
@@ -473,6 +603,7 @@ def build_manual_review_report(
     source_bound_verdict = "acceptable" if source_bound_ok else "needs_follow_up"
     pinpoint_verdict = "acceptable" if pinpoint_ok else "needs_follow_up"
     alignment_verdict = "acceptable" if alignment_ok else "needs_follow_up"
+    topic_drift_verdict = "acceptable" if topic_drift_ok else "needs_follow_up"
     self_sufficiency_verdict = (
         "acceptable" if blind_validation_ok else "needs_follow_up"
     )
@@ -488,6 +619,7 @@ def build_manual_review_report(
                 source_bound_verdict,
                 pinpoint_verdict,
                 alignment_verdict,
+                topic_drift_verdict,
                 self_sufficiency_verdict,
             ]
         )
@@ -524,6 +656,8 @@ def build_manual_review_report(
         open_follow_ups.append(
             "Answer wording and cited evidence are not structurally aligned; inspect answer_alignment.json."
         )
+    if not topic_drift_ok:
+        open_follow_ups.append(topic_drift_evidence)
     if not blind_validation_ok:
         open_follow_ups.append(
             "The product-output-first blind-validation gate did not pass; inspect blind_validation_report.json."

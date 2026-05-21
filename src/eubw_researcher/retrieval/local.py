@@ -22,7 +22,7 @@ from eubw_researcher.retrieval.text_normalization import (
     tokenize_normalized_text,
 )
 
-_INDEX_SCHEMA_VERSION = "local_lexical_index.v1"
+_INDEX_SCHEMA_VERSION = "local_lexical_index.v2"
 _LOGGER = logging.getLogger(__name__)
 _PERSISTED_INDEXES: Dict[str, "_SQLiteFtsIndex"] = {}
 _MEMORY_INDEXES: Dict[str, "_SQLiteFtsIndex"] = {}

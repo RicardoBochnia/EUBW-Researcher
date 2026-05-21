@@ -6,6 +6,8 @@ artifacts/manual_runs/
 artifacts/review_demo*/
 artifacts/review_fixture/
 artifacts/review_real/
+artifacts/real_question_pack_runs/
+artifacts/knowledge/
 artifacts/tmp/
 artifacts/tmp_eval_probe/
 artifacts/real_corpus/

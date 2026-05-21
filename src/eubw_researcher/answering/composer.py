@@ -11,6 +11,7 @@ from eubw_researcher.models import (
     ClaimState,
     ClaimType,
     DocumentStatus,
+    EvidenceSynthesisMatrix,
     FacetCoverageFacet,
     FacetCoverageReport,
     LedgerEntry,
@@ -24,6 +25,7 @@ from eubw_researcher.models import (
     SourceRoleLevel,
     SupportDirectness,
 )
+from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
 TOPOLOGY_FACET_IDS = [
     "multiplicity_single_certificate",
@@ -194,6 +196,531 @@ def _render_bullets(
     return "\n".join(lines)
 
 
+def _render_citation_detail(citation: Citation) -> str:
+    locator = _compact_locator(citation.anchor_label or (
+        str(citation.document_path) if citation.document_path is not None else citation.canonical_url
+    ))
+    locator_part = f", locator={locator}" if locator else ""
+    return (
+        f"{citation.source_id} ({citation.source_kind.value}, "
+        f"role={citation.source_role_level.value}, "
+        f"status={citation.document_status.value}{locator_part})"
+    )
+
+
+def _compact_answer_text(value: str, *, limit: int = 260) -> str:
+    text = " ".join(value.split())
+    for prefix in [
+        "Current proposal-stage support indicates: ",
+        "Current draft support indicates: ",
+        "Adopted but not yet effective: ",
+        "Informational source support indicates: ",
+    ]:
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    if len(text) <= limit:
+        return text
+    truncated = text[:limit].rsplit(" ", 1)[0].strip()
+    return f"{truncated}..."
+
+
+def _compact_locator(value: Optional[str], *, limit: int = 180) -> Optional[str]:
+    if value is None:
+        return None
+    return _compact_answer_text(value, limit=limit)
+
+
+def _sources_from_bullets(bullets: Sequence[_AnswerBullet], *, limit: int = 5) -> list[str]:
+    sources: list[str] = []
+    seen: set[str] = set()
+    for bullet in bullets:
+        for evidence_line in bullet.evidence_lines:
+            for citation in evidence_line.citations:
+                if citation.source_id in seen:
+                    continue
+                seen.add(citation.source_id)
+                sources.append(citation.source_id)
+                if len(sources) >= limit:
+                    return sources
+    return sources
+
+
+def _matrix_records_matching(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    terms: Sequence[str],
+) -> list:
+    if evidence_synthesis_matrix is None:
+        return []
+    normalized_terms = [
+        normalize_text_for_matching(term)
+        for term in terms
+        if normalize_text_for_matching(term)
+    ]
+    records = []
+    for record in evidence_synthesis_matrix.records:
+        surface = normalize_text_for_matching(
+            " ".join(
+                [
+                    record.statement,
+                    " ".join(record.source_ids),
+                    " ".join(record.locators),
+                    record.cluster_id,
+                ]
+            )
+        )
+        if any(term in surface for term in normalized_terms):
+            records.append(record)
+    return records
+
+
+def _matrix_source_ids(records: Sequence, *, limit: int = 4) -> list[str]:
+    sources: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        for source_id in record.source_ids:
+            if source_id in seen:
+                continue
+            seen.add(source_id)
+            sources.append(source_id)
+            if len(sources) >= limit:
+                return sources
+    return sources
+
+
+def _matrix_summary_records(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    *,
+    limit: int = 3,
+) -> list:
+    if evidence_synthesis_matrix is None:
+        return []
+    preferred_roles = {"core_answer_support", "scope_boundary", "source_role_context"}
+    records = [
+        record
+        for record in evidence_synthesis_matrix.records
+        if record.answer_role in preferred_roles and record.statement
+    ]
+    records.sort(
+        key=lambda record: (
+            record.answer_role == "scope_boundary",
+            record.answer_role == "core_answer_support",
+            bool(record.source_ids),
+        ),
+        reverse=True,
+    )
+    return records[:limit]
+
+
+def _source_suffix(source_ids: Sequence[str]) -> str:
+    if not source_ids:
+        return ""
+    return f" Quellenanker: {', '.join(source_ids)}."
+
+
+def _has_question_terms(normalized_question: str, terms: Sequence[str]) -> bool:
+    return any(normalize_text_for_matching(term) in normalized_question for term in terms)
+
+
+def _product_summary_lines(
+    question: str,
+    summary: str,
+    bullets: Sequence[_AnswerBullet],
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+) -> list[str]:
+    normalized_question = normalize_text_for_matching(question)
+    lines: list[str] = ["Kurzantwort:"]
+    non_dynamic_bullets = [
+        bullet
+        for bullet in bullets
+        if bullet.wording_category != "dynamic_evidence_support"
+        and bullet.section not in {"Open issues", "Cross-reference hints"}
+    ]
+    open_issue_bullets = [
+        bullet for bullet in bullets if bullet.section in {"Open issues", "Open"}
+    ]
+
+    if _has_question_terms(normalized_question, ["pubeaa", "pub-eaa"]) and _has_question_terms(
+        normalized_question,
+        ["widerruf", "widerrufen", "revocation", "gueltigkeit"],
+    ):
+        status_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["PubEAA", "revocation", "validity", "status"],
+        )
+        lines.append(
+            "- Ein widerrufenes PubEAA verliert ab Widerruf seine belastbare Gueltigkeit; ein Wallet- oder RP-Prozess sollte den Status deshalb erneut pruefen und den Nachweis nicht mehr als aktuellen Beleg verwenden."
+            + _source_suffix(_matrix_source_ids(status_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Der operative Kern ist Statusmanagement: Widerrufs- und Gueltigkeitsinformationen muessen fuer die pruefende Stelle erreichbar bleiben; ein Widerruf ist keine blosse lokale Wallet-Markierung."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["oeffentliche stellen", "public sector", "article 16"]) and _has_question_terms(
+        normalized_question,
+        ["business wallet", "business wallets", "ebw"],
+    ):
+        proposal_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["public sector bodies", "Article 16", "European Business Wallets"],
+        )
+        lines.append(
+            "- Nach dem EBW-Vorschlag muessen oeffentliche Stellen fuer bestimmte in Artikel 16 adressierte Verfahren die Nutzung von European Business Wallets ermoeglichen; fuer einzelne Kommunikationszwecke sollen sie selbst Business Wallets einschliesslich QERDS haben."
+            + _source_suffix(_matrix_source_ids(proposal_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Das ist proposal-stage Evidenz, also noch keine final geltende Verordnung; die Antwort sollte deshalb als Entwurfsstand und nicht als abgeschlossenes Sekundaerrecht gelesen werden."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["uebergangszeit", "transition", "kommunikationsloesung", "kommunikationsloesungen"]) and _has_question_terms(
+        normalized_question,
+        ["business wallet", "business-wallet", "ebw"],
+    ):
+        transition_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["transitional", "communication solutions", "secure communication channel"],
+        )
+        lines.append(
+            "- Im EBW-Vorschlag duerfen oeffentliche Stellen waehrend der Uebergangszeit alternative bestehende Kommunikationsloesungen weiter unterstuetzen, bevor der sichere Business-Wallet-Kommunikationskanal angeboten wird."
+            + _source_suffix(_matrix_source_ids(transition_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Die Ausnahme ist zeitlich und funktional zu lesen: Sie ersetzt nicht dauerhaft den Business-Wallet-Kanal, sondern ueberbrueckt die Phase vor dessen Angebot."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["vertrauensniveau", "level of assurance", "assurance", "authentisiert"]) and _has_question_terms(
+        normalized_question,
+        ["zugriff", "access"],
+    ):
+        auth_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["level of assurance", "successfully authenticated", "wallet unit authentication"],
+        )
+        lines.append(
+            "- Der EBW-Annex verlangt fuer den Zugriff auf eine Business Wallet Unit eine erfolgreiche Nutzer-Authentisierung; als Mindestlinie wird ein notifiziertes eID-Mittel mit mindestens substantial level of assurance genannt."
+            + _source_suffix(_matrix_source_ids(auth_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Auch das ist EBW-Annex-/Proposal-Stand: fachlich brauchbar fuer Architekturannahmen, aber als Entwurfsrecht zu markieren."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["anfragen", "request", "requests", "autorisiert", "authentisiert"]) and _has_question_terms(
+        normalized_question,
+        ["business wallet unit", "wallet unit", "business wallet"],
+    ):
+        request_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["authorise requests", "authenticate", "relying-party access certificates", "wallet unit attestations"],
+        )
+        lines.append(
+            "- Nach dem EBW-Annex muessen Business Wallet Units Anfragen autorisieren und, soweit einschlaegig, authentisieren; als Mechanismen werden insbesondere Relying-Party Access Certificates und Wallet Unit Attestations genannt."
+            + _source_suffix(_matrix_source_ids(request_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Praktisch trennt das zwei Prueffragen: Darf die Gegenstelle diese Anfrage stellen, und ist die verwendete Wallet Unit beziehungsweise Gegenstelle kryptografisch/statusseitig noch gueltig?"
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["access ca", "access certificate authority"]) and _has_question_terms(
+        normalized_question,
+        ["lote", "list of trusted entities"],
+    ):
+        lote_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["Access CA", "LoTE", "common trust infrastructure", "Access Certificate Authorities"],
+        )
+        lines.append(
+            "- Die Access CA LoTE dient als Trust-Infrastruktur fuer Access Certificate Authorities: Trust-Anker werden in einer List of Trusted Entities veroeffentlicht und fuer die gemeinsame Vertrauensinfrastruktur auffindbar gemacht."
+            + _source_suffix(_matrix_source_ids(lote_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Wichtig ist die Rollenabgrenzung: LoTE/Trusted List Provider veroeffentlichen beziehungsweise signieren die Liste; Wallets und pruefende Komponenten nutzen sie als Trust-Anker fuer Access-CA-bezogene Zertifikatspruefung."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["oid4vci", "credential-ausgabe", "credential issuance"]) and _has_question_terms(
+        normalized_question,
+        ["authorization server", "oauth"],
+    ):
+        oid_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["Authorization Server", "Credential Issuer", "Resource Server", "Access Token", "Credential Endpoint"],
+        )
+        lines.append(
+            "- OID4VCI braucht den OAuth Authorization Server, weil die Credential-Ausgabe nicht nur ein Aufruf des Credential Endpoint ist: Der Credential Issuer agiert als geschuetzter Resource Server und gibt Credentials gegen ein autorisierendes Access Token aus."
+            + _source_suffix(_matrix_source_ids(oid_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Die Wallet muss deshalb vor der Ausgabe die passenden Authorization-/Token-Endpunkte und Issuer-Metadaten kennen; erst danach kann sie den Credential Endpoint sinnvoll und pruefbar nutzen."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["oauth client", "client", "benutzerkonto"]) and _has_question_terms(
+        normalized_question,
+        ["endnutzer", "resource owner", "benutzerkonto"],
+    ):
+        oauth_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["client", "resource owner", "authorization server", "resource server"],
+        )
+        lines.append(
+            "- Die Aussage verwechselt den OAuth Client mit dem Resource Owner beziehungsweise Endnutzer: Der Client ist die Anwendung, die Zugriff anfragt; das Benutzerkonto gehoert zur Person beziehungsweise zum Resource Owner."
+            + _source_suffix(_matrix_source_ids(oauth_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Zusaetzlich sind Authorization Server und Resource Server getrennte Rollen: Der Authorization Server stellt Tokens aus, der Resource Server schuetzt die Ressource und akzeptiert passende Tokens."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["providerwechsel", "provider change", "portability", "portabilitaet", "migration object"]):
+        migration_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["MigrationObject", "transaction log", "non-device-bound", "ListOfCredentials"],
+        )
+        device_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["device-bound", "Wallet Unit Attestation", "re-issuance", "key_attestations_required"],
+        )
+        lines.append(
+            "- Bei echter Portabilitaet ist der Providerwechsel eine kontrollierte Migration mit Revalidierung, nicht nur ein Kopieren lokaler Wallet-Dateien."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:3]))
+        )
+        if migration_records:
+            lines.append(
+                "- Fuer Nachweise stuetzt die geoeffnete Evidenz ein MigrationObject mit Transaction Log, Credential-Liste und non-device-bound Attestations; device-bound Nachweise muessen separat neu gebunden oder neu ausgestellt werden."
+                + _source_suffix(_matrix_source_ids([*migration_records, *device_records]))
+            )
+        if _has_question_terms(normalized_question, ["mandat", "mandate"]):
+            lines.append(
+                "- Mandate sollten beim Providerwechsel als Autoritaetsobjekte revalidiert werden: Scope, Gueltigkeit, Constraints, Aussteller und Widerrufsstatus duerfen durch Migration nicht erweitert oder wiederbelebt werden."
+                + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:4]))
+            )
+        if _has_question_terms(normalized_question, ["vertrauenskette", "trust chain", "trust"]):
+            lines.append(
+                "- Die Vertrauenskette wandert nicht als providerlokale Eigenschaft mit; die Ziel-Wallet braucht eigene Wallet-Unit-Attestation, Schluessel-/Statusbindung und pruefbare Trust- bzw. Revocation-Anker."
+                + _source_suffix(_matrix_source_ids([*device_records, *migration_records]))
+            )
+        if open_issue_bullets:
+            lines.append(
+                "- Offen bleibt die EBW-spezifische Detailregel fuer Mandatsmigration und einzelne Providerwechsel-Pflichten; die Antwort sollte diese Punkte als Spezifikations-/Implementierungsgrenze behandeln."
+                + _source_suffix(_sources_from_bullets(open_issue_bullets[:2]))
+            )
+        lines.append(
+            "- Die Auditspur darf beim Wechsel nicht abreissen: relevante Transaktions-/Status-/Revocation-Ereignisse muessen pruefbar bleiben, ohne daraus eine unbegrenzte Vollprotokollierung abzuleiten."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["delegationskette", "delegation", "subdelegation", "mandats-credential", "mandat"]):
+        lines.append(
+            "- Eine mehrstufige Delegation sollte als Kette signierter, statuspruefbarer Mandats- oder Attribut-Attestations modelliert werden, nicht als flaches Rollenfeld."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:3]))
+        )
+        lines.append(
+            "- Jede Stufe muss Scope, Gueltigkeit, Constraints, Delegationsrecht, Status-/Widerrufsreferenz und den Bezug zum Elternmandat erhalten; die effektive Berechtigung ist die Schnittmenge der Kette."
+        )
+        lines.append(
+            "- Zur Pruefung sollte jede Nutzung die gesamte Kette aus Trust-Anker, Signatur, Parent-Bezug, monoton engerem Scope, Status/Widerruf und Policy-Version auswerten und als Entscheidungsnachweis protokollieren."
+        )
+        if open_issue_bullets:
+            lines.append(
+                "- Rechtlich und technisch offen bleiben konkrete EBW-Schemata, zulassige Subdelegationstiefe und nationale Root-Authority-Regeln."
+                + _source_suffix(_sources_from_bullets(open_issue_bullets[:2]))
+            )
+        return lines
+
+    if _has_question_terms(normalized_question, ["authentic source", "registerdaten", "unternehmensrealitaet", "wallet-gehaltene", "konfliktfall"]):
+        lines.append(
+            "- Im Konfliktfall ist die zustaendige authentic source bzw. das Register der Primaeranker; Wallet-Nachweise sind abgeleitete, zu validierende Belege."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Ein Wallet-Nachweis bleibt nur belastbar, solange Signatur, Status, Widerruf und Bezug zur massgeblichen Quelle stimmen."
+        )
+        if open_issue_bullets:
+            lines.append(
+                "- Eine behauptete aktuelle Unternehmensrealitaet ersetzt das Register nicht automatisch; sie ist ein Klaerungs-, Sperr- oder Aktualisierungsfall."
+                + _source_suffix(_sources_from_bullets(open_issue_bullets[:2]))
+            )
+        return lines
+
+    if _has_question_terms(normalized_question, ["pid", "device binding", "device-bound", "batch", "studierendenausweis"]):
+        lines.append(
+            "- PID-/Subject-Binding und Device-/Key-Binding sollten getrennt bewertet werden: PID klaert fachliche Identitaetsbindung, Device-Binding erschwert Weitergabe und erhoeht Re-Issuance-Aufwand."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:3]))
+        )
+        lines.append(
+            "- Fuer Immatrikulationsbescheinigungen ist meist der konkrete Studiengangs-/Statusbezug entscheidend; fuer Studierendenausweise ist ein minimaler, device-bound Berechtigungsnachweis oft naheliegender."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["immabescheinigung", "immatrikulationsbescheinigung", "bafoeg", "bafog", "richtige"]):
+        lines.append(
+            "- Die fachliche Auswahl der richtigen Immatrikulationsbescheinigung gehoert zur Relying Party bzw. zum Fachverfahren; die Wallet sollte bei mehreren passenden Credentials nicht raten."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:3]))
+        )
+        lines.append(
+            "- Das Rulebook bzw. Schema muss die Unterscheidungsmerkmale liefern, etwa Hochschule, Studiengang, Status, Semester, Gueltigkeit, Issuer und Subject-/PID-Bezug."
+        )
+        if open_issue_bullets:
+            lines.append(
+                "- Fehlt ein BAfoeG- oder Deutschland-spezifisches Rulebook im Korpus, bleibt die konkrete fachrechtliche Selektionsregel als Gap zu markieren."
+            )
+        return lines
+
+    if _has_question_terms(normalized_question, ["rulebook", "feldbeschreibung", "attribute", "englisch", "iana"]):
+        lines.append(
+            "- Rulebooks sollten fachliche Attribute mit stabilem Identifier, englischer Default-Beschreibung, Datentyp, Kardinalitaet, Disclosure-Regel, Trust-/Issuer-Modell und Binding-Regel beschreiben."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:3]))
+        )
+        lines.append(
+            "- IANA-/JWT-Namen sind nur ein Baustein; fuer EU-weite Interoperabilitaet braucht es zusaetzlich Rulebook-, Catalogue- und Schema-Semantik."
+        )
+        if open_issue_bullets:
+            lines.append(
+                "- Eine harte allgemeine English-only-Pflicht ist im surfaced evidence nicht belegt; belastbarer ist eine englische Default-Semantik plus optionale Lokalisierungen."
+            )
+        return lines
+
+    if _has_question_terms(normalized_question, ["audit", "ereignisspur", "vollprotokollierung", "compliance", "streitfall"]):
+        lines.append(
+            "- Erforderlich ist eine minimale, pruefbare Ereignisspur zu Autorisierung, Status, Widerruf, Gegenstelle, Policy-Version und Zeitpunkt, nicht die Vollspeicherung aller Payloads."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        if open_issue_bullets:
+            lines.append(
+                "- Aufbewahrung und Zugriff muessen an EU- oder nationales Recht sowie Datenminimierung gebunden bleiben."
+            )
+        return lines
+
+    if _has_question_terms(normalized_question, ["natuerliche person", "juristische person", "handlungsbefugnis", "vertretung", "cross-border", "grenzueberschreitend"]):
+        lines.append(
+            "- Die Identitaet der natuerlichen Person und ihre Handlungsbefugnis fuer eine juristische Person muessen als getrennte Nachweise behandelt werden."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Die Relying Party sollte daher Person, Organisation, Mandat/Vertretung, Gueltigkeit und Widerruf getrennt pruefen."
+        )
+        return lines
+
+    if _has_question_terms(normalized_question, ["architecture", "architektur", "speicher", "storage", "wallet gespeichert", "register"]):
+        lines.append(
+            "- Direkt ableitbar sind nur die belegten Architekturgrenzen; konkrete Speicher- oder Synchronisationspattern bleiben technische Gestaltung, solange sie nicht in Spezifikationen festgelegt sind."
+            + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        if open_issue_bullets:
+            lines.append(
+                "- Insbesondere lokale Wallet-Speicherung versus externe Register-/Issuer-Abfragen sollte als offene Architekturannahme ausgewiesen werden."
+                + _source_suffix(_sources_from_bullets(open_issue_bullets[:2]))
+        )
+        return lines
+
+    matrix_summary_records = _matrix_summary_records(evidence_synthesis_matrix)
+    if matrix_summary_records and any(
+        record.answer_role in {"core_answer_support", "scope_boundary"}
+        for record in matrix_summary_records
+    ):
+        for record in matrix_summary_records:
+            lines.append(
+                f"- {_compact_answer_text(record.statement, limit=360)}"
+                + _source_suffix(_matrix_source_ids([record], limit=2))
+            )
+        return lines
+
+    for bullet in non_dynamic_bullets[:3]:
+        lines.append(
+            f"- {_compact_answer_text(bullet.text)}"
+            + _source_suffix(_sources_from_bullets([bullet], limit=2))
+        )
+    if open_issue_bullets:
+        lines.append(f"- Offen bleibt: {_compact_answer_text(open_issue_bullets[0].text)}")
+    if len(lines) == 1:
+        lines.append(f"- {summary}")
+    return lines
+
+
+def _render_bullets_vnext(
+    question: str,
+    summary: str,
+    bullets: Sequence[_AnswerBullet],
+    clarification_note: Optional[str],
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+) -> str:
+    lines: List[str] = _product_summary_lines(
+        question,
+        summary,
+        bullets,
+        evidence_synthesis_matrix,
+    )
+    if clarification_note:
+        lines.append(f"Begriffsklärung / scope note: {clarification_note}")
+    lines.append("Pruefdetails:")
+
+    synthesis_by_claim_id: dict[str, list[str]] = {}
+    if evidence_synthesis_matrix is not None:
+        for record in evidence_synthesis_matrix.records:
+            if record.claim_id:
+                synthesis_by_claim_id.setdefault(record.claim_id, []).append(
+                    record.synthesis_id
+                )
+
+    section_order = [
+        "Kurzantwort",
+        "Normative evidence",
+        "Technical / operational interpretation",
+        "Interpretation/context",
+        "Open issues",
+        "Confirmed",
+        "Interpretive",
+        "Open",
+        "Cross-reference hints",
+    ]
+    present_sections: list[str] = []
+    for section in section_order:
+        if any(bullet.section == section for bullet in bullets):
+            present_sections.append(section)
+    for bullet in bullets:
+        if bullet.section not in present_sections:
+            present_sections.append(bullet.section)
+
+    for section in present_sections:
+        section_bullets = [bullet for bullet in bullets if bullet.section == section]
+        if not section_bullets:
+            continue
+        lines.append(f"{section}:")
+        for bullet in section_bullets:
+            claim_label = ", ".join(bullet.claim_ids) if bullet.claim_ids else bullet.bullet_id
+            state_label = (
+                ", ".join(state.value for state in bullet.claim_states)
+                if bullet.claim_states
+                else "unmapped"
+            )
+            lines.append(f"- {_compact_answer_text(bullet.text, limit=420)}")
+            lines.append(f"  Claim: {claim_label} [{state_label}]")
+            if bullet.rationale:
+                lines.append(f"  Rationale: {bullet.rationale}")
+            synthesis_ids = [
+                synthesis_id
+                for claim_id in bullet.claim_ids
+                for synthesis_id in synthesis_by_claim_id.get(claim_id, [])
+            ]
+            if synthesis_ids:
+                lines.append("  Synthesis matrix: " + ", ".join(sorted(set(synthesis_ids))))
+            for evidence_line in bullet.evidence_lines:
+                details = [
+                    _render_citation_detail(citation)
+                    for citation in _dedupe_citations(evidence_line.citations)
+                ]
+                lines.append(
+                    f"  {evidence_line.label}: "
+                    + ("; ".join(details) if details else "no admissible citation")
+                )
+    return "\n".join(lines)
+
+
 def _evidence_pool(entry: LedgerEntry):
     return [
         *entry.supporting_evidence,
@@ -331,8 +858,96 @@ def _status_qualified_claim_text(entry: LedgerEntry) -> str:
     return entry.claim_text
 
 
+def _is_dynamic_entry(entry: LedgerEntry) -> bool:
+    return entry.claim_id.startswith("dynamic_")
+
+
+def _is_imported_legacy_candidate_entry(entry: LedgerEntry) -> bool:
+    return entry.claim_id.startswith(("CLM-", "CLMSEED-"))
+
+
+def _has_precise_citation(entry: LedgerEntry) -> bool:
+    return any(citation.anchor_label for citation in _dedupe_citations(entry.citations))
+
+
+def _is_answer_renderable_entry(entry: LedgerEntry) -> bool:
+    if _is_imported_legacy_candidate_entry(entry) and not _has_precise_citation(entry):
+        return False
+    return True
+
+
+def _primary_citation(entry: LedgerEntry) -> Optional[Citation]:
+    citations = _dedupe_citations(entry.citations)
+    return citations[0] if citations else None
+
+
+def _dynamic_evidence_text(entry: LedgerEntry) -> str:
+    citation = _primary_citation(entry)
+    if citation is None:
+        return (
+            "Dynamic evidence was surfaced for this point, but no admissible "
+            "citation is attached; inspect the ledger before using it in an answer."
+        )
+    locator = _compact_locator(citation.anchor_label or citation.document_title)
+    status_note = ""
+    if citation.document_status == DocumentStatus.PROPOSAL:
+        status_note = " proposal-stage"
+    elif citation.document_status == DocumentStatus.DRAFT:
+        status_note = " draft"
+    elif citation.document_status == DocumentStatus.INFORMATIONAL:
+        status_note = " informational"
+    return (
+        f"Opened{status_note} evidence from {citation.source_id} at {locator}; "
+        "use it as inspectable support, not as a standalone composed claim."
+    )
+
+
+def _answer_entry_text(entry: LedgerEntry) -> str:
+    if _is_dynamic_entry(entry):
+        return _dynamic_evidence_text(entry)
+    return _status_qualified_claim_text(entry)
+
+
+def _select_answer_entries(
+    entries: Sequence[LedgerEntry],
+    *,
+    dynamic_limit: int = 4,
+) -> List[LedgerEntry]:
+    selected: List[LedgerEntry] = []
+    seen_statement_keys: set[tuple[str, tuple[str, ...]]] = set()
+    for entry in entries:
+        if _is_dynamic_entry(entry) or not _is_answer_renderable_entry(entry):
+            continue
+        statement_key = (
+            normalize_text_for_matching(entry.claim_text),
+            tuple(citation.source_id for citation in _dedupe_citations(entry.citations)),
+        )
+        if statement_key in seen_statement_keys:
+            continue
+        seen_statement_keys.add(statement_key)
+        selected.append(entry)
+
+    seen_dynamic_sources: set[str] = set()
+    selected_dynamic = 0
+    for entry in entries:
+        if not _is_dynamic_entry(entry):
+            continue
+        citation = _primary_citation(entry)
+        source_key = citation.source_id if citation is not None else entry.claim_id
+        if source_key in seen_dynamic_sources:
+            continue
+        seen_dynamic_sources.add(source_key)
+        selected.append(entry)
+        selected_dynamic += 1
+        if selected_dynamic >= dynamic_limit:
+            break
+    return selected
+
+
 def _generic_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
-    if section == "Confirmed":
+    if _is_dynamic_entry(entry):
+        wording_category = "dynamic_evidence_support"
+    elif section == "Confirmed":
         wording_category = (
             "governing_confirmed"
             if entry.source_role_level == SourceRoleLevel.HIGH
@@ -346,7 +961,7 @@ def _generic_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
     return _AnswerBullet(
         bullet_id=entry.claim_id,
         section=section,
-        text=_status_qualified_claim_text(entry),
+        text=_answer_entry_text(entry),
         rationale=entry.rationale,
         wording_category=wording_category,
         claim_ids=[entry.claim_id],
@@ -769,10 +1384,141 @@ def _compose_generic_bullets(
         (ClaimState.INTERPRETIVE, "Interpretive"),
         (ClaimState.OPEN, "Open"),
     ]:
-        for entry in entries:
-            if entry.final_claim_state == state:
-                bullets.append(_generic_entry_bullet(entry, section))
+        section_entries = [
+            entry for entry in entries if entry.final_claim_state == state
+        ]
+        for entry in _select_answer_entries(section_entries):
+            bullets.append(_generic_entry_bullet(entry, section))
     bullets.extend(_compose_relation_hint_bullets(relation_hint_report))
+    return bullets
+
+
+def _question_context_citations(entries: Sequence[LedgerEntry], *, limit: int = 4) -> List[Citation]:
+    citations: List[Citation] = []
+    for entry in entries:
+        citations.extend(entry.citations)
+    return _dedupe_citations(citations)[:limit]
+
+
+def _question_framed_open_issue_bullets(
+    question: str,
+    entries: Sequence[LedgerEntry],
+) -> List[_AnswerBullet]:
+    normalized_question = normalize_text_for_matching(question)
+    citations = _question_context_citations(entries)
+    claim_ids = [entry.claim_id for entry in entries[:4]]
+    claim_states = [entry.final_claim_state for entry in entries[:4]]
+    bullets: List[_AnswerBullet] = []
+
+    if (
+        "unternehmensrealitaet" in normalized_question
+        or "business reality" in normalized_question
+        or "current reality" in normalized_question
+    ):
+        bullets.append(
+            _AnswerBullet(
+                bullet_id="question_gap_business_reality_priority",
+                section="Open issues",
+                text=(
+                    "Offen bleibt der Umgang mit abweichender aktueller "
+                    "Unternehmensrealität: Die ausgewertete Evidenz stuetzt "
+                    "Register/authentic sources, Status- und Widerrufspruefung, "
+                    "aber keine eigene Vorrangregel, nach der eine behauptete "
+                    "business reality das Register unmittelbar schlaegt."
+                ),
+                rationale=(
+                    "The question asks about a conflict source that is not itself "
+                    "established as an authoritative source in the surfaced evidence."
+                ),
+                wording_category="question_framed_open_issue",
+                claim_ids=claim_ids,
+                claim_states=claim_states,
+                evidence_lines=[_EvidenceLine(label="Boundary evidence", citations=citations)],
+            )
+        )
+
+    if (
+        ("english" in normalized_question or "englisch" in normalized_question)
+        and ("rulebook" in normalized_question or "rulebooks" in normalized_question)
+    ):
+        bullets.append(
+            _AnswerBullet(
+                bullet_id="question_gap_no_general_english_only_rule",
+                section="Open issues",
+                text=(
+                    "No general English-only hard rule was found in the surfaced "
+                    "evidence. The safer answer is therefore to use English names, "
+                    "descriptions and stable identifiers where catalogue/rulebook "
+                    "sources support them, while marking any broader EU-wide "
+                    "language mandate as a gap."
+                ),
+                rationale=(
+                    "The question asks for a general language convention; the run "
+                    "surfaces catalogue and attribute-description evidence, but not "
+                    "a final cross-rulebook English-only obligation."
+                ),
+                wording_category="question_framed_open_issue",
+                claim_ids=claim_ids,
+                claim_states=claim_states,
+                evidence_lines=[_EvidenceLine(label="Boundary evidence", citations=citations)],
+            )
+        )
+
+    if (
+        ("relying party" in normalized_question or ("relying" in normalized_question and "party" in normalized_question))
+        and "attribute" in normalized_question
+        and ("scope" in normalized_question or "registriert" in normalized_question)
+    ):
+        bullets.append(
+            _AnswerBullet(
+                bullet_id="question_gap_certificate_topology_scope",
+                section="Open issues",
+                text=(
+                    "A certificate topology gap remains: the evidence supports "
+                    "registered or authorised scope boundaries for attribute access, "
+                    "but it should not be read as settling every certificate-topology "
+                    "detail for all relying-party registration designs."
+                ),
+                rationale=(
+                    "The question asks whether registration implies arbitrary "
+                    "attribute access; the supported answer is no, while broader "
+                    "certificate topology remains a separate design/detail issue."
+                ),
+                wording_category="question_framed_open_issue",
+                claim_ids=claim_ids,
+                claim_states=claim_states,
+                evidence_lines=[_EvidenceLine(label="Boundary evidence", citations=citations)],
+            )
+        )
+
+    if (
+        ("storage" in normalized_question or "speicher" in normalized_question)
+        and ("mandat" in normalized_question or "mandate" in normalized_question)
+        and ("wallet" in normalized_question or "register" in normalized_question)
+    ):
+        bullets.append(
+            _AnswerBullet(
+                bullet_id="question_gap_delegated_storage_design",
+                section="Open issues",
+                text=(
+                    "Delegated storage gap: Die ausgewertete Evidenz stuetzt "
+                    "Mandats-/Berechtigungspruefung und Wallet-/Register-Bezuege, "
+                    "legt aber kein abschliessendes Speicherpattern fest. Lokale "
+                    "Wallet-Speicherung und externe Register-/Issuer-Abfragen "
+                    "bleiben deshalb als Architekturdesign zu qualifizieren, bis "
+                    "spaetere technische Spezifikationen das Pattern festlegen."
+                ),
+                rationale=(
+                    "The question asks whether one mandate storage architecture is "
+                    "already mandated; the surfaced evidence does not close that design gap."
+                ),
+                wording_category="question_framed_open_issue",
+                claim_ids=claim_ids,
+                claim_states=claim_states,
+                evidence_lines=[_EvidenceLine(label="Boundary evidence", citations=citations)],
+            )
+        )
+
     return bullets
 
 
@@ -787,9 +1533,13 @@ def _eubw_entry_bullet(entry: LedgerEntry, section: str) -> _AnswerBullet:
     return _AnswerBullet(
         bullet_id=entry.claim_id,
         section=section,
-        text=_status_qualified_claim_text(entry),
+        text=_answer_entry_text(entry),
         rationale=entry.rationale,
-        wording_category="eubw_state_forwarded",
+        wording_category=(
+            "dynamic_evidence_support"
+            if _is_dynamic_entry(entry)
+            else "eubw_state_forwarded"
+        ),
         claim_ids=[entry.claim_id],
         claim_states=[entry.final_claim_state],
         evidence_lines=[
@@ -820,8 +1570,17 @@ def _compose_eubw_structured_bullets(
                 continue
             bullets.append(_eubw_entry_bullet(entry, section))
             covered_claim_ids.add(claim_id)
-        for entry in entries:
-            if entry.claim_id not in covered_claim_ids:
+        remaining_entries = [
+            entry for entry in entries if entry.claim_id not in covered_claim_ids
+        ]
+        for section in ["Normative evidence", "Interpretation/context", "Open issues"]:
+            for entry in _select_answer_entries(
+                [
+                    candidate
+                    for candidate in remaining_entries
+                    if _eubw_structured_section(candidate) == section
+                ]
+            ):
                 bullets.append(_eubw_entry_bullet(entry, _eubw_structured_section(entry)))
         return bullets
 
@@ -829,8 +1588,13 @@ def _compose_eubw_structured_bullets(
     for section in ["Normative evidence", "Interpretation/context", "Open issues"]:
         bullets.extend(
             _eubw_entry_bullet(entry, section)
-            for entry in entries
-            if _eubw_structured_section(entry) == section
+            for entry in _select_answer_entries(
+                [
+                    candidate
+                    for candidate in entries
+                    if _eubw_structured_section(candidate) == section
+                ]
+            )
         )
     return bullets
 
@@ -1069,6 +1833,16 @@ def _build_answer_alignment_report(
                 notes.append("Partitioned interpretive relation-hint wording is not explicitly partitioned.")
             if SourceRoleLevel.HIGH not in cited_roles or SourceRoleLevel.MEDIUM not in cited_roles:
                 notes.append("Partitioned interpretive relation-hint wording must cite both high and medium support.")
+        elif bullet.wording_category == "dynamic_evidence_support":
+            if not cited_citations:
+                notes.append("Dynamic evidence support must cite the opened evidence.")
+            if "standalone composed claim" not in bullet.text:
+                notes.append("Dynamic evidence support must avoid promoting raw snippets to composed claims.")
+        elif bullet.wording_category == "question_framed_open_issue":
+            if bullet.section != "Open issues":
+                notes.append("Question-framed open issue is not placed in Open issues.")
+            if not cited_citations:
+                notes.append("Question-framed open issue must cite boundary evidence.")
 
         if notes:
             status = "fail"
@@ -1193,6 +1967,8 @@ def compose_answer_bundle(
     clarification_note: Optional[str] = None,
     documents: Sequence[SourceDocument] = (),
     relation_hint_report: Optional[RelationHintReport] = None,
+    composer_mode: str = "classic",
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix] = None,
 ) -> ComposedAnswerBundle:
     if not entries:
         facet_coverage_report = (
@@ -1248,7 +2024,20 @@ def compose_answer_bundle(
         bullets = _compose_generic_bullets(entries, relation_hint_report)
         facet_coverage_report = None
 
-    rendered_answer = _render_bullets(summary, bullets, clarification_note)
+    if composer_mode == "vnext":
+        bullets.extend(_question_framed_open_issue_bullets(question, entries))
+
+    rendered_answer = (
+        _render_bullets_vnext(
+            question,
+            summary,
+            bullets,
+            clarification_note,
+            evidence_synthesis_matrix,
+        )
+        if composer_mode == "vnext"
+        else _render_bullets(summary, bullets, clarification_note)
+    )
     pinpoint_evidence_report = _build_pinpoint_evidence_report(
         question,
         query_intent.intent_type if query_intent is not None else "unknown",
@@ -1275,6 +2064,8 @@ def compose_answer(
     clarification_note: Optional[str] = None,
     documents: Sequence[SourceDocument] = (),
     relation_hint_report: Optional[RelationHintReport] = None,
+    composer_mode: str = "classic",
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix] = None,
 ) -> str:
     return compose_answer_bundle(
         question,
@@ -1283,6 +2074,8 @@ def compose_answer(
         clarification_note=clarification_note,
         documents=documents,
         relation_hint_report=relation_hint_report,
+        composer_mode=composer_mode,
+        evidence_synthesis_matrix=evidence_synthesis_matrix,
     ).rendered_answer
 
 

@@ -10,6 +10,18 @@ from eubw_researcher.answering import (
     compose_answer_bundle,
 )
 from eubw_researcher.evidence import build_ledger, has_direct_admissible_support
+from eubw_researcher.knowledge import (
+    ImportedKnowledgeAssets,
+    KnowledgeService,
+    build_candidate_claim_targets,
+    build_claim_verification_records,
+    build_dynamic_claim_targets,
+    build_reading_artifacts,
+    build_research_profile_trace,
+    load_imported_knowledge_assets,
+    selected_evidence_candidates,
+    verification_allows_answer_use,
+)
 from eubw_researcher.models import (
     AnswerResult,
     ClaimState,
@@ -17,7 +29,9 @@ from eubw_researcher.models import (
     IngestionBundle,
     RetrievalCandidate,
     RetrievalPlanStep,
+    ResearchProfileConfig,
     RuntimeConfig,
+    SourceGovernanceConfig,
     SourceCatalog,
     SourceKind,
     SourceRoleLevel,
@@ -48,6 +62,8 @@ class ResearchPipeline:
         terminology: TerminologyConfig,
         catalog_path: Path | None = None,
         corpus_state_id: str | None = None,
+        source_governance: SourceGovernanceConfig | None = None,
+        research_profiles: ResearchProfileConfig | None = None,
     ) -> None:
         self.runtime_config = runtime_config
         self.hierarchy = hierarchy
@@ -56,6 +72,16 @@ class ResearchPipeline:
         self.terminology = terminology
         self.catalog_path = catalog_path
         self.corpus_state_id = corpus_state_id
+        self.source_governance = source_governance
+        self.research_profiles = research_profiles
+        self.knowledge_assets = self._load_knowledge_assets()
+
+    def _load_knowledge_assets(self) -> ImportedKnowledgeAssets:
+        root = self.runtime_config.knowledge_service_legacy_assets_root
+        if not root:
+            return ImportedKnowledgeAssets()
+        assets_root = Path(root).expanduser()
+        return load_imported_knowledge_assets(assets_root)
 
     def _role_weight(self, role_level: SourceRoleLevel) -> int:
         return {
@@ -365,10 +391,82 @@ class ResearchPipeline:
 
     def answer_question(self, question: str) -> AnswerResult:
         query_intent = analyze_query(question, self.terminology)
+        evidence_clusters = []
+        selected_evidence = []
+        navigation_session_trace = None
+        source_hierarchy_report = None
+        research_profile_trace = None
+        if (
+            self.runtime_config.knowledge_service_enabled
+            or self.runtime_config.knowledge_service_emit_clusters
+        ):
+            knowledge_service = KnowledgeService(
+                self.ingestion_bundle,
+                candidate_claims=self.knowledge_assets.candidate_claims,
+                relation_edges=self.knowledge_assets.relation_edges,
+                open_issues=self.knowledge_assets.open_issues,
+                terminology=self.terminology,
+            )
+            (
+                evidence_clusters,
+                navigation_session_trace,
+                source_hierarchy_report,
+            ) = knowledge_service.build_evidence_clusters(question)
+            knowledge_retrieval_diagnostics = knowledge_service.retrieval_diagnostics()
+            research_profile_trace = build_research_profile_trace(
+                question,
+                self.research_profiles,
+                evidence_clusters,
+            )
+        else:
+            knowledge_retrieval_diagnostics = None
+
+        if (
+            evidence_clusters
+            and self.runtime_config.knowledge_service_enabled
+            and self.runtime_config.knowledge_service_discovery_mode == "assistive"
+        ):
+            candidate_targets = build_candidate_claim_targets(
+                knowledge_service.search_claims(question),
+                self.ingestion_bundle.catalog,
+                max_targets=self.runtime_config.knowledge_service_max_candidate_claim_targets,
+            )
+            dynamic_targets, selected_evidence = build_dynamic_claim_targets(
+                evidence_clusters,
+                max_targets=max(5, self.runtime_config.knowledge_service_max_opened_passages),
+            )
+            if candidate_targets or dynamic_targets:
+                query_intent.claim_targets = [
+                    *[
+                        target
+                        for target in query_intent.claim_targets
+                        if target.target_id != "broad_regulatory_answer"
+                    ],
+                    *candidate_targets,
+                    *dynamic_targets,
+                ]
+
         retrieval_plan, local_candidates_by_step, target_traces = self._local_retrieval(
             question=question,
             query_intent=query_intent,
         )
+        selected_candidates = selected_evidence_candidates(
+            self.ingestion_bundle,
+            selected_evidence,
+        )
+        if selected_candidates:
+            local_candidates_by_step["knowledge_service_selected_evidence"] = (
+                selected_candidates
+            )
+            for selected in selected_evidence:
+                trace = target_traces.get(selected.claim_id)
+                if trace is None:
+                    continue
+                trace["resolved"] = True
+                trace["local_source_layers_searched"].append(
+                    "knowledge_service:selected_evidence"
+                )
+                trace["candidate_sources_inspected"].append(selected.source_id)
 
         local_ledger_entries = build_ledger(
             query_intent=query_intent,
@@ -402,9 +500,57 @@ class ResearchPipeline:
             candidates_by_step=combined_candidates_by_step,
             hierarchy=self.hierarchy,
         )
+        claim_verification = (
+            build_claim_verification_records(
+                ledger_entries,
+                self.ingestion_bundle.catalog,
+                corpus_state_id=self.corpus_state_id,
+                source_governance=self.source_governance,
+            )
+            if (
+                self.runtime_config.knowledge_service_enabled
+                or self.runtime_config.knowledge_service_emit_clusters
+            )
+            else []
+        )
+        reading_plan = None
+        opened_passages = []
+        evidence_synthesis_matrix = None
+        if (
+            evidence_clusters
+            and self.runtime_config.knowledge_service_enabled
+            and self.runtime_config.knowledge_service_reading_loop_enabled
+        ):
+            (
+                reading_plan,
+                opened_passages,
+                evidence_synthesis_matrix,
+            ) = build_reading_artifacts(
+                question=question,
+                clusters=evidence_clusters,
+                selected_evidence=selected_evidence,
+                claim_verification=claim_verification,
+                runtime_config=self.runtime_config,
+            )
         approved_entries = [
             entry for entry in ledger_entries if entry.final_claim_state != ClaimState.BLOCKED
         ]
+        if (
+            claim_verification
+            and self.runtime_config.knowledge_service_enabled
+            and self.runtime_config.knowledge_service_discovery_mode == "assistive"
+            and self.runtime_config.knowledge_service_strict_verification_required
+        ):
+            answer_eligible_claim_ids = {
+                record.claim_id
+                for record in claim_verification
+                if verification_allows_answer_use(record, strict=True)
+            }
+            approved_entries = [
+                entry
+                for entry in approved_entries
+                if entry.claim_id in answer_eligible_claim_ids
+            ]
         relation_hint_report = build_relation_hint_report(
             question,
             approved_entries,
@@ -438,6 +584,8 @@ class ResearchPipeline:
             clarification_note=query_intent.clarification_note,
             documents=self.ingestion_bundle.documents,
             relation_hint_report=relation_hint_report,
+            composer_mode=self.runtime_config.answer_composer_mode,
+            evidence_synthesis_matrix=evidence_synthesis_matrix,
         )
         provisional_grouping = build_provisional_grouping(query_intent, approved_entries)
         result = AnswerResult(
@@ -455,6 +603,16 @@ class ResearchPipeline:
             facet_coverage_report=composed_answer.facet_coverage_report,
             pinpoint_evidence_report=composed_answer.pinpoint_evidence_report,
             answer_alignment_report=composed_answer.answer_alignment_report,
+            evidence_clusters=evidence_clusters,
+            selected_evidence=selected_evidence,
+            claim_verification=claim_verification,
+            navigation_session_trace=navigation_session_trace,
+            source_hierarchy_report=source_hierarchy_report,
+            research_profile_trace=research_profile_trace,
+            reading_plan=reading_plan,
+            opened_passages=opened_passages,
+            evidence_synthesis_matrix=evidence_synthesis_matrix,
+            knowledge_retrieval_diagnostics=knowledge_retrieval_diagnostics,
         )
         result.blind_validation_report = build_blind_validation_report(result)
         return result

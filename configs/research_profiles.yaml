@@ -1,0 +1,114 @@
+{
+  "profiles": [
+    {
+      "profile_id": "legal_hierarchy",
+      "description": "Prioritize binding EU legal hierarchy and avoid treating proposal or technical-spec text as final law.",
+      "concepts": ["regulation", "implementing act", "article", "legal effect", "binding", "proposal", "current law", "authentic source"],
+      "source_roles": ["high"],
+      "claim_types": ["obligation", "allowance", "synthesis"],
+      "relation_types": ["supersedes", "qualifies", "delegates_to"],
+      "preferred_source_kinds": ["regulation", "implementing_act"],
+      "negative_controls": ["purely illustrative mockup"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "technical_specification",
+      "description": "Use technical standards for protocol behavior, binding, data model, and conformance mechanics without upgrading them into legal authority.",
+      "concepts": ["openid4vp", "openid4vci", "wallet unit attestation", "device-bound", "batch issuance", "key attestation", "protocol", "sd-jwt", "mdoc"],
+      "source_roles": ["medium"],
+      "claim_types": ["protocol_behavior", "synthesis"],
+      "relation_types": ["implements", "qualifies"],
+      "preferred_source_kinds": ["technical_standard", "project_artifact"],
+      "negative_controls": ["legal precedence only"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "rulebook_catalogue",
+      "description": "Use catalogue, schema, attribute, namespace, identifier, and rulebook sources for cross-border semantic questions.",
+      "concepts": ["rulebook", "catalogue", "catalog", "attribute", "scheme", "namespace", "identifier", "data type", "description", "language tag"],
+      "source_roles": ["high", "medium"],
+      "claim_types": ["obligation", "protocol_behavior", "synthesis"],
+      "relation_types": ["defines", "maps_to"],
+      "preferred_source_kinds": ["implementing_act", "technical_standard"],
+      "negative_controls": ["wallet provider switch"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "source_conflict",
+      "description": "Handle conflicts between registers, authentic sources, wallet-held evidence, status, revocation, and current reality.",
+      "concepts": ["conflict", "priority", "vorrang", "register", "authentic source", "official record", "revocation", "status", "wallet-held"],
+      "source_roles": ["high"],
+      "claim_types": ["obligation", "allowance", "synthesis"],
+      "relation_types": ["contradicts", "supersedes", "qualifies"],
+      "preferred_source_kinds": ["regulation", "implementing_act"],
+      "negative_controls": ["ui label translation"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "role_boundary",
+      "description": "Separate responsibilities of wallet providers, issuers, relying parties, registrars, QTSPs, and users.",
+      "concepts": ["wallet provider", "issuer", "relying party", "verifier", "registrar", "qtsp", "responsibility", "role", "boundary"],
+      "source_roles": ["high", "medium"],
+      "claim_types": ["obligation", "synthesis"],
+      "relation_types": ["delegates_to", "qualifies"],
+      "preferred_source_kinds": ["regulation", "implementing_act", "project_artifact"],
+      "negative_controls": ["css role"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "lifecycle_status",
+      "description": "Use status, revocation, suspension, deletion, re-issuance, validity, and retention material for lifecycle questions.",
+      "concepts": ["lifecycle", "status", "revocation", "suspension", "deletion", "validity", "re-issuance", "retention", "migration", "portability"],
+      "source_roles": ["high", "medium"],
+      "claim_types": ["obligation", "protocol_behavior", "synthesis"],
+      "relation_types": ["qualifies", "supersedes"],
+      "preferred_source_kinds": ["implementing_act", "technical_standard"],
+      "negative_controls": ["release notes only"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "audit_traceability",
+      "description": "Use minimal logging, transaction traces, auditability, dispute, and data-minimization material.",
+      "concepts": ["audit", "traceability", "transaction log", "event", "dispute", "compliance", "logging", "data minimization"],
+      "source_roles": ["high", "medium"],
+      "claim_types": ["obligation", "synthesis"],
+      "relation_types": ["qualifies"],
+      "preferred_source_kinds": ["regulation", "implementing_act", "technical_standard"],
+      "negative_controls": ["application debug log"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "identity_authority_separation",
+      "description": "Separate natural-person identity, legal-entity identity, representation, mandate, authorization, and wallet-unit trust.",
+      "concepts": ["natural person", "legal person", "legal entity", "representation", "mandate", "authority", "authorization", "acting on behalf", "wallet unit"],
+      "source_roles": ["high", "medium"],
+      "claim_types": ["obligation", "synthesis"],
+      "relation_types": ["qualifies", "delegates_to"],
+      "preferred_source_kinds": ["regulation", "implementing_act", "project_artifact"],
+      "negative_controls": ["personalization theme"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "open_issue_heavy",
+      "description": "Prefer explicit gaps, delegated technical choices, and open issues when sources do not settle the asked point.",
+      "concepts": ["open issue", "not specified", "delegated", "later specification", "gap", "unclear", "not final", "implementation act"],
+      "source_roles": ["high", "medium", "low"],
+      "claim_types": ["synthesis"],
+      "relation_types": ["qualifies", "delegates_to"],
+      "preferred_source_kinds": ["regulation", "implementing_act", "technical_standard", "project_artifact"],
+      "negative_controls": ["exactly defined"],
+      "benchmark_specific_risk": "low"
+    },
+    {
+      "profile_id": "web_gap_official_sources",
+      "description": "When the curated corpus lacks a source, restrict expansion to official or standards sources and preserve admission metadata.",
+      "concepts": ["germany", "deutschland", "bafög", "implementation", "official source", "not in corpus", "web research"],
+      "source_roles": ["high", "medium"],
+      "claim_types": ["synthesis"],
+      "relation_types": ["supplements"],
+      "preferred_source_kinds": ["regulation", "implementing_act", "technical_standard", "national_implementation"],
+      "negative_controls": ["blog opinion"],
+      "benchmark_specific_risk": "low"
+    }
+  ]
+}

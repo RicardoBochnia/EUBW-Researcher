@@ -22,5 +22,11 @@
       "openid4vci": ["credential", "issuance"],
       "openid4vp": ["presentation", "verifier"]
     }
+  },
+  "knowledge_service": {
+    "enabled": false,
+    "emit_clusters": false,
+    "discovery_mode": "shadow",
+    "strict_verification_required": true
   }
 }

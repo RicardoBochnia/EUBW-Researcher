@@ -1,0 +1,1 @@
+{"case_id":"LEGACY-BENCH-001","profile":"reference_only","question":"Was passiert beim Wechsel des Wallet-Providers?","topics":["portability"],"expected_source_ids":["legacy_runtime_source"],"expected_primary_cites":["legacy_runtime_source|Section 1"]}

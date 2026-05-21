@@ -205,6 +205,97 @@ class EvaluationRunnerTests(unittest.TestCase):
             any("broad regulatory answer" in follow_up for follow_up in report.open_follow_ups)
         )
 
+    def test_manual_review_accepts_assistive_dynamic_claims_for_broad_intent(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = "Welche EBW-Aussagen muss ich als Vorschlag qualifizieren?"
+        result.query_intent = SimpleNamespace(
+            intent_type="broad_regulation_question",
+            claim_targets=[],
+        )
+        result.approved_entries[0].claim_id = "dynamic_cluster_1_ebw_proposal"
+        result.rendered_answer = "Interpretation/context:\n- Proposal-stage support indicates a qualifier."
+
+        artifact = build_manual_review_artifact(result, scenario_id="eubw_dynamic")
+
+        fallback_check = next(
+            check
+            for check in artifact.checks
+            if check.check_id == "eubw_parity_fallback_not_accepted"
+        )
+        self.assertEqual(fallback_check.status, "pass")
+
+    def test_manual_review_rejects_topic_drift_from_high_confidence_source(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Wann muesste ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen "
+            "entfernen?"
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- Wallet-Relying-Party Access Certificates authenticate relying parties."
+        )
+        result.knowledge_retrieval_diagnostics = {
+            "top_source_candidates": [
+                {
+                    "source_id": "ec_ts01_wallet_trust_mark",
+                    "score": 0.91,
+                    "matched_terms": ["trust", "mark", "remove"],
+                    "matched_phrases": ["trust mark"],
+                    "channel_scores": {"source_title_or_path_phrase": 1.0},
+                }
+            ]
+        }
+        result.opened_passages = [
+            SimpleNamespace(source_id="eudi_wrp_access_certificate")
+        ]
+        result.reading_plan = SimpleNamespace(
+            items=[SimpleNamespace(source_id="eudi_wrp_access_certificate")]
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    statement="Passage supports: WRP access certificates authenticate relying parties.",
+                    source_ids=["eudi_wrp_access_certificate"],
+                )
+            ]
+        )
+
+        artifact = build_manual_review_artifact(result, scenario_id="trust_mark_drift")
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="trust_mark_drift",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="trust_mark_drift",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        topic_check = next(
+            check for check in artifact.checks if check.check_id == "topic_drift_guard"
+        )
+        self.assertEqual(topic_check.status, "fail")
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("ec_ts01_wallet_trust_mark" in follow_up for follow_up in report.open_follow_ups)
+        )
+
+    def test_manual_review_allows_failed_configured_seed_fetch_without_approval(self) -> None:
+        result = _minimal_result("fetch")
+        result.web_fetch_records[0].allowed = False
+        result.web_fetch_records[0].metadata_complete = False
+        result.web_fetch_records[0].reason = "Fetch failed: HTTP Error 404: Not Found"
+        result.web_fetch_records[0].policy_id = "fixture-policy"
+
+        artifact = build_manual_review_artifact(result, scenario_id="failed_seed")
+
+        allowlist_check = next(
+            check for check in artifact.checks if check.check_id == "allowlisted_web_only"
+        )
+        self.assertEqual(allowlist_check.status, "pass")
+
     def test_manual_review_accepts_eubw_structured_state_markers(self) -> None:
         result = _minimal_result("fetch")
         result.question = "Synthetic EUBW role-boundary question?"

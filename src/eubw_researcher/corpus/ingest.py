@@ -23,6 +23,10 @@ LOGGER = logging.getLogger(__name__)
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 STRONG_ANCHOR_RE = re.compile(r"^(article|section|clause|annex|chapter)\b", re.IGNORECASE)
 NUMBERED_ANCHOR_RE = re.compile(r"^((\d+(\.\d+)+)|appendix\s+[a-z0-9]+)\b", re.IGNORECASE)
+PLAINTEXT_NUMBERED_HEADING_RE = re.compile(
+    r"^\s*((?:\d+\.)*\d+|Appendix\s+[A-Z](?:\.\d+)*)\.\s+(.+?)\s*$",
+    re.IGNORECASE,
+)
 
 
 def _slugify(value: str) -> str:
@@ -60,6 +64,40 @@ def _parse_markdown_sections(text: str) -> Tuple[List[Tuple[List[str], str]], Li
     return sections, headings
 
 
+def _parse_plaintext_numbered_sections(text: str) -> Tuple[List[Tuple[List[str], str]], List[str]]:
+    """Recover anchors from RFC-style plaintext with numbered section headings."""
+    current_heading: Optional[str] = None
+    buffer: List[str] = []
+    sections: List[Tuple[List[str], str]] = []
+    headings: List[str] = []
+
+    def flush() -> None:
+        if current_heading is None:
+            return
+        content = "\n".join(buffer).strip()
+        if content:
+            sections.append(([current_heading], content))
+
+    for raw_line in text.splitlines():
+        match = PLAINTEXT_NUMBERED_HEADING_RE.match(raw_line)
+        if match:
+            if re.search(r"\.{3,}\s*\d+\s*$", match.group(2)):
+                continue
+            flush()
+            section_number = match.group(1).rstrip(".")
+            if current_heading is None and section_number != "1":
+                continue
+            title = match.group(2).strip()
+            current_heading = f"{section_number}. {title}"
+            headings.append(current_heading)
+            buffer = []
+        elif current_heading is not None:
+            buffer.append(raw_line)
+
+    flush()
+    return sections, headings
+
+
 def ingest_text_entry(
     entry: SourceCatalogEntry,
     text: str,
@@ -67,6 +105,11 @@ def ingest_text_entry(
     normalization_note: Optional[str] = None,
 ) -> Tuple[SourceDocument, IngestionReportEntry]:
     sections, headings = _parse_markdown_sections(text)
+    if not sections and (
+        "section_level" in entry.anchorability_hints
+        or "expect_anchors" in entry.anchorability_hints
+    ):
+        sections, headings = _parse_plaintext_numbered_sections(text)
     word_count = len(text.split())
 
     expects_section_anchors = any(
@@ -132,6 +175,10 @@ def ingest_text_entry(
                 else None,
                 structure_poor=False,
                 anchor_audit_note=anchor_audit.audit_note,
+                evidence_tier=entry.evidence_tier,
+                binding_level=entry.binding_level,
+                effective_date=entry.effective_date,
+                version_date=entry.version_date,
             )
             chunks.append(
                 SourceChunk(
@@ -149,6 +196,10 @@ def ingest_text_entry(
                     anchor_quality=anchor_quality,
                     extracted_anchor_label=anchor_label,
                     anchor_audit=anchor_audit,
+                    evidence_tier=entry.evidence_tier,
+                    binding_level=entry.binding_level,
+                    effective_date=entry.effective_date,
+                    version_date=entry.version_date,
                 )
             )
     else:
@@ -165,6 +216,10 @@ def ingest_text_entry(
             source_origin=entry.source_origin,
             structure_poor=structure_poor,
             anchor_audit_note=anchor_audit.audit_note,
+            evidence_tier=entry.evidence_tier,
+            binding_level=entry.binding_level,
+            effective_date=entry.effective_date,
+            version_date=entry.version_date,
         )
         chunks.append(
             SourceChunk(
@@ -182,6 +237,10 @@ def ingest_text_entry(
                 anchor_quality=anchor_quality,
                 extracted_anchor_label=None,
                 anchor_audit=anchor_audit,
+                evidence_tier=entry.evidence_tier,
+                binding_level=entry.binding_level,
+                effective_date=entry.effective_date,
+                version_date=entry.version_date,
             )
         )
 
@@ -211,6 +270,11 @@ def ingest_text_entry(
         normalization_status=NormalizationStatus.SUCCESS,
         normalization_format=normalization_format,
         normalization_note=normalization_note,
+        evidence_tier=entry.evidence_tier,
+        binding_level=entry.binding_level,
+        effective_date=entry.effective_date,
+        version_date=entry.version_date,
+        content_digest=entry.content_digest,
     )
     return document, report
 
@@ -258,6 +322,11 @@ def ingest_catalog(catalog: SourceCatalog) -> IngestionBundle:
                     normalization_status=NormalizationStatus.FAILED,
                     normalization_format=(entry.local_path.suffix.lstrip(".") if entry.local_path else None),
                     normalization_note=str(exc),
+                    evidence_tier=entry.evidence_tier,
+                    binding_level=entry.binding_level,
+                    effective_date=entry.effective_date,
+                    version_date=entry.version_date,
+                    content_digest=entry.content_digest,
                 )
             )
 

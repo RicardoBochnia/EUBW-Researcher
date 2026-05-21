@@ -1,0 +1,2 @@
+{"issue_id":"ISS-LEGACY-001","issue_statement":"Whether old wallet units must always be revoked after voluntary provider change remains unresolved.","reason_open":"Legacy material marks the operational rule as not finally specified.","bounded_by_evidence":["legacy_runtime_source"],"affected_claim_ids":["CLM-LEGACY-001"],"affected_source_ids":["legacy_runtime_source"],"severity":"medium","answer_impact":"qualifies_answer","status":"open","last_reviewed_date":"2026-05-07"}
+

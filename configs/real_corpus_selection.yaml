@@ -3,10 +3,46 @@
   "archive_catalog": "../artifacts/real_corpus/archive/catalog.json",
   "sources": [
     {
+      "archive_source_id": "SRC-L-01-FT-EN-DOC_1",
+      "source_id": "celex_32014R0910_fulltext_en",
+      "title": "Regulation (EU) No 910/2014 on electronic identification and trust services",
+      "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
       "archive_source_id": "SRC-L-02-FT-EN-DOC_1",
       "source_id": "celex_32024R1183_fulltext_en",
       "title": "Regulation (EU) 2024/1183 amending Regulation (EU) No 910/2014",
       "source_kind": "regulation",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-03-FT-EN-DOC_1",
+      "source_id": "celex_32024R2977_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2024/2977",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-04-FT-EN-DOC_1",
+      "source_id": "celex_32024R2979_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2024/2979",
+      "source_kind": "implementing_act",
       "source_role_level": "high",
       "jurisdiction": "EU",
       "publication_status": "official_journal",
@@ -99,6 +135,42 @@
       "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
     },
     {
+      "archive_source_id": "SRC-L-14-FT-EN-DOC_1",
+      "source_id": "celex_32025D2164_fulltext_en",
+      "title": "Commission Implementing Decision (EU) 2025/2164 on trusted lists",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-41-FT-EN-DOC_1",
+      "source_id": "celex_32025R1569_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2025/1569",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
+      "archive_source_id": "SRC-L-49-FT-EN-DOC_1",
+      "source_id": "celex_32025R1945_fulltext_en",
+      "title": "Commission Implementing Regulation (EU) 2025/1945",
+      "source_kind": "implementing_act",
+      "source_role_level": "high",
+      "jurisdiction": "EU",
+      "publication_status": "official_journal",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "article_level"]
+    },
+    {
       "archive_source_id": "SRC-W-TEC-06",
       "source_id": "openid4vci_1_0_official",
       "title": "OpenID for Verifiable Credential Issuance 1.0",
@@ -123,6 +195,18 @@
       "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"]
     },
     {
+      "archive_source_id": "SRC-W-TEC-11",
+      "source_id": "rfc6749_oauth2",
+      "title": "RFC 6749 OAuth 2.0",
+      "source_kind": "technical_standard",
+      "source_role_level": "high",
+      "jurisdiction": "international",
+      "publication_status": "standard",
+      "document_status": "final",
+      "publication_date": null,
+      "anchorability_hints": ["section_level"]
+    },
+    {
       "archive_source_id": "SRC-W-TEC-01",
       "source_id": "eudi_arf_latest_archive",
       "title": "European Digital Identity Architecture and Reference Framework",
@@ -133,6 +217,19 @@
       "document_status": "informational",
       "publication_date": null,
       "anchorability_hints": ["markdown_headings", "section_level"]
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-04",
+      "source_id": "eudi_arf_main_markdown",
+      "title": "ARF main markdown source",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "living_document",
+      "document_status": "informational",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"],
+      "source_family_id": "eudi_arf"
     },
     {
       "archive_source_id": "SRC-W-TEC-26",
@@ -164,6 +261,32 @@
       "archive_source_id": "SRC-W-TEC-28",
       "source_id": "ec_ts03_wallet_unit_attestation",
       "title": "Wallet unit attestation and lifecycle management",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "document_status": "informational",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"],
+      "source_family_id": "eudi_project_specs"
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-35",
+      "source_id": "ec_ts10_data_portability_export",
+      "title": "Data portability and download export",
+      "source_kind": "project_artifact",
+      "source_role_level": "medium",
+      "jurisdiction": "EU",
+      "publication_status": "technical_spec",
+      "document_status": "informational",
+      "publication_date": null,
+      "anchorability_hints": ["markdown_headings", "expect_anchors", "section_level"],
+      "source_family_id": "eudi_project_specs"
+    },
+    {
+      "archive_source_id": "SRC-W-TEC-36",
+      "source_id": "ec_ts11_catalogue_attributes_schemes",
+      "title": "Catalogue of attestation rulebooks and attributes",
       "source_kind": "project_artifact",
       "source_role_level": "medium",
       "jurisdiction": "EU",

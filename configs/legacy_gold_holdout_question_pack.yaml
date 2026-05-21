@@ -1,0 +1,324 @@
+{
+  "questions": [
+    {
+      "question_id": "legacy_gold_pubeaa_revocation",
+      "title": "Legacy Gold PubEAA Revocation",
+      "question": "Was passiert mit einem PubEAA, wenn es nach der Ausstellung widerrufen wird?",
+      "review_focus": "Legacy gold holdout for PubEAA revocation consequence.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["revocation", "validity"],
+      "required_cluster_source_ids": ["celex_32024R1183_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "pubeaa_loses_validity_on_revocation", "status": "source_backed_required", "terms": ["revoked", "lose", "validity"], "source_ids": ["celex_32024R1183_fulltext_en"]},
+        {"concept_id": "pubeaa_status_management", "status": "source_backed_required", "terms": ["status", "revocation"], "source_ids": ["celex_32025R1569_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "pub-eaa", "revocation"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_wrp_suspension_notification",
+      "title": "Legacy Gold WRP Suspension Notification",
+      "question": "Wer muss informiert werden, wenn die Registrierung einer Wallet-Relying-Party ausgesetzt oder geloescht wird?",
+      "review_focus": "Legacy gold holdout for registrar notification duties after WRP suspension/cancellation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["suspension", "notification"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "registrar_suspension_notification", "status": "source_backed_required", "terms": ["registrar", "notify", "suspend"], "source_ids": ["celex_32025R0848_fulltext_en"]},
+        {"concept_id": "registration_cancelled_or_suspended", "status": "source_backed_required", "terms": ["cancel", "suspend", "registration"], "source_ids": ["celex_32025R0848_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "wrp", "registration"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_access_certificate_issuance_limit",
+      "title": "Legacy Gold Access Certificate Issuance Limit",
+      "question": "Duerfen Wallet Units Nachweise von beliebigen Ausstellern anfordern oder nur von Stellen mit gueltigem Access Certificate?",
+      "review_focus": "Legacy gold holdout for valid relying-party access certificate requirements.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["access certificate", "valid"],
+      "required_cluster_source_ids": ["celex_32024R2982_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "valid_access_certificate_required", "status": "source_backed_required", "terms": ["valid", "access certificate"], "source_ids": ["celex_32024R2982_fulltext_en"]},
+        {"concept_id": "not_arbitrary_issuer_requests", "status": "source_backed_required", "terms": ["wallet-relying party", "access certificate"], "source_ids": ["celex_32024R2982_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "access-certificate", "issuance"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_identity_matching_actor",
+      "title": "Legacy Gold Identity Matching Actor",
+      "question": "Wer darf das eindeutige Identitaetsmatching fuer eine Wallet-Nutzung durchfuehren?",
+      "review_focus": "Legacy gold holdout for unequivocal identity matching responsibilities.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["identity", "matching"],
+      "required_cluster_source_ids": ["celex_32025R0846_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "identity_matching_actor", "status": "source_backed_required", "terms": ["identity matching", "wallet"], "source_ids": ["celex_32025R0846_fulltext_en"]},
+        {"concept_id": "unequivocal_matching_boundary", "status": "source_backed_required", "terms": ["unequivocal", "identity"], "source_ids": ["celex_32025R0846_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "identity"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_pubeaa_interface_status",
+      "title": "Legacy Gold PubEAA Interface And Status",
+      "question": "Muessen Stellen, die PubEAAs ausstellen, sowohl eine Wallet-Schnittstelle bereitstellen als auch Regeln fuer Gueltigkeits- oder Widerrufsstatus veroeffentlichen?",
+      "review_focus": "Legacy gold holdout for combined PubEAA wallet-interface and status-policy duties.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["interface", "revocation"],
+      "required_cluster_source_ids": ["celex_32024R1183_fulltext_en", "celex_32025R1569_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "pubeaa_wallet_interface", "status": "source_backed_required", "terms": ["interface", "wallet"], "source_ids": ["celex_32024R1183_fulltext_en"]},
+        {"concept_id": "pubeaa_status_policy_public", "status": "source_backed_required", "terms": ["policies", "validity", "revocation"], "source_ids": ["celex_32025R1569_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "pub-eaa", "interface"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_registrar_records_retention",
+      "title": "Legacy Gold Registrar Records Retention",
+      "question": "Wie lange muessen Registrare die Angaben zur WRP-Registrierung und zu Access- bzw. Registration Certificates aufbewahren?",
+      "review_focus": "Legacy gold holdout for registrar retention period.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["retain", "10 years"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "registrar_retains_registration_information", "status": "source_backed_required", "terms": ["10 years", "registration information"], "source_ids": ["celex_32025R0848_fulltext_en"]},
+        {"concept_id": "certificate_records_retention", "status": "source_backed_required", "terms": ["access certificates", "registration certificates"], "source_ids": ["celex_32025R0848_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "retention", "wrp"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_access_certificate_policy",
+      "title": "Legacy Gold Access Certificate Policy",
+      "question": "Was muss die Certificate Policy fuer Wallet-Relying-Party Access Certificates mindestens beschreiben?",
+      "review_focus": "Legacy gold holdout for access certificate policy content requirements.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["certificate policy", "access certificate"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "access_certificate_policy_content", "status": "source_backed_required", "terms": ["certificate policy", "access certificates"], "source_ids": ["celex_32025R0848_fulltext_en"]},
+        {"concept_id": "policy_practice_requirements", "status": "source_backed_required", "terms": ["policy", "practice statement"], "source_ids": ["celex_32025R0848_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "certificate-policy"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_registration_certificate_practice",
+      "title": "Legacy Gold Registration Certificate Practice",
+      "question": "Was muss das Practice Statement fuer Wallet-Relying-Party Registration Certificates abdecken?",
+      "review_focus": "Legacy gold holdout for registration certificate practice-statement scope.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["practice statement", "registration certificate"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "registration_certificate_practice_statement", "status": "source_backed_required", "terms": ["practice statement", "registration certificates"], "source_ids": ["celex_32025R0848_fulltext_en"]},
+        {"concept_id": "registration_certificate_scope", "status": "source_backed_required", "terms": ["registration certificate", "scope"], "source_ids": ["celex_32025R0848_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "registration-certificate"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_suspension_certificate_revocation",
+      "title": "Legacy Gold Suspension Certificate Revocation",
+      "question": "Wer muss nach einer ausgesetzten oder geloeschten WRP-Registrierung die betroffenen Zertifikate unverzueglich widerrufen?",
+      "review_focus": "Legacy gold holdout for certificate revocation after registration suspension/cancellation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["revoke", "certificates"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "affected_certificates_revoked", "status": "source_backed_required", "terms": ["revoke", "certificates"], "source_ids": ["celex_32025R0848_fulltext_en"]},
+        {"concept_id": "suspension_cancellation_trigger", "status": "source_backed_required", "terms": ["suspension", "cancellation"], "source_ids": ["celex_32025R0848_fulltext_en"]}
+      ],
+      "tags": ["legacy-gold-holdout", "revocation", "wrp"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_ebw_unit_attestation",
+      "title": "Legacy Gold EBW Unit Attestation",
+      "question": "Was muss ein European Business Wallet Provider fuer jede einzelne Wallet Unit im Hinblick auf die Unit Attestation tun?",
+      "review_focus": "Legacy gold holdout for EBW provider wallet-unit attestation duty.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["wallet unit", "attestation"],
+      "required_cluster_source_ids": ["ebw_annex_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "provider_generates_unit_attestation", "status": "source_backed_required", "terms": ["wallet unit attestation", "provider"], "source_ids": ["ebw_annex_com_2025_0838"]},
+        {"concept_id": "proposal_stage_qualification", "status": "source_backed_required", "terms": ["proposal-stage", "not final"], "source_ids": ["ebw_annex_com_2025_0838"]}
+      ],
+      "tags": ["legacy-gold-holdout", "ebw", "unit-attestation"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_ebw_unit_revocation_status",
+      "title": "Legacy Gold EBW Unit Revocation Status",
+      "question": "Was muss nach dem Widerruf einer European Business Wallet Unit Attestation oeffentlich verfuegbar sein?",
+      "review_focus": "Legacy gold holdout for public availability of EBW unit-attestation revocation status.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["revocation", "publicly"],
+      "required_cluster_source_ids": ["ebw_annex_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "wua_revocation_status_public", "status": "source_backed_required", "terms": ["revocation status", "publicly"], "source_ids": ["ebw_annex_com_2025_0838"]},
+        {"concept_id": "wallet_unit_attestation_revoked", "status": "source_backed_required", "terms": ["wallet unit attestation", "revoked"], "source_ids": ["ebw_annex_com_2025_0838"]}
+      ],
+      "tags": ["legacy-gold-holdout", "ebw", "revocation"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_ebw_public_sector_wallet",
+      "title": "Legacy Gold EBW Public Sector Wallet",
+      "question": "Muessen oeffentliche Stellen fuer die in der EBW-Verordnung genannten Verfahren selbst European Business Wallets haben?",
+      "review_focus": "Legacy gold holdout for public-sector body EBW obligation in proposal.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["public sector", "business wallets"],
+      "required_cluster_source_ids": ["ebw_proposal_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "public_sector_bodies_have_ebw", "status": "source_backed_required", "terms": ["public sector bodies", "European Business Wallets"], "source_ids": ["ebw_proposal_com_2025_0838"]},
+        {"concept_id": "article_16_proposal_stage", "status": "source_backed_required", "terms": ["Article 16", "proposal-stage"], "source_ids": ["ebw_proposal_com_2025_0838"]}
+      ],
+      "tags": ["legacy-gold-holdout", "ebw", "public-sector"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_ebw_transition_channel",
+      "title": "Legacy Gold EBW Transition Channel",
+      "question": "Duerfen Behoerden waehrend der Uebergangszeit noch andere Kommunikationsloesungen statt des Business-Wallet-Kanals nutzen?",
+      "review_focus": "Legacy gold holdout for EBW transitional communication-channel allowance.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["transition", "communication"],
+      "required_cluster_source_ids": ["ebw_proposal_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "transition_alternative_communication", "status": "source_backed_required", "terms": ["transitional", "communication solutions"], "source_ids": ["ebw_proposal_com_2025_0838"]},
+        {"concept_id": "business_wallet_channel_boundary", "status": "source_backed_required", "terms": ["Business Wallet", "communication"], "source_ids": ["ebw_proposal_com_2025_0838"]}
+      ],
+      "tags": ["legacy-gold-holdout", "ebw", "transition"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_ebw_user_auth_loa",
+      "title": "Legacy Gold EBW User Auth LoA",
+      "question": "Mit welchem Mindest-Vertrauensniveau muss ein Nutzer authentisiert sein, bevor Zugriff auf eine Business Wallet Unit gewaehrt werden darf?",
+      "review_focus": "Legacy gold holdout for EBW user authentication assurance level.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["assurance", "authentication"],
+      "required_cluster_source_ids": ["ebw_annex_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "minimum_assurance_level", "status": "source_backed_required", "terms": ["level of assurance", "access"], "source_ids": ["ebw_annex_com_2025_0838"]},
+        {"concept_id": "wallet_unit_user_authentication", "status": "source_backed_required", "terms": ["wallet unit", "authentication"], "source_ids": ["ebw_annex_com_2025_0838"]}
+      ],
+      "tags": ["legacy-gold-holdout", "ebw", "authentication"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_ebw_request_authorisation",
+      "title": "Legacy Gold EBW Request Authorisation",
+      "question": "Wodurch muessen Anfragen an eine Business Wallet Unit autorisiert oder authentisiert werden?",
+      "review_focus": "Legacy gold holdout for EBW request authorisation/authentication mechanism.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["authorised", "authenticated"],
+      "required_cluster_source_ids": ["ebw_annex_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "requests_authorised_or_authenticated", "status": "source_backed_required", "terms": ["requests", "authorised", "authenticated"], "source_ids": ["ebw_annex_com_2025_0838"]},
+        {"concept_id": "business_wallet_unit_request_boundary", "status": "source_backed_required", "terms": ["Business Wallet Unit", "request"], "source_ids": ["ebw_annex_com_2025_0838"]}
+      ],
+      "tags": ["legacy-gold-holdout", "ebw", "request-auth"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_lote_definition",
+      "title": "Legacy Gold LoTE Definition",
+      "question": "Was ist eine List of Trusted Entities (LoTE)?",
+      "review_focus": "Legacy gold holdout for ARF LoTE definition.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["LoTE", "trusted"],
+      "required_cluster_source_ids": ["eudi_arf_main_markdown"],
+      "expected_concept_candidates": [
+        {"concept_id": "lote_definition", "status": "source_backed_required", "terms": ["List of Trusted Entities", "LoTE"], "source_ids": ["eudi_arf_main_markdown"]},
+        {"concept_id": "trusted_list_provider", "status": "source_backed_required", "terms": ["Trusted List", "LoTE Provider"], "source_ids": ["eudi_arf_main_markdown"]}
+      ],
+      "tags": ["legacy-gold-holdout", "trust-infrastructure", "lote"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_access_ca_lote",
+      "title": "Legacy Gold Access CA LoTE",
+      "question": "Wie wird die Access CA LoTE veroeffentlicht und bereitgestellt?",
+      "review_focus": "Legacy gold holdout for Access CA LoTE publication and provision.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["Access Certificate Authorities", "LoTE"],
+      "required_cluster_source_ids": ["eudi_arf_main_markdown"],
+      "expected_concept_candidates": [
+        {"concept_id": "access_ca_lote_publication", "status": "source_backed_required", "terms": ["Access CA", "LoTE"], "source_ids": ["eudi_arf_main_markdown"]},
+        {"concept_id": "commission_common_trust_infrastructure", "status": "source_backed_required", "terms": ["common trust infrastructure", "Access Certificate Authorities"], "source_ids": ["eudi_arf_main_markdown"]}
+      ],
+      "tags": ["legacy-gold-holdout", "trust-infrastructure", "access-ca"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_oid4vci_authorization_server",
+      "title": "Legacy Gold OID4VCI Authorization Server",
+      "question": "Warum braucht OID4VCI vor der Credential-Ausgabe einen OAuth Authorization Server?",
+      "review_focus": "Legacy gold holdout for OID4VCI authorization-server role.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["Authorization Server", "Credential"],
+      "required_cluster_source_ids": ["openid4vci_1_0_official"],
+      "expected_concept_candidates": [
+        {"concept_id": "oid4vci_uses_authorization_server_metadata", "status": "source_backed_required", "terms": ["Authorization Server", "metadata"], "source_ids": ["openid4vci_1_0_official"]},
+        {"concept_id": "credential_issuance_authorization", "status": "source_backed_required", "terms": ["Credential Issuer", "authorization"], "source_ids": ["openid4vci_1_0_official"]}
+      ],
+      "tags": ["legacy-gold-holdout", "oid4vci", "oauth"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_oid4vp_state_nonce",
+      "title": "Legacy Gold OID4VP State Nonce",
+      "question": "Welche Funktion haben state und nonce bei OpenID4VP fuer Request-Bindung und Replay-Schutz, obwohl haeufig kein separater Authorization Server betrieben wird?",
+      "review_focus": "Legacy gold holdout for OID4VP state/nonce semantics.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["state", "nonce"],
+      "required_cluster_source_ids": ["openid4vp_1_0_official"],
+      "expected_concept_candidates": [
+        {"concept_id": "oid4vp_state_nonce_request_binding", "status": "source_backed_required", "terms": ["state", "nonce"], "source_ids": ["openid4vp_1_0_official"]},
+        {"concept_id": "oid4vp_replay_boundary", "status": "source_backed_required", "terms": ["Replay", "Verifiable Presentations"], "source_ids": ["openid4vp_1_0_official"]}
+      ],
+      "tags": ["legacy-gold-holdout", "oid4vp", "nonce"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    },
+    {
+      "question_id": "legacy_gold_oauth_client_misconception",
+      "title": "Legacy Gold OAuth Client Misconception",
+      "question": "Wenn jemand sagt, der OAuth Client sei das Benutzerkonto des Endnutzers: welche Rollen werden dabei verwechselt?",
+      "review_focus": "Legacy gold holdout for OAuth client versus resource-owner misconception.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["client", "resource owner"],
+      "required_cluster_source_ids": ["rfc6749_oauth2"],
+      "expected_concept_candidates": [
+        {"concept_id": "oauth_client_not_user_account", "status": "source_backed_required", "terms": ["client", "resource owner"], "source_ids": ["rfc6749_oauth2"]},
+        {"concept_id": "oauth_role_separation", "status": "source_backed_required", "terms": ["authorization server", "resource owner", "client"], "source_ids": ["rfc6749_oauth2"]}
+      ],
+      "tags": ["legacy-gold-holdout", "oauth", "roles"],
+      "review_prompts": ["Does the answer satisfy the expected legacy-gold concept with current source-backed evidence and visible caveats?"]
+    }
+  ]
+}

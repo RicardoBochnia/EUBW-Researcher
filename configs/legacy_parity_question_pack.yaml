@@ -1,0 +1,350 @@
+{
+  "questions": [
+    {
+      "question_id": "legacy_parity_q1_role_boundaries",
+      "title": "Legacy Parity Q1 Role Boundaries",
+      "question": "Welche Verantwortungsgrenzen sollten im EUBW-Ökosystem zwischen Wallet-Provider, Aussteller, Prüfer, Registerbetreiber und Vertrauensdiensteanbieter technisch und organisatorisch gezogen werden?",
+      "review_focus": "Legacy-parity gate for source-backed actor and responsibility boundaries.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["wallet", "provider"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "wallet_provider_boundary", "status": "source_backed_required", "terms": ["wallet provider", "provider"]},
+        {"concept_id": "issuer_boundary", "status": "source_backed_required", "terms": ["issuer", "aussteller", "issue"]},
+        {"concept_id": "relying_party_boundary", "status": "source_backed_required", "terms": ["relying party", "verifier", "prüfer"]},
+        {"concept_id": "registrar_boundary", "status": "source_backed_required", "terms": ["registrar", "register"]},
+        {"concept_id": "qtsp_boundary", "status": "source_backed_optional", "terms": ["qtsp", "trust service"]}
+      ],
+      "tags": ["legacy-parity", "q1", "roles"],
+      "review_prompts": ["Are all role boundaries source-backed or explicitly gapped?"]
+    },
+    {
+      "question_id": "legacy_parity_q2_lifecycle",
+      "title": "Legacy Parity Q2 Lifecycle",
+      "question": "Wie sollte der Lebenszyklus organisatorischer Nachweise und Mandate im EUBW aussehen, wenn sich Registerdaten, Vertretungsrechte oder Unternehmensstatus ändern?",
+      "review_focus": "Legacy-parity gate for register/status/revocation lifecycle handling.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["registration", "revocation"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "register_update", "status": "source_backed_required", "terms": ["register", "update", "registration"]},
+        {"concept_id": "revocation_status", "status": "source_backed_required", "terms": ["revocation", "status"]},
+        {"concept_id": "mandate_lifecycle", "status": "source_backed_required", "terms": ["mandate", "validity"]},
+        {"concept_id": "retention_boundary", "status": "source_backed_optional", "terms": ["retention", "audit"]}
+      ],
+      "tags": ["legacy-parity", "q2", "lifecycle"],
+      "review_prompts": ["Are lifecycle changes tied to source-backed status and revocation evidence?"]
+    },
+    {
+      "question_id": "legacy_parity_q3_audit_trails",
+      "title": "Legacy Parity Q3 Audit Trails",
+      "question": "Welche Audit- und Ereignisspuren müssten für Streitfälle oder Compliance-Nachweise erhalten bleiben, ohne in eine unverhältnismäßige Vollprotokollierung abzugleiten?",
+      "review_focus": "Legacy-parity gate for audit traces versus overlogging.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["audit", "transaction"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "audit_event_trace", "status": "source_backed_required", "terms": ["audit", "event", "trace"]},
+        {"concept_id": "transaction_log", "status": "source_backed_required", "terms": ["transaction", "log"]},
+        {"concept_id": "full_logging_boundary", "status": "source_backed_required", "terms": ["full", "logging", "retention"]},
+        {"concept_id": "data_minimization", "status": "source_backed_optional", "terms": ["minimization", "proportionality"]}
+      ],
+      "tags": ["legacy-parity", "q3", "audit"],
+      "review_prompts": ["Does the answer avoid implying full payload logging?"]
+    },
+    {
+      "question_id": "legacy_parity_q4_identity_authority",
+      "title": "Legacy Parity Q4 Identity Authority",
+      "question": "Wie sollte ein EUBW in einem grenzüberschreitenden Verfahren die Identität einer natürlichen Person sauber von ihrer Handlungsbefugnis für eine juristische Person trennen?",
+      "review_focus": "Legacy-parity gate for natural-person identity versus legal-person authority.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["identity", "legal"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "natural_person_identity", "status": "source_backed_required", "terms": ["natural person", "identity"]},
+        {"concept_id": "legal_person_identity", "status": "source_backed_required", "terms": ["legal person", "legal entity"]},
+        {"concept_id": "representation_authority", "status": "source_backed_required", "terms": ["representation", "mandate", "authority"]},
+        {"concept_id": "relying_party_check", "status": "source_backed_optional", "terms": ["relying party", "verification"]}
+      ],
+      "tags": ["legacy-parity", "q4", "identity-authority"],
+      "review_prompts": ["Are person identity and authority evidence kept separate?"]
+    },
+    {
+      "question_id": "legacy_parity_q5_architecture_buckets",
+      "title": "Legacy Parity Q5 Architecture Buckets",
+      "question": "Welche Aussagen zur EUBW-Architektur lassen sich direkt aus Proposal und Annex ableiten, welche sind an spätere technische Spezifikationen delegiert, und welche bleiben derzeit nur plausible Architekturannahmen?",
+      "review_focus": "Legacy-parity gate for direct/delegated/plausible architecture buckets.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["architecture", "specification"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "direct_architecture_constraint", "status": "source_backed_required", "terms": ["direct", "proposal", "annex"]},
+        {"concept_id": "delegated_specification", "status": "source_backed_required", "terms": ["delegated", "specification"]},
+        {"concept_id": "plausible_assumption", "status": "source_backed_required", "terms": ["plausible", "assumption", "open"]},
+        {"concept_id": "proposal_not_final_law", "status": "source_backed_required", "terms": ["proposal", "not final", "proposed"]}
+      ],
+      "tags": ["legacy-parity", "q5", "architecture"],
+      "review_prompts": ["Are all three architecture buckets explicit and source-qualified?"]
+    },
+    {
+      "question_id": "legacy_parity_q6_provider_change_portability",
+      "title": "Legacy Parity Q6 Provider Change",
+      "question": "Was passiert bei einem Wechsel des Wallet-Providers mit Nachweisen, Mandaten, Vertrauenskette und Auditspur, wenn echte Portabilität gefordert wird?",
+      "review_focus": "Legacy-parity gate for provider migration without Q6-specific intent.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["portability", "audit"],
+      "required_cluster_source_ids": ["ec_ts10_data_portability_export"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "migration_object_transaction_log", "status": "source_backed_required", "terms": ["migration object", "transaction log", "portability"], "source_ids": ["ec_ts10_data_portability_export"]},
+        {"concept_id": "device_bound_reissuance", "status": "source_backed_required", "terms": ["device-bound", "re-issuance", "rebinding"]},
+        {"concept_id": "non_device_copying", "status": "source_backed_optional", "terms": ["non-device-bound", "copy"]},
+        {"concept_id": "mandate_interoperability_gap", "status": "legacy_only_gap", "terms": ["mandate", "interoperability", "gap"]}
+      ],
+      "tags": ["legacy-parity", "q6", "provider-change", "portability"],
+      "review_prompts": ["Are migration object, re-binding, trust re-anchoring, and audit continuity covered or gapped?"]
+    },
+    {
+      "question_id": "legacy_parity_q7_delegation_chain",
+      "title": "Legacy Parity Q7 Delegation Chain",
+      "question": "Wie könnte eine mehrstufige Delegationskette technisch modelliert werden, etwa Geschäftsführer → Bereichsleiter → Mitarbeiter, ohne dass Nachvollziehbarkeit und Prüfbarkeit verloren gehen?",
+      "review_focus": "Legacy-parity gate for chain-of-attestations synthesis without Q7-specific intent.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["delegation", "mandate"],
+      "required_cluster_source_ids": ["ec_ts11_catalogue_attributes_schemes"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "signed_delegation_chain", "status": "source_backed_required", "terms": ["delegation", "chain", "attestation"]},
+        {"concept_id": "scope_validity_constraints", "status": "source_backed_required", "terms": ["scope", "validity", "constraints"]},
+        {"concept_id": "revocation_auditability", "status": "source_backed_required", "terms": ["revocation", "auditability"]},
+        {"concept_id": "subdelegation_legal_gap", "status": "legacy_only_gap", "terms": ["subdelegation", "legal", "gap"]}
+      ],
+      "tags": ["legacy-parity", "q7", "delegation"],
+      "review_prompts": ["Does the answer mark multi-stage delegation as synthesis and preserve legal/schema gaps?"]
+    },
+    {
+      "question_id": "legacy_parity_q8_source_conflict_priority",
+      "title": "Legacy Parity Q8 Source Conflict",
+      "question": "Welche Quelle sollte im Konfliktfall Vorrang haben, wenn Registerdaten, Wallet-gehaltene Nachweise und die aktuelle Unternehmensrealität auseinanderfallen?",
+      "review_focus": "Legacy-parity gate for authentic-source priority and conflict escalation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["authentic", "source"],
+      "required_cluster_source_ids": ["celex_32024R1183_fulltext_en"],
+      "forbidden_claim_ids": ["broad_regulatory_answer"],
+      "expected_concept_candidates": [
+        {"concept_id": "authentic_source_priority", "status": "source_backed_required", "terms": ["authentic source", "official record"], "source_ids": ["celex_32024R1183_fulltext_en"]},
+        {"concept_id": "wallet_evidence_derivative", "status": "source_backed_required", "terms": ["attestation", "wallet", "verify"]},
+        {"concept_id": "revocation_status", "status": "source_backed_required", "terms": ["revocation", "status"]},
+        {"concept_id": "business_reality_gap", "status": "legacy_only_gap", "terms": ["business reality", "unternehmensrealität", "gap"]}
+      ],
+      "tags": ["legacy-parity", "q8", "source-conflict"],
+      "review_prompts": ["Does the answer avoid saying wallet or asserted reality beats the authentic source?"]
+    },
+    {
+      "question_id": "legacy_parity_briefing_pid_device_binding",
+      "title": "Briefing PID Device Binding",
+      "question": "PID vs. Device Binding bei PID Batches – was sind vor- und Nachteile für die Anwendungsfälle Immabescheinigung und Studierendenausweis?",
+      "review_focus": "Legacy-parity gate for ambiguous PID Binding terminology and batch/device-binding nuance.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["attestation", "binding"],
+      "expected_concept_candidates": [
+        {"concept_id": "pid_binding_terminology_ambiguous", "status": "source_backed_required", "terms": ["PID Binding", "attribute", "cryptographic binding"]},
+        {"concept_id": "batch_same_dataset_boundary", "status": "source_backed_required", "terms": ["batch", "same", "credential dataset"]},
+        {"concept_id": "device_binding_wua", "status": "source_backed_required", "terms": ["Wallet Unit Attestation", "WUA", "device-bound"]},
+        {"concept_id": "student_id_minimal_status", "status": "source_backed_optional", "terms": ["student", "minimal", "status"]}
+      ],
+      "tags": ["legacy-parity", "briefing", "pid-device-binding"],
+      "review_prompts": ["Does the answer clarify PID Binding and avoid treating different study programmes as one batch?"]
+    },
+    {
+      "question_id": "legacy_parity_briefing_imma_query",
+      "title": "Briefing Correct Imma Query",
+      "question": "Wer muss die Abfrage der richtigen Immabescheinigung konzipieren, wenn eine Person für zwei Studiengänge immatrikuliert ist und eine RP beim BAföG-Antrag mehrere Immabescheinigungen in der Wallet vorfindet?",
+      "review_focus": "Legacy-parity gate for RP/Fachverfahren query responsibility and wallet non-guessing.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["relying", "attribute"],
+      "expected_concept_candidates": [
+        {"concept_id": "rp_query_responsibility", "status": "source_backed_required", "terms": ["relying party", "intended use", "attribute"]},
+        {"concept_id": "wallet_must_not_guess", "status": "source_backed_required", "terms": ["wallet", "select", "user"]},
+        {"concept_id": "imma_disambiguating_attributes", "status": "source_backed_optional", "terms": ["study programme", "validity", "status"]},
+        {"concept_id": "bafog_specific_source_gap", "status": "legacy_only_gap", "terms": ["BAföG", "specific", "gap"]}
+      ],
+      "tags": ["legacy-parity", "briefing", "imma-query"],
+      "review_prompts": ["Is fachliche query responsibility assigned to the RP/Fachverfahren rather than the wallet?"]
+    },
+    {
+      "question_id": "legacy_parity_briefing_rulebook_fields",
+      "title": "Briefing Rulebook Field Descriptions",
+      "question": "Wie würde man Feldbeschreibungen der Attribute für grenzüberschreitende Credentials im Rulebook vornehmen? Gibt es Konventionen jenseits der IANA JWT Claims Registry und wie stellt man EU-weit englisch verständliche Rulebooks sicher?",
+      "review_focus": "Legacy-parity gate for TS11/catalogue/rulebook language and field-description conventions.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["attribute", "description"],
+      "expected_concept_candidates": [
+        {"concept_id": "iana_not_semantic_registry", "status": "source_backed_required", "terms": ["IANA", "claim", "rulebook"]},
+        {"concept_id": "ts11_english_default_name", "status": "source_backed_required", "terms": ["english", "name", "description"]},
+        {"concept_id": "stable_identifier_namespace", "status": "source_backed_required", "terms": ["identifier", "namespace", "version"]},
+        {"concept_id": "no_general_english_only_rule", "status": "legacy_only_gap", "terms": ["English-only", "hard rule", "not found"]}
+      ],
+      "tags": ["legacy-parity", "briefing", "rulebook"],
+      "review_prompts": ["Does the answer use TS11/catalogue semantics rather than IANA alone?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_false_friend_wallet_register",
+      "title": "False Friend Wallet Register",
+      "question": "Wenn ein Wallet ein Registerzertifikat speichert, wird die Wallet dadurch selbst zur authentic source?",
+      "review_focus": "False-friend holdout for wallet-held evidence versus authentic source.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["authentic", "source"],
+      "expected_concept_candidates": [
+        {"concept_id": "wallet_not_authentic_source", "status": "source_backed_required", "terms": ["wallet", "authentic source", "verify"]},
+        {"concept_id": "register_remains_authority", "status": "source_backed_required", "terms": ["register", "official record"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "false-friend"],
+      "review_prompts": ["Does lexical wallet/register overlap avoid a wrong source-priority answer?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_mixed_language_trust_list",
+      "title": "Mixed Language Trust List",
+      "question": "How should an EBW verifier behandeln, ob ein Provider gelistet/notifiziert ist, bevor er eine Wallet Unit Attestation akzeptiert?",
+      "review_focus": "Mixed-language holdout for trust-list and wallet-unit-attestation navigation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["provider", "attestation"],
+      "required_cluster_source_ids": ["ec_ts03_wallet_unit_attestation"],
+      "expected_concept_candidates": [
+        {"concept_id": "provider_listing_check", "status": "source_backed_required", "terms": ["provider", "listed", "notified"]},
+        {"concept_id": "wallet_unit_attestation_check", "status": "source_backed_required", "terms": ["Wallet Unit Attestation", "attestation", "verify"]},
+        {"concept_id": "technical_vs_legal_status_split", "status": "source_backed_required", "terms": ["technical", "legal", "status"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "mixed-language", "trust"],
+      "review_prompts": ["Does the system navigate from mixed-language input to provider and wallet-unit-attestation sources?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_rp_scope",
+      "title": "Relying Party Scope",
+      "question": "Darf eine Wallet-Relying-Party beliebige Attribute abfragen, wenn sie einmal registriert ist, oder muss der konkrete Scope prüfbar bleiben?",
+      "review_focus": "Holdout for relying-party scope and registration/access evidence.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["registration", "attribute"],
+      "required_cluster_source_ids": ["celex_32025R0848_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "registration_not_unlimited_access", "status": "source_backed_required", "terms": ["registration", "scope", "attribute"]},
+        {"concept_id": "registered_purpose_or_use_check", "status": "source_backed_required", "terms": ["purpose", "use", "access"]},
+        {"concept_id": "certificate_topology_gap", "status": "legacy_only_gap", "terms": ["certificate", "topology", "gap"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "relying-party", "scope"],
+      "review_prompts": ["Does the answer avoid overgeneralizing registration into unlimited attribute access?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_proposal_vs_final",
+      "title": "Proposal Versus Final Law",
+      "question": "Welche EBW-Aussagen darf ich heute als geltendes Recht formulieren, und welche muss ich als Vorschlag oder technische Annahme qualifizieren?",
+      "review_focus": "Holdout for binding-level and document-status qualification.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["proposal", "regulation"],
+      "required_cluster_source_ids": ["ebw_proposal_com_2025_0838"],
+      "expected_concept_candidates": [
+        {"concept_id": "final_law_vs_proposal_split", "status": "source_backed_required", "terms": ["final", "proposal", "regulation"]},
+        {"concept_id": "ebw_not_current_law", "status": "source_backed_required", "terms": ["EBW", "proposal", "not final"]},
+        {"concept_id": "technical_assumption_qualification", "status": "source_backed_required", "terms": ["technical", "assumption", "qualify"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "source-governance", "qualification"],
+      "review_prompts": ["Does the answer keep proposal-stage EBW material out of current-law wording?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_missing_specific_source",
+      "title": "Missing Specific Source",
+      "question": "Gibt es eine finale EBW-Spezifikation für das Format eines mehrstufigen Mandats-Credentials?",
+      "review_focus": "Holdout for graceful gap handling when the specific source is not in the corpus or not final.",
+      "min_evidence_clusters": 1,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["mandate"],
+      "expected_concept_candidates": [
+        {"concept_id": "no_final_mandate_credential_format", "status": "source_backed_required", "terms": ["final", "mandate", "format", "not"]},
+        {"concept_id": "adjacent_evidence_only", "status": "source_backed_required", "terms": ["adjacent", "evidence", "bounded"]},
+        {"concept_id": "specific_schema_gap", "status": "legacy_only_gap", "terms": ["schema", "gap", "not found"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "gap-handling", "mandates"],
+      "review_prompts": ["Does the answer expose that final EBW mandate-credential formats are not yet evidenced?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_authentic_source_vs_issuer",
+      "title": "Authentic Source Versus Issuer",
+      "question": "Wenn ein Aussteller eine Attestation ausstellt, ersetzt er damit die authentic source oder bleibt die Quelle weiterhin separat prüfbar?",
+      "review_focus": "Holdout for issuer/source separation.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["authentic", "attestation"],
+      "required_cluster_source_ids": ["celex_32024R1183_fulltext_en"],
+      "expected_concept_candidates": [
+        {"concept_id": "issuer_not_authentic_source_replacement", "status": "source_backed_required", "terms": ["issuer", "authentic source", "replace"]},
+        {"concept_id": "source_remains_verifiable", "status": "source_backed_required", "terms": ["source", "verify", "separate"]},
+        {"concept_id": "status_revocation_responsibility", "status": "source_backed_required", "terms": ["status", "revocation", "attestation"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "issuer", "authentic-source"],
+      "review_prompts": ["Does the answer avoid treating issuer output as replacing the authentic source?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_audit_minimization",
+      "title": "Audit Minimization",
+      "question": "Welche Ereignisse müsste ein EBW für Auditierbarkeit protokollieren, ohne Inhalte jeder Präsentation dauerhaft vollständig zu speichern?",
+      "review_focus": "Holdout for auditability versus data-minimization tension.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["audit", "log"],
+      "expected_concept_candidates": [
+        {"concept_id": "event_proof_not_payload_retention", "status": "source_backed_required", "terms": ["event", "proof", "payload"]},
+        {"concept_id": "authorization_or_transaction_log", "status": "source_backed_required", "terms": ["authorization", "transaction", "log"]},
+        {"concept_id": "retention_proportionality_gap", "status": "legacy_only_gap", "terms": ["retention", "proportionality", "gap"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "audit", "minimization"],
+      "review_prompts": ["Does the answer distinguish event proof from full payload retention?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_cross_border_company_identity",
+      "title": "Cross Border Company Identity",
+      "question": "Wie kann ein Prüfer grenzüberschreitend erkennen, ob die handelnde Person für genau diese juristische Person und nicht nur für eine ähnlich benannte Firma handelt?",
+      "review_focus": "Holdout for cross-border legal-person identity and representation evidence.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["legal", "person"],
+      "expected_concept_candidates": [
+        {"concept_id": "natural_legal_representation_split", "status": "source_backed_required", "terms": ["natural person", "legal person", "representation"]},
+        {"concept_id": "official_record_identifier", "status": "source_backed_required", "terms": ["official record", "identifier", "register"]},
+        {"concept_id": "country_specific_gap", "status": "legacy_only_gap", "terms": ["country", "specific", "gap"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "cross-border", "legal-person"],
+      "review_prompts": ["Does the answer separate natural person, legal person, and representation evidence?"]
+    },
+    {
+      "question_id": "legacy_parity_holdout_architecture_assumption",
+      "title": "Architecture Assumption",
+      "question": "Ist es Architekturvorgabe, dass Mandate lokal im Wallet gespeichert werden, oder kann das auch über externe Register-/Issuer-Abfragen modelliert werden?",
+      "review_focus": "Holdout for architecture assumptions versus delegated technical design.",
+      "min_evidence_clusters": 2,
+      "require_claim_verification": true,
+      "required_cluster_terms": ["wallet", "register"],
+      "expected_concept_candidates": [
+        {"concept_id": "storage_pattern_not_mandated", "status": "source_backed_required", "terms": ["wallet", "register", "not mandated"]},
+        {"concept_id": "direct_vs_plausible_architecture_split", "status": "source_backed_required", "terms": ["direct", "plausible", "architecture"]},
+        {"concept_id": "delegated_storage_design_gap", "status": "legacy_only_gap", "terms": ["delegated", "storage", "gap"]}
+      ],
+      "tags": ["legacy-parity", "holdout", "architecture", "assumptions"],
+      "review_prompts": ["Does it avoid pretending one storage pattern is already mandated?"]
+    }
+  ]
+}
