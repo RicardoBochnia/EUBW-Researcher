@@ -515,3 +515,192 @@ Ausformuliert als Arbeitsauftrag:
 | 1 | nein | verloren im Blind Review | Legacy-CLI lief urspruenglich nicht, daher Runtime-Confounder |
 | 2 | ja | verloren | richtige Quelle im Katalog, aber nicht im Reading Plan; schwache Traceability |
 | 3 | eingeschraenkt | beide Hard Error; Legacy inhaltlich vorn | beide Review-Antworten ohne Quellenpfad; Researcher-Final war traceable, aber roh und schlecht synthetisiert |
+
+## Round 4: pseudonym_account_binding
+
+### Frage
+
+> Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung statt Offenlegung der Identitaet nutzen, und welche Grenzen entstehen bei Account-Bindung, Attributpraesentation und linkbaren Pseudonymen?
+
+### Pre-Run Checks
+
+Novelty:
+
+- Legacy enthaelt einfache Pseudonym-Benchmarks, u. a. ob die Wallet Pseudonyme unterstuetzen muss und ob Relying Parties Pseudonyme ohne Identifizierungspflicht ablehnen duerfen.
+- Keine identische Frage zur Kombination aus pseudonymer Authentifizierung, Account-Bindung, Attributpraesentation und linkbaren Pseudonymen gefunden.
+- Bewertung: nicht komplett orthogonal, aber als realistische Holdout-Synthesefrage akzeptabel.
+
+Gemeinsame Quellen:
+
+- EUBW-Researcher und Legacy enthalten `SRC-W-TEC-04` / ARF mit Pseudonym-Use-Cases, Account-Bindung und linkable pseudonymous authentication.
+- Beide Repos enthalten eIDAS-/EUDI-Wallet-Rechtsquellen zu Pseudonymen und Wallet-spezifischer Pseudonymgenerierung.
+- Beide Repos enthalten OpenID4VP- bzw. Presentation-Kontext zu Presentation Binding, selektiver Offenlegung und Linkability-Risiken.
+- Kein offensichtlicher Corpus-Confounder fuer die erwarteten Kernquellen.
+
+### Verwendete Befehle
+
+Researcher:
+
+```bash
+python3 scripts/answer_question.py "Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung statt Offenlegung der Identitaet nutzen, und welche Grenzen entstehen bei Account-Bindung, Attributpraesentation und linkbaren Pseudonymen?" \
+  --catalog artifacts/real_corpus/curated_catalog.json \
+  --runtime-config configs/runtime.knowledge_composer_vnext.yaml \
+  --output-dir artifacts/tmp/blind_source_holdout_2026-05-20/round-4-pseudonym-account-binding/researcher
+```
+
+Legacy:
+
+```bash
+./.venv/bin/python scripts/query_with_profile.py \
+  --profile analysis_hybrid_semantic_global_tuned \
+  --question "Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung statt Offenlegung der Identitaet nutzen, und welche Grenzen entstehen bei Account-Bindung, Attributpraesentation und linkbaren Pseudonymen?" \
+  --fail-on-contract \
+  --no-write-answer
+```
+
+Legacy Runtime-Befund:
+
+- Der geplante Query-Pfad lief mit Exit-Code `0`.
+- `contract_checks=pass`.
+- Kein Fallback war erforderlich.
+
+### Redaction Log
+
+Keine inhaltliche Redaktion. Fuer den Blind Review wurde nur `answer_for_review` verwendet; `method_note` blieb ausserhalb des Review-Kontexts.
+
+| System alias | Entfernte Textart | Anzahl |
+| --- | --- | ---: |
+| A | keine | 0 |
+| B | keine | 0 |
+
+### Anonymisierte Antworten
+
+System A:
+
+> Ein Wallet-Use-Case kann pseudonyme Authentifizierung nutzen, wenn der Dienst zwar eine Wallet-basierte Authentisierung oder Attributpruefung braucht, aber keine Union- oder nationale Rechtsregel die Offenlegung der rechtlichen Identitaet verlangt. Der Kern ist: Die Wallet selbst beruht auf einer belastbaren rechtlichen Identitaet, aber diese Basisidentitaet muss nicht in jeder Transaktion offengelegt werden. Die eIDAS-Aenderungsverordnung sagt ausdruecklich, dass die Abstuetzung der Wallet auf rechtliche Identitaet den Zugang zu Diensten unter Pseudonym nicht hindern soll, wenn fuer die Authentifizierung keine rechtliche Identitaet erforderlich ist; sie verlangt zudem Wallet-Funktionen zum Erzeugen nutzergewaehlter Pseudonyme und untersagt Relying Parties, Pseudonyme abzulehnen, wenn Nutzeridentifikation rechtlich nicht erforderlich ist. [Regulation (EU) 2024/1183, recitals 19 and 22; Article 5a(4); Article 5b(9)]
+>
+> Praktisch passt pseudonyme Authentifizierung daher zu Faellen wie wiederkehrendem Login, Alters-/Berechtigungsnachweis, Statusnachweis oder Dienstzugang, bei denen der Dienst nur wissen muss, dass dieselbe berechtigte Person wiederkommt oder dass eine Eigenschaft erfuellt ist. Sie passt nicht, sobald der konkrete Vorgang eine identifizierte Person braucht, etwa wegen KYC, hoheitlicher Identifizierung, besonderer sektoraler Pflichten, qualifizierter Signatur mit Namensbezug oder einer Rechtsfolge, die an die reale Person gebunden ist. Auch dann kann Datenminimierung greifen, aber nicht als Ersatz fuer die erforderliche Identifizierung.
+>
+> Die erste Grenze ist Account-Bindung. Ein Pseudonym kann absichtlich stabil sein, damit ein bestehendes Konto wiedererkannt wird; damit wird es aber zum Account-Identifier und ist gegenueber dieser Relying Party gerade linkbar. Der Gegenpart bleibt ebenfalls nicht anonym: Relying Parties muessen sich registrieren, dem Nutzer identifizieren und ihren Intended Use samt angefragten Daten angeben; nationale Register enthalten u.a. Name, Trade Name, Identifier, Zweck und angefragte Daten. [Regulation (EU) 2024/1183, Article 5b(2), 5b(8), 5b(9); Implementing Regulation (EU) 2025/848, Article 3; Common Set of Relying Party Information, sections 2.1 and 2.2] Bei OpenID4VP wird die Presentation zudem an `client_id` und `nonce` gebunden, um Replay und falsche Empfaenger zu verhindern. Das ist sicherheitsnotwendig, zeigt aber auch: Account- oder Audience-Bindung ist nicht dasselbe wie Anonymitaet. [OpenID for Verifiable Presentations 1.0, sections 5, 14.1.2]
+>
+> Die zweite Grenze ist Attributpraesentation. Die Wallet soll selektive Offenlegung ermoeglichen: Der Nutzer kann PID und Attestierungen auswaehlen, kombinieren und nur noetige Daten praesentieren; bei eingebetteten Disclosure Policies muss der Nutzer informiert werden, dass die anfragende Partei Zugriff auf die Attestierung haben darf. [Regulation (EU) 2024/1183, Article 5a(4), Article 5a(4)(e); recital 37] OpenID4VP unterstuetzt dies mit DCQL: Der Verifier beschreibt Credentials und Claims; bei selektiv offenbarbaren Formaten darf die Wallet nicht einfach nicht-ausgewaehlte Claims mitsenden. Wenn ein Format keine selektive Offenlegung kann, laeuft eine Anfrage ohne Claim-Auswahl faktisch auf die volle Credential-Praesentation hinaus. [OpenID for Verifiable Presentations 1.0, sections 6.4 and 6.4.1] Ausserdem koennen Value-Matching-Anfragen bereits Informationen ueber Attributwerte leaken; Fehler sollten deshalb nicht vor Nutzerinteraktion oder Zustimmung zurueckgegeben werden. [OpenID for Verifiable Presentations 1.0, sections 15.4.1 and 15.9.2]
+>
+> Die dritte Grenze sind linkbare Pseudonyme und linkbare Credential-Praesentationen. Selbst wenn nur wenige Claims offengelegt werden, koennen Issuer-Signaturen, credential-gebundene oeffentliche Schluessel oder wiederverwendete Credential-Instanzen Praesentationen ueber Sessions oder Verifier hinweg verknuepfbar machen. OpenID4VP nennt als Gegenmassnahmen u.a. mehrere Credential-Instanzen mit unterschiedlichen Issuer-Signaturen/Schluesseln, Einmalverwendung oder verifier-spezifische Nutzungsregeln; batch issuance kann wichtige Unlinkability-Eigenschaften unterstuetzen. [OpenID for Verifiable Presentations 1.0, section 15.5] Ein Pseudonym ist also nur dann eine datensparsame Alternative zur Identitaetsoffenlegung, wenn sein Scope sauber begrenzt ist: stabil nur dort, wo Account-Kontinuitaet gebraucht wird; getrennt pro Relying Party oder pro Zweck, wo Cross-Service-Linkability vermieden werden soll; und nicht als Tarnung fuer Identitaetspflichten.
+>
+> Kurzform: Pseudonyme Authentifizierung ist zulaessig und fachlich sinnvoll, wenn der Use Case Authentizitaet, Kontinuitaet oder eine Eigenschaft braucht, aber keine rechtliche Identitaet. Grenzen entstehen, sobald Recht oder Risiko echte Identifizierung verlangen, sobald Account-Bindung absichtlich Wiedererkennbarkeit erzeugt, sobald Attributpraesentation mehr Daten als noetig offenlegt, und sobald Pseudonym oder Credential-Material ueber Sessions, Zwecke oder Relying Parties hinweg wiederverwendet wird.
+
+System B:
+
+> Ein Wallet-Use-Case kann pseudonyme Authentifizierung nutzen, wenn die Relying Party fuer den konkreten Dienst nicht die rechtliche Identitaet des Nutzers kennen muss. Der bindende Ausgangspunkt ist zweistufig: Die Nutzung von Pseudonymen darf nicht verboten werden, vorbehaltlich spezieller Unions- oder nationaler Regeln, die Identifizierung verlangen; und Relying Parties duerfen Pseudonyme nicht ablehnen, wenn Nutzeridentifizierung nicht unions- oder nationalrechtlich erforderlich ist. [CLM-EUDI_WALLET_OBLIGATIONS-FA5C16D561C2; SRC-L-02-FT-EN-DOC_1; Article 5] [CLM-EUDI_WALLET_OBLIGATIONS-B2FE98E3AA83; SRC-L-02-FT-EN-DOC_1; Article 5b]
+>
+> Fachlich ist das nicht gleichbedeutend mit anonymer Nutzung. Ein Pseudonym dient gerade dazu, denselben Nutzer innerhalb eines bestimmten Geltungsbereichs wiederzuerkennen, ohne die Identitaet offenzulegen. Typische Faelle sind Login oder wiederholter Zugriff auf ein Konto, bei denen die Relying Party nur wissen muss: "dies ist derselbe berechtigte Wallet-Nutzer wie zuvor", nicht aber Name oder Personenkennzeichen. Die ARF-Kontextquelle beschreibt dies als pseudonyme Authentifizierung, bei der das Pseudonym regelmaessig mit einem Konto verknuepft wird; fuer Account-Zugriff muss es im relevanten Scope eindeutig sein, und ein Nutzer kann bei derselben Relying Party auch mehrere Pseudonyme, etwa fuer mehrere Konten, halten. [SRC-W-TEC-04; Section 2.5.2]
+>
+> Die Wallet-spezifische Pflicht ist enger: Wallet Units muessen auf Anfrage einer Wallet-Relying-Party ein Pseudonym erzeugen koennen, das fuer diese Relying Party spezifisch und eindeutig ist, und es entweder allein oder zusammen mit angeforderten Personenidentifikationsdaten oder elektronischen Attributattestierungen bereitstellen. [CLM-PUBLIC_SECTOR_RELYING_PARTY-947C2EE26C13; SRC-L-04-FT-EN-DOC_1; Article 14] Daraus folgt: Pseudonymisierung ist besonders passend, wenn der Use Case Wiedererkennung, Berechtigung oder Kontinuitaet braucht, aber keine Offenlegung der zivilen Identitaet. Sie ist nicht passend oder jedenfalls nicht ausreichend, wenn Union- oder nationales Recht Identifizierung verlangt oder wenn der konkrete Vorgang eine validierte Identitaet, ein qualifiziertes Attribut oder eine rechtliche Zuordnung voraussetzt.
+>
+> Bei Account-Bindung entsteht die erste Grenze. Ein RP-spezifisches Pseudonym kann ein Konto tragen, aber es ist dann ein stabiler Identifier innerhalb dieses RP-Scopes. Das schuetzt gegen unnoetige Identitaetsoffenlegung gegenueber anderen Parteien, verhindert aber nicht, dass die konkrete Relying Party Aktivitaeten ueber Zeit demselben Konto/Pseudonym zuordnet. Wird zusaetzlich ein Attribut oder PID beim Konto registriert, muss die Relying Party ausreichend pruefen koennen, dass die Attribute zu demselben Nutzer gehoeren, der das Pseudonym kontrolliert; der ARF-Kontext nennt dafuer presentation-/attribute-/cryptographic-binding-Mechanismen. [SRC-W-TEC-04; Sections 2.5.3 and 6.6.3.10.2] Die Grenze lautet also: Pseudonym statt Identitaet funktioniert fuer Account-Kontinuitaet, aber nicht als Beweis, dass ein Konto ohne weitere Bindung zu bestimmten PID-/Attributdaten gehoert.
+>
+> Bei Attributpraesentation entsteht die zweite Grenze. EUDI-Wallets sollen PID und elektronische Attributattestierungen unter Nutzerkontrolle praesentieren und selektive Offenlegung ermoeglichen; Relying Parties bleiben fuer Authentifizierung und Validierung der angeforderten PID- und EAA-Daten verantwortlich. [SRC-L-02-FT-EN-DOC_1; Article 5a] [CLM-EUDI_WALLET_OBLIGATIONS-082C70123CBE; SRC-L-02-FT-EN-DOC_1; Article 5b] Gleichzeitig koennen elektronische Attributattestierungen embedded disclosure policies enthalten; Wallet-Instanzen muessen pruefen, ob die Relying Party diese Bedingungen erfuellt, und den Nutzer informieren. [CLM-PUBLIC_SECTOR_RELYING_PARTY-C59A9A3E5A34; SRC-L-04-FT-EN-DOC_1; Article 2] [CLM-PUBLIC_SECTOR_RELYING_PARTY-2F8C7ECD2E46; SRC-L-04-FT-EN-DOC_1; Article 10] Technisch kann eine Presentation Query optionale und erforderliche Credential Sets unterscheiden; nicht passende Credentials duerfen nicht zurueckgegeben werden. [CLM-OID4V_PRESENTATION_ROLES-F5FCABE529FD; SRC-W-TEC-07; Section 6.2] Die Grenze lautet: Pseudonymisierung ersetzt nicht die Minimalitaets-, Zweck-, Policy- und Validierungspruefung fuer Attribute.
+>
+> Zusatzlich begrenzen Registrierung und RP-Berechtigung die Attributanfrage. Die nicht bindende ARF-/Discussion-Topic-Lage beschreibt, dass Wallet-Nutzer pruefen koennen sollen, ob die angefragten Attribute im registrierten Scope der Relying Party liegen; Registrierungscertificates koennen anzeigen, welche Attribute eine Relying Party fuer einen Intended Use registriert hat. [CLM-RP_REGISTRATION_ACCESS_CERTIFICATES-DD73534145C1; SRC-W-TEC-64; Article 5b] [SRC-W-TEC-04; Section 6.6.3.3] Wenn kein Registration Certificate vorliegt, sieht der ARF-Kontext eine Abfrage beim Registrar vor; die Review-relevante Unsicherheit ist, dass diese Zusatzpruefungen und Certificate-Ausgabe im Kontext teils optional oder noch technisch auszupraegen sind. [CLM-RP_REGISTRATION_ACCESS_CERTIFICATES-F816D3E6BD3E; SRC-W-TEC-04; Section 6.6.3.3] [SRC-W-TEC-64; Topic 44]
+>
+> Bei linkbaren Pseudonymen entsteht die dritte und groesste Privacy-Grenze. Das Standardbild aus der bindenden Wallet-Pseudonympflicht ist RP-spezifisch und eindeutig fuer die jeweilige Wallet-Relying-Party. Cross-Party-Linkbarkeit ist ein anderer Use Case: Die ARF-Kontextquelle nennt linkable pseudonymous authentication, bei der ein einziges Pseudonym gegenueber mehreren Akteuren verwendet wird, damit diese denselben Nutzer fuer einen bestimmten Zweck wiedererkennen koennen. Das kann etwa in arbeitsteiligen Transaktionen nuetzlich sein, fuehrt aber zu gewollter Korrelierbarkeit und sollte nur genutzt werden, wo der Zweck dies wirklich erfordert, mit Safeguards und Nutzerwahl. [SRC-W-TEC-04; Section 2.5.5]
+>
+> Auch die Art des Pseudonyms macht einen Unterschied. Verifizierbare Pseudonyme koennen pseudonyme Authentifizierung und Attributpraesentation mit anschliessender pseudonymer Authentifizierung tragen; attestierte Pseudonyme koennen aehnliches leisten, bringen aber ohne Sonderregeln Linkability-Risiken mit; rate-limitierte Pseudonyme dienen eher "nur N Teilnahmen pro Scope"-Faellen. [SRC-W-TEC-04; Section 4.7.1] Praktisch sollte ein Use Case daher nicht nur fragen, ob Identitaet offengelegt werden muss, sondern auch: welcher Scope fuer Wiedererkennung erlaubt ist, ob Attribute einmalig oder dauerhaft ans Konto gebunden werden, ob mehrere Akteure denselben Nutzer erkennen duerfen, und welche gesetzliche oder policybasierte Pflicht eine Offenlegung dennoch verlangt.
+>
+> Kurzform: Pseudonyme Authentifizierung ist fachlich tragfaehig, wenn keine Identifizierungspflicht besteht und der Dienst mit scope-gebundener Wiedererkennung, Berechtigungspruefung oder Kontinuitaet auskommt. Ihre Grenzen liegen bei rechtlich erforderlicher Identitaet, bei Account-Bindung ohne ausreichende Subjekt-/Attributbindung, bei Attributanfragen ausserhalb registrierter oder policykonformer Zwecke und bei linkbaren Pseudonymen, die Privacy gerade dadurch reduzieren, dass mehrere Akteure denselben Nutzer wiedererkennen koennen.
+
+### Blind Review Matrix
+
+| Reviewer | System | Quellentreue | Antwortqualitaet | Grenzen/Luecken | Traceability | Nutzbarkeit | Hard Error |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| reviewer_1 | A | 3 | 3 | 3 | 3 | 3 | none |
+| reviewer_1 | B | 2 | 3 | 3 | 2 | 3 | none |
+| reviewer_2 | A | 3 | 3 | 3 | 3 | 3 | none |
+| reviewer_2 | B | 2 | 3 | 3 | 2 | 2 | none |
+
+Totals:
+
+| System | Reviewer 1 | Reviewer 2 | Average |
+| --- | ---: | ---: | ---: |
+| A | 15 | 15 | 15.0 |
+| B | 13 | 12 | 12.5 |
+
+Konfliktaufloesung:
+
+- Keine Abweichung groesser als 1 Punkt je Kriterium.
+- Kein Hard-Error-Widerspruch.
+- Keine Adjudication erforderlich.
+
+Reviewer-Identitaetsvermutungen:
+
+| Reviewer | guessed A | guessed B | Confidence | Ergebnis |
+| --- | --- | --- | ---: | --- |
+| reviewer_1 | keine belastbare Vermutung | keine belastbare Vermutung | 0 | nicht anwendbar |
+| reviewer_2 | keine belastbare Vermutung | keine belastbare Vermutung | 0 | nicht anwendbar |
+
+Fingerprinting-Befund:
+
+- Beide Reviewer gaben keine belastbare Identitaetsvermutung ab.
+- Sichtbare Quellenformate reichten in dieser Runde nicht fuer eine Systemzuordnung.
+
+### Entblindung
+
+| System alias | Repo |
+| --- | --- |
+| A | EUBW-Researcher |
+| B | Legacy-EUBW |
+
+Round-4-Ergebnis:
+
+- Wertung fuer Holdout-Gesamtstand: zaehlbar.
+- Blind-Content-Review: EUBW-Researcher gewinnt.
+- Keine harten Fehler bei beiden Antworten.
+- Kein offensichtlicher Corpus-Confounder: die relevanten Pseudonym-, eIDAS-, RP-Registration- und Presentation-Quellen waren in beiden Repos vorhanden.
+
+### Methodendiagnose
+
+Researcher-Agent:
+
+- `repo_helpfulness_score`: 3
+- Standardpfad lief und schrieb Artefakte unter `artifacts/tmp/blind_source_holdout_2026-05-20/round-4-pseudonym-account-binding/researcher`.
+- Die automatisch erzeugte `final_answer.txt` war nicht reviewfaehig: sie begann mit register- und notificationlastigen Rohsaetzen und beantwortete die Pseudonymfrage nur indirekt.
+- `knowledge_retrieval_diagnostics.json` enthielt zwar zentrale Source-Familien wie `celex_32024R1183_fulltext_en`, `celex_32024R2979_fulltext_en`, `eudi_arf_main_markdown`, `ec_ts05_rp_registration_api`, `ec_ts06_rp_information_set`, `ec_ts10_data_portability_export` und `openid4vp_1_0_official`, priorisierte aber in den Top-Chunks erneut RP-Registration, Trust-Mark und Supervisory-Kontext vor den eigentlichen Pseudonym-Abschnitten.
+- `reading_plan.json` oeffnete u. a. Article 46a, Article 1, RP-Registration, EBW Proposal/Annex und Trust-Mark-Kontext; praezise Pseudonym-Anker wie ARF 2.5.2/2.5.5 oder CIR 2024/2979 Article 14 wurden nicht als klare Hauptlesestellen sichtbar.
+- `evidence_synthesis_matrix.json` enthielt wieder rohe/trunkierte Aussagen und facet tags wie `open_issue_or_member_state_choice`, die nicht zur Frage passten.
+- Die starke System-A-Antwort entstand durch einen Agenten, der die Artefakte als Navigationshilfe nutzte und dann direkt in den gebuendelten Quellen nachlas. Nach Methodennotiz lag der Direktlese-Anteil bei ca. 70 Prozent.
+
+Legacy-Agent:
+
+- `repo_helpfulness_score`: 3
+- Der geplante Query-Pfad lief mit `contract_checks=pass`.
+- Die Query-Ausgabe lieferte gute Kernclaims zu Article 5, Article 5b, Article 14, embedded disclosure policies, Presentation Query und ARF-Pseudonym-Use-Cases.
+- Legacy hatte ebenfalls breites Rauschen im Trefferbild, u. a. OAuth-/OID4VCI- und EBW-Kontext, aber die relevanten Claim-IDs und ARF-Chunks waren sichtbarer und schneller nutzbar.
+- Nach Methodennotiz stammten ca. 45 Prozent aus direkter Nachlese, ca. 55 Prozent aus Runtime-Retrieval und Claim-/Relationenbild.
+
+Limitation:
+
+- Legacy hat keine aequivalenten Intermediate-Artefakte zu `reading_plan.json`, `opened_passages.json` oder `evidence_synthesis_matrix.json`; Pfadqualitaet ist daher asymmetrisch beobachtbar.
+- Round 4 misst nicht den Roh-`final_answer.txt`-Output allein. Beide Systeme wurden durch Answer-Agenten genutzt, die Repo-Output und Direktlese kombinieren durften. Unter diesem agentischen Nutzungsmodell gewann Researcher; der automatische vNext-Renderer selbst bleibt in dieser Runde deutlich unter Zielbild.
+
+### Verbesserungsfolgerungen fuer EUBW-Researcher
+
+1. Round 4 bestaetigt das Zielbild: Als navigierbarer Knowledge-Service kann Researcher einem Agenten genug Material liefern, um Legacy zu schlagen.
+2. Der Produkt-Renderer ist weiterhin der Engpass. Die Rohantwort darf nicht mit register-, notification- oder trust-mark-lastigen Synthesis-Zeilen beginnen, wenn die Frage klar nach Pseudonymitaet fragt.
+3. Retrieval braucht facet-spezifische Pseudonym-Navigation: `pseudonymous authentication`, `linkable pseudonymous authentication`, Account-Bindung, selective disclosure, Presentation Binding und RP-specific pseudonym sollten als eigene Facetten/Terms erkennbar sein.
+4. Die Reading-Loop sollte bei Fragebegriffen wie `pseudonym`, `Account-Bindung`, `Attributpraesentation` und `linkbar` gezielt ARF 2.5/4.7, CIR 2024/2979 Article 14, eIDAS Article 5/5a/5b und OpenID4VP Linkability/Selective-Disclosure-Abschnitte oeffnen.
+5. `evidence_synthesis_matrix` muss answer-ready Statements mit passenden Facets erzeugen; generische `open_issue_or_member_state_choice`-Tags und trunkierte Rohsaetze fuehren sonst trotz guter Quellenabdeckung zu schlechten Rohantworten.
+
+### Zwischenstand nach Round 4
+
+| Runde | Zaehlt? | Ergebnis Researcher | Grund |
+| --- | --- | --- | --- |
+| 1 | nein | verloren im Blind Review | Legacy-CLI lief urspruenglich nicht, daher Runtime-Confounder |
+| 2 | ja | verloren | zentrale Quelle vorhanden, aber nicht gut in Reading Plan/Antwort gehoben |
+| 3 | eingeschraenkt | beide Hard Error; Legacy inhaltlich vorn | beide Review-Antworten ohne Quellenpfad; Researcher-Final war traceable, aber roh und schlecht synthetisiert |
+| 4 | ja | gewonnen | Answer-Agent nutzte Researcher-Artefakte plus Direktlese und lieferte bessere quellenrollensaubere Fachantwort |
+
+Diagnostische Einordnung:
+
+- EUBW-Researcher besteht die urspruengliche 3/4-Nicht-schlechter-Schwelle noch nicht.
+- Gegenueber Round 2/3 ist aber ein wichtiger Fortschritt sichtbar: mit expliziter Quellenanker-Disziplin im `answer_for_review` kann Researcher im agentischen Nutzungsmodell Legacy schlagen.
+- Die naechste Arbeit sollte nicht primaer neue Spezialtargets fuer diese Frage bauen, sondern die generische Facet-/Reading-Loop- und Synthesis-Matrix-Qualitaet verbessern, damit der vNext-Rohpfad diese Leistung ohne 70 Prozent Direktlese reproduziert.
