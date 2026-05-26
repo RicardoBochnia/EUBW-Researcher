@@ -30,6 +30,10 @@ from eubw_researcher.knowledge.source_retrieval import (
     SourceRetrievalCandidate,
     retrieve_source_candidates,
 )
+from eubw_researcher.knowledge.question_facets import (
+    detect_question_facets,
+    facet_tags_for_text,
+)
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
 STOPWORDS = {
@@ -303,6 +307,7 @@ class KnowledgeService:
         self._terminology = terminology
         self._last_clusters_by_id: dict[str, EvidenceCluster] = {}
         self._last_retrieval_diagnostics: dict[str, object] | None = None
+        self._last_question_facets: list[str] = []
 
     def search_claims(
         self,
@@ -510,6 +515,7 @@ class KnowledgeService:
         }
         score += min(0.1, 0.025 * len(label_term_hits))
         score += 0.08 * (match.channel_scores or {}).get("source_catalog", 0.0)
+        score += 0.18 * (match.channel_scores or {}).get("facet_coverage", 0.0)
         if any(
             marker in label
             for marker in ("article", "chapter", "section", "clause")
@@ -849,6 +855,7 @@ class KnowledgeService:
 
     def _rank_chunks(self, question_or_terms: str, filters: dict | None = None) -> list[_ChunkMatch]:
         expansion = expand_query(question_or_terms, self._terminology)
+        self._last_question_facets = detect_question_facets(question_or_terms)
         terms = list(expansion.all_terms)
         if not terms:
             return []
@@ -930,6 +937,12 @@ class KnowledgeService:
                 "low": 0.02,
             }.get(chunk.source_role_level.value, 0.0)
             anchor_label_score = 0.08 if chunk.extracted_anchor_label else 0.0
+            facet_tags = facet_tags_for_text(normalized_text, self._last_question_facets)
+            facet_score = (
+                min(1.0, len(facet_tags) / max(1, len(self._last_question_facets)))
+                if self._last_question_facets
+                else 0.0
+            )
             channel_scores = {
                 "chunk_lexical": lexical_score,
                 "phrase_match": phrase_score,
@@ -939,6 +952,7 @@ class KnowledgeService:
                 "citation_anchor": citation_score,
                 "source_role": role_score,
                 "anchor_label": anchor_label_score,
+                "facet_coverage": facet_score,
             }
             score = min(
                 1.0,
@@ -947,6 +961,7 @@ class KnowledgeService:
                 + 0.34 * source_candidate_score
                 + 0.10 * label_score
                 + 0.16 * claim_score
+                + 0.16 * facet_score
                 + citation_score
                 + role_score
                 + anchor_label_score,
@@ -1075,6 +1090,13 @@ class KnowledgeService:
         )
 
     def _chunk_match_diagnostic(self, match: _ChunkMatch) -> dict[str, object]:
+        facet_surface = " ".join(
+            [
+                match.chunk.title,
+                match.chunk.extracted_anchor_label or "",
+                match.chunk.text,
+            ]
+        )
         return {
             "source_id": match.chunk.source_id,
             "chunk_id": match.chunk.chunk_id,
@@ -1082,6 +1104,10 @@ class KnowledgeService:
             "score": round(match.score, 4),
             "matched_terms": list(match.matched_terms),
             "matched_phrases": list(match.matched_phrases),
+            "facet_tags": facet_tags_for_text(
+                facet_surface,
+                self._last_question_facets,
+            ),
             "channel_scores": {
                 key: round(value, 4)
                 for key, value in (match.channel_scores or {}).items()
@@ -1108,6 +1134,7 @@ class KnowledgeService:
             "original_terms": list(expansion.original_terms),
             "expanded_terms": list(expansion.all_terms),
             "distinctive_terms": list(expansion.distinctive_terms),
+            "question_facets": list(self._last_question_facets),
             "phrases": list(expansion.phrases),
             "term_weights": {
                 term: round(weight, 3)

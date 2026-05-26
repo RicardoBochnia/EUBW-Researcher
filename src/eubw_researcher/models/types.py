@@ -945,6 +945,8 @@ class EvidenceSynthesisRecord:
     source_ids: List[str] = field(default_factory=list)
     chunk_ids: List[str] = field(default_factory=list)
     locators: List[str] = field(default_factory=list)
+    facet_tags: List[str] = field(default_factory=list)
+    quality_flags: List[str] = field(default_factory=list)
     verification_status: Optional[ClaimState] = None
     caveats: List[str] = field(default_factory=list)
 

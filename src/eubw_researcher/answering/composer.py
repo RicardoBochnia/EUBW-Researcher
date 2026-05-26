@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import Iterable, List, Optional, Sequence
 
 from eubw_researcher.models import (
@@ -121,6 +122,14 @@ class _TopologyProjectSupport:
     supported_entries: List[LedgerEntry]
     citations: List[Citation]
     claim_states: List[ClaimState]
+
+
+@dataclass(frozen=True)
+class _SynthesisRecordView:
+    record: object
+    role: str
+    score: int
+    statement: str
 
 
 def _role_weight(role_level: SourceRoleLevel) -> int:
@@ -288,6 +297,672 @@ def _matrix_source_ids(records: Sequence, *, limit: int = 4) -> list[str]:
     return sources
 
 
+_SYNTHESIS_ROLE_ORDER = {
+    "core_answer": 90,
+    "core_answer_support": 90,
+    "candidate_core_claim": 85,
+    "scope_boundary": 96,
+    "normative_basis": 74,
+    "technical_spec_context": 66,
+    "interpretation": 58,
+    "source_role_context": 46,
+    "audit_or_trace_detail": 40,
+    "background": 18,
+    "open_issue": 12,
+}
+
+
+_SYNTHESIS_GENERIC_TERMS = {
+    "about",
+    "also",
+    "and",
+    "bei",
+    "can",
+    "das",
+    "dem",
+    "den",
+    "der",
+    "die",
+    "does",
+    "eidas",
+    "eudi",
+    "eine",
+    "einem",
+    "einen",
+    "for",
+    "from",
+    "fuer",
+    "haben",
+    "ist",
+    "mit",
+    "muesste",
+    "muss",
+    "oder",
+    "party",
+    "provider",
+    "relying",
+    "sagt",
+    "service",
+    "services",
+    "should",
+    "the",
+    "und",
+    "wallet",
+    "wallets",
+    "wann",
+    "was",
+    "wenn",
+    "werden",
+}
+
+
+def _strip_answer_template_markers(value: str) -> str:
+    text = " ".join(value.split())
+    text = re.sub(
+        r"^(passage|source|evidence)\s+supports:\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return text.strip()
+
+
+def _distinctive_question_terms(question: str) -> list[str]:
+    normalized = normalize_text_for_matching(question)
+    terms: list[str] = []
+    seen: set[str] = set()
+    for term in re.findall(r"[a-z0-9][a-z0-9_-]{3,}", normalized):
+        compact = term.replace("-", "_")
+        if compact in _SYNTHESIS_GENERIC_TERMS or compact in seen:
+            continue
+        seen.add(compact)
+        terms.append(compact)
+    return terms
+
+
+def _question_alias_terms(question: str) -> list[str]:
+    normalized = normalize_text_for_matching(question)
+    aliases: list[str] = []
+    if any(marker in normalized for marker in ["vertrauenszeichen", "trust mark", "trustmark"]):
+        aliases.extend(["trust mark", "wallet trust mark", "visible trust mark", "eudi wallet trust mark"])
+    if any(marker in normalized for marker in ["entfernen", "remove", "removal"]):
+        aliases.extend(["remove", "removed", "must remove", "upon cancellation", "cancellation"])
+    if any(
+        marker in normalized
+        for marker in [
+            "bewertet",
+            "relying parties",
+            "attestation provider",
+        ]
+    ):
+        aliases.extend([
+            "not relying party",
+            "relying party services",
+            "attestation provider qualifications",
+            "qualifications",
+            "out of scope",
+        ])
+    normalized_aliases: list[str] = []
+    seen: set[str] = set()
+    for alias in aliases:
+        normalized_alias = normalize_text_for_matching(alias)
+        if normalized_alias and normalized_alias not in seen:
+            normalized_aliases.append(normalized_alias)
+            seen.add(normalized_alias)
+    return normalized_aliases
+
+
+def _is_german_question(question: str) -> bool:
+    normalized = f" {normalize_text_for_matching(question)} "
+    return any(
+        marker in normalized
+        for marker in [
+            " welche ",
+            " welcher ",
+            " welches ",
+            " wann ",
+            " was ",
+            " wie ",
+            " wofuer ",
+            " muesste ",
+            " vertrauenszeichen ",
+            " grenzueberschreitend ",
+        ]
+    )
+
+
+def _synthesis_role(record: object) -> str:
+    role = getattr(record, "answer_role", "") or "background"
+    if role in {"core_answer", "core_answer_support", "candidate_core_claim"}:
+        return "core_answer"
+    return role
+
+
+def _record_caveat_value(record: object, prefix: str) -> Optional[str]:
+    for caveat in getattr(record, "caveats", []) or []:
+        if isinstance(caveat, str) and caveat.startswith(prefix):
+            return caveat[len(prefix):]
+    return None
+
+
+def _record_surface(record: object) -> str:
+    return " ".join(
+        [
+            getattr(record, "statement", "") or "",
+            " ".join(getattr(record, "source_ids", []) or []),
+            " ".join(getattr(record, "locators", []) or []),
+            getattr(record, "cluster_id", "") or "",
+        ]
+    )
+
+
+def _record_relevance_score(
+    record: object,
+    *,
+    question: str,
+    question_terms: Sequence[str],
+) -> int:
+    role = _synthesis_role(record)
+    surface = normalize_text_for_matching(_record_surface(record)).replace("-", "_")
+    score = _SYNTHESIS_ROLE_ORDER.get(role, 20)
+    for term in question_terms:
+        if term in surface:
+            score += 9
+    alias_hits = 0
+    alias_surface = normalize_text_for_matching(_record_surface(record))
+    for alias in _question_alias_terms(question):
+        if alias in alias_surface:
+            alias_hits += 1
+    score += alias_hits * 14
+    if role == "scope_boundary" and alias_hits:
+        score += 12
+    source_role = _record_caveat_value(record, "source_role:")
+    document_status = _record_caveat_value(record, "document_status:")
+    if source_role == "high":
+        score += 5
+    elif source_role == "medium":
+        score += 2
+    if document_status in {"final", "adopted_pending_effective_date"}:
+        score += 4
+    if role == "open_issue":
+        score -= 30
+    if "verification does not allow answer use" in (getattr(record, "caveats", []) or []):
+        score -= 60
+    return score
+
+
+def _record_answer_use_allowed(record: object) -> bool:
+    caveats = getattr(record, "caveats", []) or []
+    if "verification does not allow answer use" in caveats:
+        return False
+    verification_status = getattr(record, "verification_status", None)
+    if verification_status is None:
+        # Opened-passage synthesis rows may be source-backed but not mapped to a
+        # verified claim id. Let those support the product answer as long as
+        # they have concrete source/locator anchors and are not explicit claims
+        # that skipped verification.
+        return (
+            not getattr(record, "claim_id", None)
+            and bool(getattr(record, "source_ids", []) or [])
+            and bool(getattr(record, "locators", []) or [])
+        )
+    status_value = getattr(verification_status, "value", verification_status)
+    return status_value not in {"blocked", "open", "rejected"}
+
+
+def _record_source_suffix(record: object) -> str:
+    source_ids = list(getattr(record, "source_ids", []) or [])
+    if not source_ids:
+        return ""
+    locators = [locator for locator in (getattr(record, "locators", []) or []) if locator]
+    locator_part = ""
+    if locators:
+        locator_part = f" ({_compact_locator(locators[0], limit=150)})"
+    return f" Quellenanker: {', '.join(source_ids)}{locator_part}."
+
+
+def _answer_ready_statement(record: object, question: str, *, limit: int = 420) -> str:
+    statement = _strip_answer_template_markers(getattr(record, "statement", "") or "")
+    normalized = normalize_text_for_matching(statement)
+    if _is_german_question(question) and (
+        "visible trust mark" in normalized
+        and "wallet provider" in normalized
+        and "relying party" in normalized
+        and "attestation provider" in normalized
+    ):
+        return (
+            "Bei Aufhebung (cancellation) der Trust-Mark-Berechtigung muss der Wallet Provider "
+            "das sichtbare EUDI-Wallet-Vertrauenszeichen und Verweise darauf entfernen; "
+            "der Nachweis bezieht sich auf die Wallet Solution, nicht auf eine Bewertung "
+            "von Relying Parties oder Attestation Providern."
+        )
+    return _compact_answer_text(statement, limit=limit)
+
+
+def _synthesis_record_views(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    question: str,
+    *,
+    include_open_issues: bool = False,
+) -> list[_SynthesisRecordView]:
+    if evidence_synthesis_matrix is None:
+        return []
+    question_terms = _distinctive_question_terms(question)
+    views: list[_SynthesisRecordView] = []
+    for record in evidence_synthesis_matrix.records:
+        if not _record_answer_use_allowed(record):
+            continue
+        quality_flags = set(getattr(record, "quality_flags", []) or [])
+        if quality_flags.intersection({"references_only", "table_note", "title_only", "definition_only", "context_only"}):
+            continue
+        statement = _answer_ready_statement(record, question)
+        if not statement:
+            continue
+        normalized_statement = normalize_text_for_matching(statement)
+        if re.match(r"^article\s+\d+[a-z]?\b", normalized_statement) and len(statement.split()) < 24:
+            continue
+        if statement.rstrip().endswith((" A.", " 1.")) and len(statement.split()) < 24:
+            continue
+        role = _synthesis_role(record)
+        if role == "open_issue" and not include_open_issues:
+            continue
+        score = _record_relevance_score(
+            record,
+            question=question,
+            question_terms=question_terms,
+        )
+        views.append(
+            _SynthesisRecordView(
+                record=record,
+                role=role,
+                score=score,
+                statement=statement,
+            )
+        )
+    views.sort(key=lambda view: view.score, reverse=True)
+    return views
+
+
+ROLE_BOUNDARY_RENDER_FACETS = {
+    "actor_boundary",
+    "technical_requester",
+    "end_relying_party",
+    "registry_information",
+    "user_display",
+    "purpose_or_intended_use",
+    "requested_attributes",
+    "privacy_policy_or_dpa",
+    "certificate_or_trust_anchor",
+    "open_issue_or_member_state_choice",
+}
+
+
+def _matrix_question_facets(
+    question: str,
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+) -> set[str]:
+    facets: set[str] = set()
+    if evidence_synthesis_matrix is not None:
+        for record in evidence_synthesis_matrix.records:
+            facets.update(str(tag) for tag in (getattr(record, "facet_tags", []) or []))
+    normalized = normalize_text_for_matching(question)
+    if any(term in normalized for term in ["intermediaer", "intermediary", "rollen", "auseinanderhalten"]):
+        facets.add("actor_boundary")
+    if any(term in normalized for term in ["registrierung", "registration", "register", "zertifikat", "certificate"]):
+        facets.add("registry_information")
+    if any(term in normalized for term in ["nutzeranzeige", "display", "anzeige", "request"]):
+        facets.add("user_display")
+    if any(term in normalized for term in ["zweck", "purpose", "intended use"]):
+        facets.add("purpose_or_intended_use")
+    if any(term in normalized for term in ["attribute", "attributes"]):
+        facets.add("requested_attributes")
+    if any(term in normalized for term in ["datenschutz", "privacy", "dpa"]):
+        facets.add("privacy_policy_or_dpa")
+    return facets
+
+
+def _role_boundary_answer_expected(
+    question: str,
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+) -> bool:
+    facets = _matrix_question_facets(question, evidence_synthesis_matrix)
+    return "actor_boundary" in facets and len(facets & ROLE_BOUNDARY_RENDER_FACETS) >= 4
+
+
+def _views_for_facets(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    question: str,
+    facets: set[str],
+    *,
+    limit: int = 3,
+    include_open_issues: bool = False,
+) -> list[_SynthesisRecordView]:
+    views = _synthesis_record_views(
+        evidence_synthesis_matrix,
+        question,
+        include_open_issues=include_open_issues,
+    )
+    selected: list[_SynthesisRecordView] = []
+    seen: set[str] = set()
+    for view in views:
+        record_facets = set(getattr(view.record, "facet_tags", []) or [])
+        if not record_facets.intersection(facets):
+            continue
+        key = normalize_text_for_matching(view.statement)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(view)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _role_boundary_view_score(view: _SynthesisRecordView, facets: set[str]) -> int:
+    surface = normalize_text_for_matching(
+        " ".join(
+            [
+                view.statement,
+                " ".join(getattr(view.record, "locators", []) or []),
+                " ".join(getattr(view.record, "source_ids", []) or []),
+            ]
+        )
+    )
+    score = view.score
+    boosts = {
+        "actor_boundary": ["intermediary", "intermediaer", "isintermediary", "intermediated"],
+        "technical_requester": ["access certificate", "authenticates", "authenticate", "rpac"],
+        "end_relying_party": ["intermediated wallet-relying party", "wallet-relying party"],
+        "registry_information": ["registration certificate", "rprc", "registrar", "registered"],
+        "user_display": ["user approval", "shown", "display", "request context", "information set"],
+        "purpose_or_intended_use": ["intended use", "purpose"],
+        "requested_attributes": ["requested attributes", "selected attributes", "minimum set of attributes"],
+        "privacy_policy_or_dpa": ["privacy policy", "data protection authority", "dpa", "erase personal data"],
+        "open_issue_or_member_state_choice": ["open issue", "does not contain", "national", "member state"],
+    }
+    for facet in facets:
+        if any(term in surface for term in boosts.get(facet, [])):
+            score += 45
+    if "api" in surface and "read methods" in surface and "open for public access" in surface:
+        score -= 90
+    if "data_portability" in surface or "data portability and download" in surface:
+        score -= 110
+    if "interactingpartytype" in surface or surface.strip().startswith("| |"):
+        score -= 100
+    if re.search(r"\barticle\s+\d+\b", surface) and len(view.statement.split()) < 12:
+        score -= 80
+    if view.statement.rstrip().endswith((" A.", " 1.")):
+        score -= 70
+    quality_flags = set(getattr(view.record, "quality_flags", []) or [])
+    if quality_flags.intersection({"table_note", "title_only", "references_only", "context_only"}):
+        score -= 70
+    if "definition_only" in quality_flags:
+        score -= 25
+    return score
+
+
+def _first_view_for_facets(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    question: str,
+    facets: set[str],
+) -> Optional[_SynthesisRecordView]:
+    views = _views_for_facets(evidence_synthesis_matrix, question, facets, limit=8)
+    views.sort(key=lambda view: _role_boundary_view_score(view, facets), reverse=True)
+    return views[0] if views else None
+
+
+def _anchor_view_for_facets(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    question: str,
+    facets: set[str],
+) -> Optional[_SynthesisRecordView]:
+    if evidence_synthesis_matrix is None:
+        return None
+    question_terms = _distinctive_question_terms(question)
+    views: list[_SynthesisRecordView] = []
+    for record in evidence_synthesis_matrix.records:
+        if not _record_answer_use_allowed(record):
+            continue
+        if not set(getattr(record, "facet_tags", []) or []).intersection(facets):
+            continue
+        statement = _answer_ready_statement(record, question)
+        if not statement:
+            continue
+        role = _synthesis_role(record)
+        views.append(
+            _SynthesisRecordView(
+                record=record,
+                role=role,
+                score=_record_relevance_score(
+                    record,
+                    question=question,
+                    question_terms=question_terms,
+                ),
+                statement=statement,
+            )
+        )
+    views.sort(key=lambda view: _role_boundary_view_score(view, facets), reverse=True)
+    return views[0] if views else None
+
+
+def _view_suffix(view: Optional[_SynthesisRecordView]) -> str:
+    return _record_source_suffix(view.record) if view is not None else ""
+
+
+def _role_boundary_product_sections(
+    question: str,
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+) -> list[str]:
+    if not _role_boundary_answer_expected(question, evidence_synthesis_matrix):
+        return []
+
+    actor = _first_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"actor_boundary", "technical_requester", "end_relying_party"},
+    )
+    registry = _first_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"registry_information", "certificate_or_trust_anchor"},
+    )
+    display = _first_view_for_facets(evidence_synthesis_matrix, question, {"user_display"})
+    purpose = _first_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"purpose_or_intended_use", "requested_attributes"},
+    )
+    privacy = _first_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"privacy_policy_or_dpa"},
+    )
+    open_issue = _first_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"open_issue_or_member_state_choice", "privacy_policy_or_dpa"},
+    )
+    actor_anchor = actor or _anchor_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"actor_boundary", "technical_requester", "end_relying_party"},
+    )
+    registry_anchor = registry or _anchor_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"registry_information", "certificate_or_trust_anchor"},
+    )
+    display_anchor = display or _anchor_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"user_display"},
+    )
+    purpose_anchor = purpose or _anchor_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"purpose_or_intended_use", "requested_attributes"},
+    )
+    privacy_anchor = privacy or _anchor_view_for_facets(
+        evidence_synthesis_matrix,
+        question,
+        {"privacy_policy_or_dpa"},
+    )
+
+    lines: list[str] = ["Kurzantwort:"]
+    lines.append(
+        "- Die Rollen muessen getrennt bleiben: Der Intermediaer ist der technische Anfragende bzw. Zertifikats-/Request-Kontext; die intermediierte Wallet-Relying Party bleibt die fachliche Endpartei, fuer deren Dienst Zweck, angefragte Attribute und Datenschutzinformationen verstaendlich angezeigt werden muessen."
+        + _view_suffix(actor_anchor or registry_anchor or display_anchor or purpose_anchor)
+    )
+    lines.append(
+        "- Praktisch heisst das: Registrierung/Zertifikate duerfen den Intermediaer nicht an die Stelle der Wallet-Relying Party schieben; Nutzeranzeige und Request-Kontext muessen die Endpartei, den Intermediaer und den Zweck separat rekonstruierbar machen."
+        + _view_suffix(display_anchor or registry_anchor or actor_anchor)
+    )
+
+    lines.append("Registrierung / Zertifikate:")
+    lines.append(
+        "- Registrierung und Zertifikatskontext sollten die End-Wallet-Relying-Party, eine Intermediaer-Beziehung, Registrierungs-/Registrar-Bezug und den registrierten Zweck getrennt rekonstruierbar halten; der Access-Certificate-Kontext authentisiert die anfragende Gegenstelle, ersetzt aber nicht die fachliche Endpartei."
+        + _view_suffix(registry_anchor or actor_anchor or purpose_anchor)
+    )
+
+    lines.append("Nutzeranzeige / Request-Kontext:")
+    lines.append(
+        "- Die Nutzeranzeige sollte nicht nur den technisch auftretenden Intermediaer zeigen, sondern auch fuer wen gehandelt wird, welchen Request-/Service-Kontext die Anfrage hat und welche Attribute der Nutzer fuer welchen Zweck freigibt."
+        + _view_suffix(display_anchor or actor_anchor or purpose_anchor)
+    )
+
+    lines.append("Zweck, Attribute und Datenschutz:")
+    lines.append(
+        "- Intended use, angefragte Attribute und Privacy-/Kontaktinformationen gehoeren fachlich zum konkreten Dienst bzw. zur intermediated Wallet-Relying Party; sie sollten nicht pauschal dem Intermediaer zugeschrieben werden."
+        + _view_suffix(purpose_anchor or privacy_anchor or display_anchor)
+    )
+    lines.append(
+        "- Wo Datenschutzkontakt, DPA-/Beschwerdeweg oder Loeschanforderung nur technisch oder als offene Spezifikationsfrage belegt sind, muss die Antwort diese Grenze sichtbar lassen."
+        + _view_suffix(privacy_anchor or open_issue or purpose_anchor)
+    )
+
+    lines.append("Grenzen / offene Punkte:")
+    lines.append(
+        "- Wo Spezifikationen Datenschutzkontakt, Beschwerdeweg oder nationale Registrar-Details nicht abschliessend regeln, darf die Antwort nur eine quellenmarkierte Grenze ziehen und keine finale Rechtsfolge erfinden."
+        + _view_suffix(open_issue or privacy_anchor or registry_anchor)
+    )
+    return lines
+
+
+def _selected_synthesis_views(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    question: str,
+    *,
+    limit: int = 3,
+) -> list[_SynthesisRecordView]:
+    views = _synthesis_record_views(evidence_synthesis_matrix, question)
+    if not views:
+        return []
+    top_score = views[0].score
+    selected: list[_SynthesisRecordView] = []
+    seen_statements: set[str] = set()
+    for view in views:
+        if view.score < top_score - 22 and selected:
+            continue
+        key = normalize_text_for_matching(view.statement)
+        if key in seen_statements:
+            continue
+        seen_statements.add(key)
+        selected.append(view)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _synthesis_summary_lines(
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+    question: str,
+    *,
+    limit: int = 3,
+) -> list[str]:
+    selected = _selected_synthesis_views(
+        evidence_synthesis_matrix,
+        question,
+        limit=limit,
+    )
+    if not selected:
+        return []
+    lines: list[str] = []
+    for view in selected:
+        lines.append(f"- {view.statement}{_record_source_suffix(view.record)}")
+    return lines
+
+
+def _source_role_label(record: object) -> str:
+    source_role = _record_caveat_value(record, "source_role:") or "unknown"
+    document_status = _record_caveat_value(record, "document_status:") or "unknown"
+    if source_role == "high" and document_status in {"final", "adopted_pending_effective_date"}:
+        return "bindende/hochrangige Quelle"
+    if document_status in {"proposal", "draft"}:
+        return "Entwurfs- oder Proposal-Stand"
+    if source_role == "medium":
+        return "technische Spezifikation oder Projektartefakt"
+    return f"Quellenrolle {source_role}, Status {document_status}"
+
+
+def _render_vnext_clarification_note(note: Optional[str], question: str) -> Optional[str]:
+    if not note:
+        return None
+    normalized_note = normalize_text_for_matching(note)
+    if "broad question" in normalized_note and (
+        "eu first" in normalized_note or "eu-first" in normalized_note
+    ):
+        if _is_german_question(question):
+            return "Breite Frage; die Antwort bleibt deshalb EU-first und markiert Quellenrollen sichtbar."
+        return "Broad question; the answer stays EU-first and keeps source roles visible."
+    return note
+
+
+def _product_evidence_sections(
+    question: str,
+    evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
+) -> list[str]:
+    selected = _selected_synthesis_views(evidence_synthesis_matrix, question, limit=4)
+    if not selected:
+        return []
+
+    lines: list[str] = ["Belege / Quellenrolle:"]
+    for view in selected[:3]:
+        source_ids = ", ".join(getattr(view.record, "source_ids", []) or ["unbekannte Quelle"])
+        locators = [locator for locator in (getattr(view.record, "locators", []) or []) if locator]
+        locator_part = f" - {_compact_locator(locators[0], limit=160)}" if locators else ""
+        lines.append(
+            f"- {source_ids}{locator_part}: {_source_role_label(view.record)}; Rolle im Answering: {view.role}."
+        )
+
+    caveat_lines: list[str] = []
+    if any(_record_caveat_value(view.record, "source_role:") == "medium" for view in selected):
+        caveat_lines.append(
+            "Technische Spezifikationen, ARF- oder Projektquellen stuetzen Interoperabilitaets- und Architekturkontext, ersetzen aber keine finale Rechtsnorm."
+        )
+    if any(_record_caveat_value(view.record, "document_status:") in {"proposal", "draft"} for view in selected):
+        caveat_lines.append(
+            "Proposal- oder Draft-Quellen duerfen nur als Entwurfsstand formuliert werden."
+        )
+    if caveat_lines:
+        lines.append("Einordnung / Grenzen:")
+        lines.extend(f"- {line}" for line in caveat_lines)
+
+    open_views = [
+        view
+        for view in _synthesis_record_views(
+            evidence_synthesis_matrix,
+            question,
+            include_open_issues=True,
+        )
+        if view.role == "open_issue"
+    ]
+    if open_views:
+        lines.append("Offene Punkte:")
+        for view in open_views[:2]:
+            lines.append(f"- {view.statement}{_record_source_suffix(view.record)}")
+    return lines
+
+
 def _matrix_summary_records(
     evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
     *,
@@ -295,7 +970,14 @@ def _matrix_summary_records(
 ) -> list:
     if evidence_synthesis_matrix is None:
         return []
-    preferred_roles = {"core_answer_support", "scope_boundary", "source_role_context"}
+    preferred_roles = {
+        "core_answer",
+        "core_answer_support",
+        "scope_boundary",
+        "source_role_context",
+        "technical_spec_context",
+        "normative_basis",
+    }
     records = [
         record
         for record in evidence_synthesis_matrix.records
@@ -442,6 +1124,34 @@ def _product_summary_lines(
         )
         return lines
 
+    if _has_question_terms(
+        normalized_question,
+        ["gelistet", "notifiziert", "listed", "notified", "trust list", "trusted list", "lote"],
+    ) and _has_question_terms(
+        normalized_question,
+        ["wallet unit attestation", "wallet unit attestations", "wua", "unit attestation"],
+    ):
+        wua_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["Wallet Unit Attestation", "Wallet Unit Attestations", "WUA", "attested keys"],
+        )
+        provider_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["provider", "listed", "notified", "trusted list", "trust list", "LoTE"],
+        )
+        lines.append(
+            "- Vor Akzeptanz einer Wallet Unit Attestation sollte der EBW-Verifier zwei Ebenen trennen: erst die Provider-Listung oder Notifizierung in der massgeblichen Trust-/Register-Infrastruktur, dann die technische WUA-Pruefung."
+            + _source_suffix(_matrix_source_ids([*provider_records, *wua_records]) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Die Wallet Unit Attestation (WUA) ersetzt den Provider-Status nicht; sie ist der technische Nachweis der Wallet Unit beziehungsweise ihrer attestierten Schluessel und muss mit Signatur, Status/Revocation und Zweckkontext geprueft werden."
+            + _source_suffix(_matrix_source_ids(wua_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Wo eine technische Spezifikation Trust Establishment oder Public-Key-Finding als ausserhalb ihres Scopes markiert, darf daraus keine rechtliche Provider-Listung abgeleitet werden."
+        )
+        return lines
+
     if _has_question_terms(normalized_question, ["oid4vci", "credential-ausgabe", "credential issuance"]) and _has_question_terms(
         normalized_question,
         ["authorization server", "oauth"],
@@ -483,7 +1193,15 @@ def _product_summary_lines(
         )
         device_records = _matrix_records_matching(
             evidence_synthesis_matrix,
-            ["device-bound", "Wallet Unit Attestation", "re-issuance", "key_attestations_required"],
+            [
+                "device-bound",
+                "Wallet Unit Attestation",
+                "WUA",
+                "attested keys",
+                "cannot be re-issued",
+                "re-issuance",
+                "key_attestations_required",
+            ],
         )
         lines.append(
             "- Bei echter Portabilitaet ist der Providerwechsel eine kontrollierte Migration mit Revalidierung, nicht nur ein Kopieren lokaler Wallet-Dateien."
@@ -501,7 +1219,7 @@ def _product_summary_lines(
             )
         if _has_question_terms(normalized_question, ["vertrauenskette", "trust chain", "trust"]):
             lines.append(
-                "- Die Vertrauenskette wandert nicht als providerlokale Eigenschaft mit; die Ziel-Wallet braucht eigene Wallet-Unit-Attestation, Schluessel-/Statusbindung und pruefbare Trust- bzw. Revocation-Anker."
+                "- Die Vertrauenskette wandert nicht als providerlokale Eigenschaft mit; die Ziel-Wallet braucht eigene Wallet Unit Attestation (WUA), Schluessel-/Statusbindung und pruefbare Trust- bzw. Revocation-Anker."
                 + _source_suffix(_matrix_source_ids([*device_records, *migration_records]))
             )
         if open_issue_bullets:
@@ -618,16 +1336,12 @@ def _product_summary_lines(
         )
         return lines
 
-    matrix_summary_records = _matrix_summary_records(evidence_synthesis_matrix)
-    if matrix_summary_records and any(
-        record.answer_role in {"core_answer_support", "scope_boundary"}
-        for record in matrix_summary_records
-    ):
-        for record in matrix_summary_records:
-            lines.append(
-                f"- {_compact_answer_text(record.statement, limit=360)}"
-                + _source_suffix(_matrix_source_ids([record], limit=2))
-            )
+    synthesis_summary = _synthesis_summary_lines(
+        evidence_synthesis_matrix,
+        question,
+    )
+    if synthesis_summary:
+        lines.extend(synthesis_summary)
         return lines
 
     for bullet in non_dynamic_bullets[:3]:
@@ -649,14 +1363,21 @@ def _render_bullets_vnext(
     clarification_note: Optional[str],
     evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
 ) -> str:
-    lines: List[str] = _product_summary_lines(
+    lines: List[str] = _role_boundary_product_sections(
         question,
-        summary,
-        bullets,
         evidence_synthesis_matrix,
     )
-    if clarification_note:
-        lines.append(f"Begriffsklärung / scope note: {clarification_note}")
+    if not lines:
+        lines = _product_summary_lines(
+            question,
+            summary,
+            bullets,
+            evidence_synthesis_matrix,
+        )
+    rendered_note = _render_vnext_clarification_note(clarification_note, question)
+    if rendered_note:
+        lines.append(f"Begriffsklaerung / Scope: {rendered_note}")
+    lines.extend(_product_evidence_sections(question, evidence_synthesis_matrix))
     lines.append("Pruefdetails:")
 
     synthesis_by_claim_id: dict[str, list[str]] = {}

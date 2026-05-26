@@ -349,9 +349,169 @@ Limitation:
 4. Die `evidence_synthesis_matrix` sollte kurze, zitierfaehige Aussagen enthalten. In dieser Runde enthielt sie wieder stark trunkierte Rohtextfragmente.
 5. Die Review-Gates muessen erkennen, wenn die Antwort thematisch abdriftet, obwohl Quellen formal bestaetigt sind.
 
-### Zwischenstand nach Round 2
+## Round 3: rp_intermediary_disclosure
+
+### Frage
+
+> Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: welche Informationen muessen in Registrierung und Nutzeranzeige erhalten bleiben, und wie sollte die Wallet Relying Party, Intermediaer, Zweck und Datenschutzinformationen auseinanderhalten?
+
+### Pre-Run Checks
+
+Novelty:
+
+- Aehnliche, aber nicht identische Legacy-Benchmarks existieren zu RPAC/WRPRC und Relying-Party-Registration-Certificates.
+- Keine identische Frage zu Nutzeranzeige plus Intermediaer-Trennung wurde in den lokalen Packs gefunden.
+
+Gemeinsame Quellen:
+
+- EUBW-Researcher enthaelt TS05/TS06 zu Relying-Party-Registration-Information und ARF-Abschnitte zu Relying Parties, Relying Party Instances und Intermediaries.
+- Legacy-EUBW enthaelt dieselben Quellfamilien, u. a. `SRC-W-TEC-30`, `SRC-W-TEC-31`, `SRC-W-TEC-04` und einschlaegige RP-Registration-Claims.
+
+### Verwendete Befehle
+
+Researcher:
+
+```bash
+python3 scripts/answer_question.py "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: welche Informationen muessen in Registrierung und Nutzeranzeige erhalten bleiben, und wie sollte die Wallet Relying Party, Intermediaer, Zweck und Datenschutzinformationen auseinanderhalten?" \
+  --catalog artifacts/real_corpus/curated_catalog.json \
+  --runtime-config configs/runtime.knowledge_composer_vnext.yaml \
+  --output-dir artifacts/tmp/blind_source_holdout_2026-05-20/round-3-rp-intermediary-disclosure/researcher
+```
+
+Legacy:
+
+```bash
+./.venv/bin/python scripts/query_with_profile.py \
+  --profile analysis_hybrid_semantic_global_tuned \
+  --question "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: welche Informationen muessen in Registrierung und Nutzeranzeige erhalten bleiben, und wie sollte die Wallet Relying Party, Intermediaer, Zweck und Datenschutzinformationen auseinanderhalten?" \
+  --fail-on-contract \
+  --no-write-answer
+```
+
+Legacy Runtime-Befund:
+
+- Der geplante Query-Pfad lief laut Legacy-Answer-Agent mit `contract_checks=pass`.
+- Kein Fallback war erforderlich.
+
+### Redaction Log
+
+Keine inhaltliche Redaktion.
+
+| System alias | Entfernte Textart | Anzahl |
+| --- | --- | ---: |
+| A | keine | 0 |
+| B | keine | 0 |
+
+### Anonymisierte Antworten
+
+System A:
+
+> Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt, darf die fachliche Rolle der eigentlichen Wallet-Relying Party nicht hinter dem Intermediaer verschwinden. In der Registrierung muessen die Identitaet der Wallet-Relying Party, nutzerfreundlicher Name, eindeutiger Identifier, Kontakt-/Supportdaten, Entitlements, Dienstbeschreibung, der konkrete Intended Use, die dafuer angefragten Attestationen/Attribute, die Datenschutzaufsicht und die Privacy-Policy-Information erhalten bleiben. Zusaetzlich muss kenntlich bleiben, dass ein Intermediaer genutzt wird, inklusive Zuordnung zum Intermediaer, dessen nutzerfreundlichem Namen, eindeutigem Identifier und Registrar-/Registry-Bezug.
+>
+> In der Nutzeranzeige sollte die Wallet daher trennen: Der Intermediaer ist der technisch auftretende/requestende Akteur und wird ueber sein Access Certificate authentifiziert; die intermediierte Wallet-Relying Party ist die fachliche Partei, fuer deren Dienst und Zweck Daten angefragt werden; der Zweck gehoert zum registrierten Intended Use dieser Wallet-Relying Party; Datenschutzinformationen und Privacy Policy sollten auf diesen Intended Use bzw. diese End-Relying Party zeigen, nicht pauschal auf den Intermediaer. Die Anzeige sollte also sinngemaess sagen: "Intermediaer X handelt im Auftrag von Wallet-Relying Party Y", dazu die angefragten Attribute, den registrierten Zweck, die passende Privacy Policy und ggf. DPA-/Beschwerdeinformationen zeigen.
+>
+> Pro Presentation Request sollte nur ein Intended Use behandelt werden. Die Wallet sollte pruefen koennen, ob die angefragten Attribute zu diesem registrierten Zweck passen, und den Nutzer warnen, wenn Attribute nicht registriert sind, die Intermediaer-Beziehung nicht verifizierbar ist oder Registrierungsinformationen nicht abrufbar sind. Der Intermediaer darf die erhaltenen Transaktionsdaten nicht als eigene Zweck-/Datenschutzdomaene vereinnahmen: Er leitet sie nur an die beauftragende Wallet-Relying Party weiter und loescht sie danach; Loesch- oder Datenschutzanfragen richten sich grundsaetzlich an die eigentliche Wallet-Relying Party.
+
+System B:
+
+> Eine Wallet-Relying Party bleibt auch dann die fachlich massgebliche Relying Party, wenn sie die Wallet-Interaktion durch einen Intermediaer abwickeln laesst. Der Intermediaer ist selbst als Relying Party zu behandeln, authentifiziert sich gegenueber der Wallet aber mit seinem eigenen Access Certificate und darf Transaktionsinhalte nicht dauerhaft speichern.
+>
+> In der Registrierung muessen deshalb getrennt erhalten bleiben: die Identitaet der eigentlichen Wallet-Relying Party, ihre registrierten Zwecke, die je Zweck zulaessigen Daten/Attribute, die Datenschutzinformationen zum jeweiligen Zweck sowie die Information, dass sie einen bestimmten Intermediaer nutzt. Zusaetzlich muss der Intermediaer als eigene Partei identifizierbar bleiben, mit eigenem Namen, Identifier und Registrar-/Kontaktbezug. Wenn Registration Certificates genutzt werden, sollte das Zertifikat fuer die intermediierte Relying Party den registrierten Zweck, den Datenumfang, die Privacy-Policy-URL und die Intermediaer-Beziehung ausdruecken; ohne Zertifikat muss die Wallet diese Informationen beim Registrar der intermediaeren Relying Party pruefen koennen.
+>
+> In der Nutzeranzeige sollte die Wallet klar trennen:
+> - Wer fragt technisch an: der Intermediaer, erkennbar aus dessen Access Certificate.
+> - Fuer wen wird gefragt: die intermediierte Wallet-Relying Party, erkennbar aus Request/Registration Certificate/Registrar.
+> - Wofuer wird gefragt: genau ein registrierter intended use pro Praesentationsanfrage.
+> - Welche Daten sind erlaubt: nur die fuer diesen intended use registrierten Attestationen/Attribute.
+> - Welche Datenschutzinformationen gelten: Privacy Policy und zustaendige Datenschutzaufsicht der eigentlichen Wallet-Relying Party bzw. des konkreten intended use, nicht pauschal die des Intermediaers.
+>
+> Praktisch heisst das: Die Wallet sollte dem Nutzer nicht nur "Intermediaer X moechte Daten" anzeigen, sondern "Intermediaer X handelt fuer Wallet-Relying Party Y; Zweck Z; angefragte Daten A/B/C; Datenschutzinformationen/Privacy Policy und DPA-Kontakt fuer Y/Z". Wenn Name/Identifier des Intermediaers aus dem Access Certificate nicht zur in der Registrierung hinterlegten Intermediaer-Beziehung passen, oder wenn Zweck/Datenumfang nicht registriert sind, sollte die Wallet den Nutzer warnen.
+
+### Blind Review Matrix
+
+| Reviewer | System | Quellentreue | Antwortqualitaet | Grenzen/Luecken | Traceability | Nutzbarkeit | Hard Error |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| reviewer_1 | A | 1 | 2 | 1 | 0 | 2 | yes |
+| reviewer_1 | B | 2 | 3 | 2 | 0 | 2 | yes |
+| reviewer_2 | A | 1 | 2 | 1 | 0 | 2 | yes |
+| reviewer_2 | B | 2 | 3 | 2 | 0 | 2 | yes |
+
+Totals:
+
+| System | Reviewer 1 | Reviewer 2 | Average |
+| --- | ---: | ---: | ---: |
+| A | 6 | 6 | 6.0 |
+| B | 9 | 9 | 9.0 |
+
+Konfliktaufloesung:
+
+- Keine Abweichung groesser als 1 Punkt je Kriterium.
+- Beide Reviewer sahen bei beiden Systemen denselben Hard Error: keine konkreten Quellenpfade, Locators oder pruefbaren Evidenzverweise in der anonymisierten Antwort.
+- Keine Adjudication erforderlich.
+
+Reviewer-Identitaetsvermutungen:
+
+| Reviewer | guessed A | guessed B | Confidence | Ergebnis |
+| --- | --- | --- | ---: | --- |
+| reviewer_1 | keine belastbare Vermutung | keine belastbare Vermutung | 0 | nicht anwendbar |
+| reviewer_2 | keine belastbare Vermutung | keine belastbare Vermutung | 0 | nicht anwendbar |
+
+Fingerprinting-Befund:
+
+- Beide Reviewer konnten die Systeme nicht belastbar erraten.
+- Durch das Fehlen von Quellen-/Artefaktspuren war Fingerprinting in dieser Runde niedrig, allerdings war dadurch auch die Traceability-Bewertung fuer beide Systeme bei 0.
+
+### Entblindung
+
+| System alias | Repo |
+| --- | --- |
+| A | EUBW-Researcher |
+| B | Legacy-EUBW |
+
+Round-3-Ergebnis:
+
+- Wertung fuer Holdout-Gesamtstand: diagnostisch verwertbar, aber nicht als sauberer Sieg/Niederlage-Punkt, weil beide anonymisierten Antworten denselben Hard Error erhielten.
+- Blind-Content-Review ohne Hard-Error-Regel: Legacy-EUBW liegt vorn.
+- Mit Hard-Error-Regel: beide Systeme bestehen die Runde nicht, da beide Review-Antworten ohne Quellenpfad nicht ueberpruefbar waren.
+- Kein offensichtlicher Corpus-Confounder: die relevanten RP-Registration-/Intermediaer-Quellfamilien waren in beiden Repos vorhanden.
+
+### Methodendiagnose
+
+Researcher-Agent:
+
+- Standardpfad lief und schrieb Artefakte unter `artifacts/tmp/blind_source_holdout_2026-05-20/round-3-rp-intermediary-disclosure/researcher`.
+- `reading_plan.json` oeffnete u. a. `ec_ts05_rp_registration_api`, `ec_ts06_rp_information_set`, `eudi_discussion_topic_x_rp_registration`, `celex_32025R0848_fulltext_en` und weitere Kontextquellen.
+- `final_answer.txt` enthielt zwar Quellenanker, war aber in der Kurzantwort roh und nur teilweise fragebezogen: Es begann mit allgemeinen Registration-Regeln und TS05-Details, nicht mit der fachlichen Trennung Wallet-Relying Party / Intermediaer / Zweck / Datenschutzinformation.
+- Der Answer-Agent musste `opened_passages`, `evidence_synthesis_matrix`, `manual_review_report` und konkrete Korpusstellen nachlesen, um eine brauchbare Fachantwort zu synthetisieren.
+- Die synthetisierte Antwort verlor dabei die sichtbaren Quellenanker; dadurch entstand im Blind Review der Hard Error.
+
+Legacy-Agent:
+
+- Der geplante Query-Pfad lief mit `contract_checks=pass`; kein Fallback war erforderlich.
+- Die Legacy-Antwort war fachlich strukturierter und operationalisierte Nutzeranzeige/Registrierung besser.
+- Auch Legacy brauchte laut Methodennotiz direkte lokale Lektuere, weil der erste Query-Lauf den Intermediaer-Aspekt nur teilweise traf.
+- Auch die Legacy-Review-Antwort enthielt keine konkreten Quellen/Locators; dadurch derselbe Hard Error.
+
+Limitation:
+
+- Legacy hat keine aequivalenten Intermediate-Artefakte zu `reading_plan.json`, `opened_passages.json` oder `evidence_synthesis_matrix.json`; Pfadqualitaet ist daher asymmetrisch beobachtbar.
+- In dieser Runde kommt eine zusaetzliche Protokoll-Limitation hinzu: Die Answer-Agenten wurden nicht hart genug angewiesen, Quellenanker in `answer_for_review` zu erhalten. Das machte die Blind-Review-Texte fuer beide Systeme schlechter traceable als die zugrunde liegenden Artefakte.
+
+### Verbesserungsfolgerungen fuer EUBW-Researcher
+
+Ausformuliert als Arbeitsauftrag:
+
+- `docs/architecture/EUBW_ROUND3_INTERMEDIARY_SYNTHESIS_WORK_ORDER.md`
+
+1. vNext braucht eine deutlich bessere erste Kurzantwort fuer Intermediaer-/RP-Registration-Fragen; die richtigen Quellen waren grob vorhanden, aber die Antwortoberflaeche begann mit unnuetzlichen Rohsaetzen.
+2. Die Synthesis-Matrix sollte Intermediaer-Beziehung, End-Relying-Party, Intended Use, erlaubte Attribute und Privacy-/DPA-Information als eigene answer-ready Aussagen liefern.
+3. Die automatisierte Review darf eine solche Kurzantwort nicht als `accept` bewerten, wenn sie die eigentliche Frage nur indirekt beruehrt.
+4. Fuer weitere Holdout-Runden muss der Answer-Agent-Prompt explizit verlangen, dass `answer_for_review` konkrete Quellenanker/Locators enthaelt, ohne Repo-Pfade zu nennen.
+
+### Zwischenstand nach Round 3
 
 | Runde | Zaehlt? | Ergebnis Researcher | Grund |
 | --- | --- | --- | --- |
 | 1 | nein | verloren im Blind Review | Legacy-CLI lief urspruenglich nicht, daher Runtime-Confounder |
 | 2 | ja | verloren | richtige Quelle im Katalog, aber nicht im Reading Plan; schwache Traceability |
+| 3 | eingeschraenkt | beide Hard Error; Legacy inhaltlich vorn | beide Review-Antworten ohne Quellenpfad; Researcher-Final war traceable, aber roh und schlecht synthetisiert |

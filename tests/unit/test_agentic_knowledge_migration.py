@@ -22,6 +22,7 @@ from eubw_researcher.knowledge import (
     build_dynamic_claim_targets,
     build_reading_artifacts,
     build_research_profile_trace,
+    detect_question_facets,
     selected_evidence_candidates,
     verification_allows_answer_use,
 )
@@ -37,6 +38,9 @@ from eubw_researcher.models import (
     ClaimType,
     ClaimVerificationRecord,
     ConceptRecord,
+    DocumentStatus,
+    EvidenceCluster,
+    EvidenceClusterRecord,
     EvidenceTier,
     OpenIssueRecord,
     IngestionBundle,
@@ -516,9 +520,113 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         self.assertTrue(reading_plan.items)
         self.assertTrue(opened_passages)
         self.assertTrue(matrix.records)
-        self.assertTrue(matrix.records[0].statement.startswith("Passage supports:"))
-        self.assertIn(matrix.records[0].answer_role, {"core_answer_support", "source_role_context", "background"})
+        self.assertFalse(matrix.records[0].statement.startswith("Passage supports:"))
+        self.assertIn(
+            matrix.records[0].answer_role,
+            {
+                "core_answer",
+                "normative_basis",
+                "technical_spec_context",
+                "source_role_context",
+                "background",
+            },
+        )
         self.assertTrue(matrix.records[0].caveats)
+
+    def test_role_boundary_facets_detect_intermediary_question(self) -> None:
+        facets = set(
+            detect_question_facets(
+                "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: "
+                "welche Informationen muessen in Registrierung und Nutzeranzeige "
+                "erhalten bleiben, und wie sollte die Wallet Relying Party, "
+                "Intermediaer, Zweck und Datenschutzinformationen auseinanderhalten?"
+            )
+        )
+
+        self.assertTrue(
+            {
+                "actor_boundary",
+                "registry_information",
+                "user_display",
+                "purpose_or_intended_use",
+                "requested_attributes",
+                "privacy_policy_or_dpa",
+            }.issubset(facets)
+        )
+
+    def test_reading_plan_prefers_intermediary_display_passage(self) -> None:
+        generic = EvidenceCluster(
+            cluster_id="generic_registration",
+            label="Generic registration scope",
+            source_ids=["celex_32025R0848_fulltext_en"],
+            records=[
+                EvidenceClusterRecord(
+                    record_id="generic",
+                    source_id="celex_32025R0848_fulltext_en",
+                    chunk_id="generic_chunk",
+                    locator="Article 1 Subject matter and scope",
+                    snippet="Article 1 describes the subject matter and scope of wallet-relying party registration.",
+                    source_role_level=SourceRoleLevel.HIGH,
+                    source_kind=SourceKind.REGULATION,
+                    document_status=DocumentStatus.FINAL,
+                    binding_level=BindingLevel.BINDING,
+                    score=0.95,
+                )
+            ],
+        )
+        specific = EvidenceCluster(
+            cluster_id="intermediary_display",
+            label="Intermediary display",
+            source_ids=["eudi_arf_main_markdown"],
+            records=[
+                EvidenceClusterRecord(
+                    record_id="specific",
+                    source_id="eudi_arf_main_markdown",
+                    chunk_id="specific_chunk",
+                    locator="ARF 6.6.5 Intermediary interaction",
+                    snippet=(
+                        "When an intermediary requests attributes, the user display shows "
+                        "the intermediary and the intermediated Wallet-Relying Party, the "
+                        "request context, intended use, requested attributes, and privacy policy."
+                    ),
+                    source_role_level=SourceRoleLevel.MEDIUM,
+                    source_kind=SourceKind.TECHNICAL_STANDARD,
+                    document_status=DocumentStatus.INFORMATIONAL,
+                    binding_level=BindingLevel.NON_BINDING,
+                    score=0.70,
+                )
+            ],
+        )
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.knowledge_composer_vnext.yaml")
+        verification = [
+            ClaimVerificationRecord(
+                claim_id="dynamic_intermediary_display",
+                claim_type=ClaimType.SYNTHESIS,
+                verification_result=ClaimState.INTERPRETIVE,
+                decision_reason="fixture",
+                source_ids=["eudi_arf_main_markdown"],
+                chunk_ids=["specific_chunk"],
+                answer_use_allowed=True,
+            )
+        ]
+
+        reading_plan, opened_passages, matrix = build_reading_artifacts(
+            question=(
+                "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: "
+                "welche Informationen muessen in Registrierung und Nutzeranzeige "
+                "erhalten bleiben, und wie sollte die Wallet Relying Party, "
+                "Intermediaer, Zweck, Attribute und Datenschutzinformationen auseinanderhalten?"
+            ),
+            clusters=[generic, specific],
+            selected_evidence=[],
+            claim_verification=verification,
+            runtime_config=runtime,
+        )
+
+        self.assertEqual(reading_plan.items[0].source_id, "eudi_arf_main_markdown")
+        self.assertEqual(opened_passages[0].source_id, "eudi_arf_main_markdown")
+        self.assertIn("user_display", matrix.records[0].facet_tags)
+        self.assertIn("answer_ready", matrix.records[0].quality_flags)
 
     def test_source_governance_config_loads_claim_type_rules(self) -> None:
         governance = load_source_governance(REPO_ROOT / "configs" / "source_governance.yaml")

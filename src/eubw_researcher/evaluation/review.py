@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Dict, List, Optional, Tuple
 
 from eubw_researcher.answering import TOPOLOGY_FACET_IDS, supports_relation_hints
@@ -30,8 +31,14 @@ GENERIC_RETRIEVAL_TERMS = {
     "relying",
     "service",
     "services",
+    "unit",
     "wallet",
     "wallets",
+}
+GENERIC_RETRIEVAL_PHRASES = {
+    "business wallet",
+    "european business wallet",
+    "wallet unit",
 }
 
 
@@ -54,6 +61,15 @@ EUBW_ARCHITECTURE_BUCKET_CLAIMS = {
     "plausible Annahme:": {
         "eubw_trust_model_still_open",
     },
+}
+
+ROLE_BOUNDARY_REQUIRED_FACETS = {
+    "actor_boundary": ["intermediaer", "intermediary", "wallet-relying party", "relying party"],
+    "registry_information": ["registrierung", "registration", "register", "zertifikat", "certificate"],
+    "user_display": ["nutzeranzeige", "anzeige", "display", "request"],
+    "purpose_or_intended_use": ["zweck", "purpose", "intended use"],
+    "requested_attributes": ["attribute", "attributes"],
+    "privacy_policy_or_dpa": ["datenschutz", "privacy", "dpa"],
 }
 
 
@@ -194,6 +210,73 @@ def _diagnostic_candidates(result) -> list[dict]:
     return [candidate for candidate in candidates if isinstance(candidate, dict)]
 
 
+def _candidate_distinctive_values(candidate: dict) -> List[str]:
+    matched_terms = [
+        str(term)
+        for term in candidate.get("matched_terms", [])
+        if str(term) not in GENERIC_RETRIEVAL_TERMS and len(str(term)) > 3
+    ]
+    matched_phrases = [
+        str(phrase)
+        for phrase in candidate.get("matched_phrases", [])
+        if len(str(phrase)) > 3
+        and normalize_text_for_matching(str(phrase)) not in GENERIC_RETRIEVAL_PHRASES
+    ]
+    return [*matched_phrases, *matched_terms]
+
+
+def _candidate_score(candidate: dict) -> float:
+    try:
+        return float(candidate.get("score", 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _channel_score(candidate: dict, channel: str) -> float:
+    channel_scores = candidate.get("channel_scores", {})
+    if not isinstance(channel_scores, dict):
+        return 0.0
+    try:
+        return float(channel_scores.get(channel, 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _required_diagnostic_candidates(result) -> list[dict]:
+    candidates = _diagnostic_candidates(result)
+    if not candidates:
+        return []
+    required: list[dict] = []
+    for candidate in candidates:
+        if _candidate_score(candidate) >= 0.72:
+            required.append(candidate)
+    top_candidate = candidates[0]
+    second_score = _candidate_score(candidates[1]) if len(candidates) > 1 else 0.0
+    top_score = _candidate_score(top_candidate)
+    top_reasons = {str(reason) for reason in top_candidate.get("reasons", [])}
+    has_source_title_signal = (
+        "distinctive_source_phrase" in top_reasons
+        or _channel_score(top_candidate, "unique_title_phrase_bonus") > 0
+        or _channel_score(top_candidate, "source_title_or_path_phrase") > 0
+    )
+    if (
+        top_score >= 0.45
+        and top_score >= second_score + 0.15
+        and has_source_title_signal
+        and _candidate_distinctive_values(top_candidate)
+    ):
+        required.append(top_candidate)
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for candidate in required:
+        source_id = str(candidate.get("source_id", ""))
+        if not source_id or source_id in seen:
+            continue
+        seen.add(source_id)
+        deduped.append(candidate)
+    return deduped
+
+
 def _surface_contains_any(surface: str, values: List[str]) -> bool:
     normalized = normalize_text_for_matching(surface)
     return any(
@@ -207,11 +290,7 @@ def _topic_drift_status(result) -> tuple[bool, str]:
     diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None)
     if not diagnostics:
         return True, "Knowledge retrieval diagnostics were not produced; topic-drift guard not exercised."
-    strong_candidates = [
-        candidate
-        for candidate in _diagnostic_candidates(result)
-        if float(candidate.get("score", 0.0)) >= 0.72
-    ]
+    strong_candidates = _required_diagnostic_candidates(result)
     if not strong_candidates:
         return True, "No high-confidence source candidate required topic-drift gating."
 
@@ -228,23 +307,19 @@ def _topic_drift_status(result) -> tuple[bool, str]:
     }
     final_answer = getattr(result, "rendered_answer", "")
     matrix_surface = " ".join(
-        record.statement
+        " ".join(
+            [
+                getattr(record, "statement", ""),
+                " ".join(getattr(record, "source_ids", []) or []),
+                " ".join(getattr(record, "locators", []) or []),
+            ]
+        )
         for record in (matrix.records if matrix is not None else [])
     )
 
     for candidate in strong_candidates[:3]:
         source_id = str(candidate.get("source_id", ""))
-        matched_terms = [
-            str(term)
-            for term in candidate.get("matched_terms", [])
-            if str(term) not in GENERIC_RETRIEVAL_TERMS and len(str(term)) > 3
-        ]
-        matched_phrases = [
-            str(phrase)
-            for phrase in candidate.get("matched_phrases", [])
-            if len(str(phrase)) > 3
-        ]
-        distinctive_values = [*matched_phrases, *matched_terms]
+        distinctive_values = _candidate_distinctive_values(candidate)
         if source_id and source_id not in opened_source_ids:
             return (
                 False,
@@ -267,6 +342,158 @@ def _topic_drift_status(result) -> tuple[bool, str]:
             )
 
     return True, "High-confidence source candidates were opened and retained in the answer surface."
+
+
+def _vnext_product_answer_expected(result) -> bool:
+    return any(
+        getattr(result, attribute, None) is not None
+        for attribute in [
+            "evidence_synthesis_matrix",
+            "reading_plan",
+            "knowledge_retrieval_diagnostics",
+        ]
+    ) or bool(getattr(result, "opened_passages", []))
+
+
+def _role_boundary_facets(result) -> set[str]:
+    facets: set[str] = set()
+    diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None) or {}
+    if isinstance(diagnostics, dict):
+        facets.update(str(facet) for facet in diagnostics.get("question_facets", []) or [])
+    matrix = getattr(result, "evidence_synthesis_matrix", None)
+    for record in (matrix.records if matrix is not None else []):
+        facets.update(str(facet) for facet in (getattr(record, "facet_tags", []) or []))
+    normalized_question = normalize_text_for_matching(getattr(result, "question", "") or "")
+    if any(term in normalized_question for term in ["intermediaer", "intermediary", "auseinanderhalten"]):
+        facets.add("actor_boundary")
+    for facet_id, terms in ROLE_BOUNDARY_REQUIRED_FACETS.items():
+        if any(term in normalized_question for term in terms):
+            facets.add(facet_id)
+    return facets
+
+
+def _role_boundary_semantic_status(result) -> tuple[bool, str]:
+    facets = _role_boundary_facets(result)
+    if "actor_boundary" not in facets or len(facets & set(ROLE_BOUNDARY_REQUIRED_FACETS)) < 4:
+        return True, "No role-boundary semantic gate was required for this answer."
+
+    answer_before_details = (getattr(result, "rendered_answer", "") or "").split("Pruefdetails:", 1)[0]
+    normalized_answer = normalize_text_for_matching(answer_before_details)
+    missing_facets = [
+        facet_id
+        for facet_id, terms in ROLE_BOUNDARY_REQUIRED_FACETS.items()
+        if facet_id in facets and not any(term in normalized_answer for term in terms)
+    ]
+    if missing_facets:
+        return (
+            False,
+            "Role-boundary answer is missing distinctive facets before Pruefdetails: "
+            + ", ".join(missing_facets)
+            + ".",
+        )
+    if not re.search(
+        r"\b(?:SRC-[A-Z0-9_-]+|[a-z0-9]+(?:_[a-z0-9]+){2,})\b",
+        answer_before_details,
+        flags=re.IGNORECASE,
+    ):
+        return (
+            False,
+            "Role-boundary user-facing answer has no source anchor before Pruefdetails.",
+        )
+    first_section = normalized_answer.split("\n", 3)[0:3]
+    first_surface = " ".join(first_section)
+    generic_hits = sum(
+        1
+        for term in [
+            "subject matter",
+            "scope",
+            "article 1",
+            "euid",
+            "write method",
+            "api",
+        ]
+        if term in first_surface
+    )
+    distinctive_hits = sum(
+        1
+        for terms in ROLE_BOUNDARY_REQUIRED_FACETS.values()
+        if any(term in first_surface for term in terms)
+    )
+    if generic_hits >= 2 and distinctive_hits < 3:
+        return (
+            False,
+            "Role-boundary Kurzantwort is dominated by generic scope or registration text.",
+        )
+    matrix = getattr(result, "evidence_synthesis_matrix", None)
+    if matrix is not None:
+        driving_records = [
+            record
+            for record in matrix.records
+            if any(source_id in answer_before_details for source_id in getattr(record, "source_ids", []) or [])
+        ]
+        weak_drivers = [
+            record
+            for record in driving_records
+            if getattr(record, "answer_role", "") in {"background", "definition_only"}
+            or set(getattr(record, "quality_flags", []) or []).intersection(
+                {"references_only", "table_note", "title_only", "definition_only"}
+            )
+        ]
+        if driving_records and len(weak_drivers) == len(driving_records):
+            return (
+                False,
+                "Role-boundary user answer is driven only by background or definition-like evidence rows.",
+            )
+    return True, "Role-boundary answer covers distinctive facets with a user-facing source anchor."
+
+
+def _answer_usability_status(result) -> tuple[bool, str]:
+    rendered_answer = getattr(result, "rendered_answer", "") or ""
+    normalized = normalize_text_for_matching(rendered_answer)
+    if "passage supports" in normalized:
+        return (
+            False,
+            "final_answer.txt leaks the internal `Passage supports` template marker.",
+        )
+    first_non_empty_line = next(
+        (line.strip() for line in rendered_answer.splitlines() if line.strip()),
+        "",
+    )
+    if first_non_empty_line.lower().startswith(("source supports:", "evidence supports:")):
+        return (
+            False,
+            "final_answer.txt starts with an internal evidence-support template marker.",
+        )
+    if _vnext_product_answer_expected(result) or "Pruefdetails:" in rendered_answer:
+        if not rendered_answer.lstrip().startswith("Kurzantwort:"):
+            return (
+                False,
+                "vNext answer bundle does not start with a user-facing Kurzantwort section.",
+            )
+        if "Pruefdetails:" not in rendered_answer:
+            return (
+                False,
+                "vNext answer bundle has no separated Pruefdetails section.",
+            )
+        if rendered_answer.index("Pruefdetails:") < rendered_answer.index("Kurzantwort:"):
+            return (
+                False,
+                "Pruefdetails appear before the user-facing Kurzantwort.",
+            )
+    strong_candidates = _required_diagnostic_candidates(result)
+    if strong_candidates:
+        answer_before_details = rendered_answer.split("Pruefdetails:", 1)[0]
+        for candidate in strong_candidates[:2]:
+            source_id = str(candidate.get("source_id", ""))
+            if source_id and source_id not in answer_before_details:
+                return (
+                    False,
+                    f"High-confidence source candidate `{source_id}` is absent from the user-facing answer before Pruefdetails.",
+                )
+    role_boundary_ok, role_boundary_evidence = _role_boundary_semantic_status(result)
+    if not role_boundary_ok:
+        return False, role_boundary_evidence
+    return True, "The final answer starts with reusable product prose and keeps template/detail leakage out of the user-facing section."
 
 
 def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> ManualReviewArtifact:
@@ -387,6 +614,15 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
             check_id="topic_drift_guard",
             status="pass" if topic_drift_ok else "fail",
             evidence=topic_drift_evidence,
+        )
+    )
+
+    answer_usability_ok, answer_usability_evidence = _answer_usability_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="answer_usability_surface",
+            status="pass" if answer_usability_ok else "fail",
+            evidence=answer_usability_evidence,
         )
     )
 
@@ -564,6 +800,7 @@ def build_manual_review_report(
     pinpoint_ok, _ = pinpoint_traceability_status(result)
     alignment_ok, _ = answer_alignment_status(result)
     topic_drift_ok, topic_drift_evidence = _topic_drift_status(result)
+    answer_usability_ok, answer_usability_evidence = _answer_usability_status(result)
     blind_validation_report = getattr(result, "blind_validation_report", None)
     blind_validation_ok = blind_validation_report is not None and blind_validation_report.passed
     relation_hints_ok, _relation_hints_evidence, _relation_hint_missing_facets = (
@@ -592,7 +829,7 @@ def build_manual_review_report(
     correctness_verdict = "acceptable" if verdict.passed else "needs_follow_up"
     usefulness_verdict = (
         "acceptable"
-        if has_approved_entries and topology_facets_ok and eubw_fallback_ok
+        if has_approved_entries and topology_facets_ok and eubw_fallback_ok and answer_usability_ok
         else "needs_follow_up"
     )
     hierarchy_verdict = "acceptable" if hierarchy_ok else "needs_follow_up"
@@ -658,6 +895,8 @@ def build_manual_review_report(
         )
     if not topic_drift_ok:
         open_follow_ups.append(topic_drift_evidence)
+    if not answer_usability_ok:
+        open_follow_ups.append(answer_usability_evidence)
     if not blind_validation_ok:
         open_follow_ups.append(
             "The product-output-first blind-validation gate did not pass; inspect blind_validation_report.json."

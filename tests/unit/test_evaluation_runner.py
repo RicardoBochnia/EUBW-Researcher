@@ -20,6 +20,8 @@ from eubw_researcher.evaluation.runner import (
 from eubw_researcher.models import (
     CorpusCoverageFamily,
     CorpusCoverageReport,
+    EvidenceSynthesisMatrix,
+    EvidenceSynthesisRecord,
     RetrievalPlan,
     AnchorQuality,
     AnswerAlignmentRecord,
@@ -280,6 +282,188 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(report.final_judgment, "reject")
         self.assertTrue(
             any("ec_ts01_wallet_trust_mark" in follow_up for follow_up in report.open_follow_ups)
+        )
+
+    def test_manual_review_requires_relative_top_source_candidate_in_user_answer(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Wann muesste ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen "
+            "entfernen?"
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- Wallet-Relying-Party Access Certificates authenticate relying parties.\n"
+            "Pruefdetails:\n- Technical detail."
+        )
+        result.knowledge_retrieval_diagnostics = {
+            "top_source_candidates": [
+                {
+                    "source_id": "ec_ts01_wallet_trust_mark",
+                    "score": 0.5868,
+                    "matched_terms": ["trust mark", "wallet trust mark"],
+                    "matched_phrases": ["trust mark", "wallet trust mark"],
+                    "channel_scores": {
+                        "source_title_or_path_phrase": 0.1163,
+                        "unique_title_phrase_bonus": 0.22,
+                    },
+                    "reasons": ["distinctive_source_phrase"],
+                },
+                {
+                    "source_id": "celex_32025R0848_fulltext_en",
+                    "score": 0.2038,
+                    "matched_terms": [],
+                    "matched_phrases": [],
+                    "channel_scores": {},
+                    "reasons": [],
+                },
+            ]
+        }
+        result.opened_passages = [
+            SimpleNamespace(source_id="ec_ts01_wallet_trust_mark")
+        ]
+        result.reading_plan = SimpleNamespace(
+            items=[SimpleNamespace(source_id="ec_ts01_wallet_trust_mark")]
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    statement=(
+                        "Upon cancellation, the Wallet Provider must remove the visible trust mark."
+                    ),
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                )
+            ]
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="relative_top_source",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="relative_top_source",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.usefulness_verdict, "needs_follow_up")
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("ec_ts01_wallet_trust_mark" in follow_up for follow_up in report.open_follow_ups)
+        )
+
+    def test_manual_review_rejects_template_or_snippet_dump(self) -> None:
+        cases = [
+            (
+                "snippet_prefix",
+                (
+                    "Passage supports: upon cancellation, the Wallet Provider must remove "
+                    "the visible trust mark.\nPruefdetails:\n- Synthetic support."
+                ),
+            ),
+            (
+                "missing_kurzantwort",
+                (
+                    "Confirmed:\n"
+                    "- The Wallet Provider removes the trust mark after cancellation.\n"
+                    "Pruefdetails:\n- Synthetic support."
+                ),
+            ),
+        ]
+
+        for label, final_answer in cases:
+            with self.subTest(label=label):
+                result = _minimal_result("fetch")
+                result.question = (
+                    "Wann muesste ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen "
+                    "entfernen?"
+                )
+                result.query_intent = SimpleNamespace(
+                    intent_type="wallet_requirements_summary",
+                    claim_targets=[],
+                )
+                result.rendered_answer = final_answer
+
+                report = build_manual_review_report(
+                    result,
+                    ScenarioVerdict(
+                        scenario_id=label,
+                        passed=True,
+                        checks=["synthetic:ok"],
+                    ),
+                    scenario_id=label,
+                    catalog_path="fixture_catalog",
+                    corpus_state_id="synthetic-state",
+                )
+
+                self.assertEqual(report.usefulness_verdict, "needs_follow_up")
+                self.assertNotEqual(report.final_judgment, "accept")
+
+    def test_manual_review_rejects_round3_semantic_non_answer(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: "
+            "welche Informationen muessen in Registrierung und Nutzeranzeige "
+            "erhalten bleiben, und wie sollte die Wallet Relying Party, "
+            "Intermediaer, Zweck, Attribute und Datenschutzinformationen auseinanderhalten?"
+        )
+        result.query_intent = SimpleNamespace(
+            intent_type="wallet_requirements_summary",
+            claim_targets=[],
+        )
+        result.knowledge_retrieval_diagnostics = {
+            "question_facets": [
+                "actor_boundary",
+                "registry_information",
+                "user_display",
+                "purpose_or_intended_use",
+                "requested_attributes",
+                "privacy_policy_or_dpa",
+            ]
+        }
+        result.evidence_synthesis_matrix = EvidenceSynthesisMatrix(
+            question=result.question,
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="generic",
+                    claim_id="generic_claim",
+                    cluster_id="generic_cluster",
+                    answer_role="background",
+                    statement="Article 1 describes subject matter and scope.",
+                    source_ids=["celex_32025R0848_fulltext_en"],
+                    chunk_ids=["generic_chunk"],
+                    locators=["Article 1"],
+                    facet_tags=["registry_information"],
+                    quality_flags=["definition_only"],
+                    verification_status=ClaimState.CONFIRMED,
+                )
+            ],
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- Article 1 describes the subject matter and scope of registration. "
+            "Quellenanker: celex_32025R0848_fulltext_en (Article 1).\n"
+            "Pruefdetails:\n"
+            "- Synthetic support."
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="round3_semantic_non_answer",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="round3_semantic_non_answer",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.usefulness_verdict, "needs_follow_up")
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("Role-boundary answer" in follow_up for follow_up in report.open_follow_ups)
         )
 
     def test_manual_review_allows_failed_configured_seed_fetch_without_approval(self) -> None:

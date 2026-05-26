@@ -665,7 +665,7 @@ class ComposerTests(unittest.TestCase):
             records=[
                 EvidenceSynthesisRecord(
                     synthesis_id="synthesis_1",
-                    claim_id=None,
+                    claim_id="dynamic_cluster_1_ts10",
                     cluster_id="cluster_portability",
                     answer_role="candidate_core_claim",
                     statement=(
@@ -676,16 +676,18 @@ class ComposerTests(unittest.TestCase):
                     source_ids=["ec_ts10_data_portability_export"],
                     chunk_ids=["chunk_1"],
                     locators=["4.2 Migration Object Structure"],
+                    verification_status=ClaimState.INTERPRETIVE,
                 ),
                 EvidenceSynthesisRecord(
                     synthesis_id="synthesis_2",
-                    claim_id=None,
+                    claim_id="portability_reviewed_claim",
                     cluster_id="cluster_wua",
                     answer_role="candidate_core_claim",
                     statement="Wallet Unit Attestation lifecycle and revocation status anchor the target wallet unit.",
                     source_ids=["ec_ts03_wallet_unit_attestation"],
                     chunk_ids=["chunk_2"],
                     locators=["2.4 Life Cycle"],
+                    verification_status=ClaimState.INTERPRETIVE,
                 )
             ],
         )
@@ -720,6 +722,332 @@ class ComposerTests(unittest.TestCase):
         self.assertIn("Vertrauenskette", bundle.rendered_answer[:details_index])
         self.assertIn("ec_ts03_wallet_unit_attestation", bundle.rendered_answer[:details_index])
         self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
+
+    def test_vnext_renderer_trust_mark_product_answer(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Wann muss ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen entfernen?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="trust_mark_remove",
+                    claim_id="dynamic_cluster_1_trust_mark_removal",
+                    cluster_id="cluster_trust_mark",
+                    answer_role="core_answer_support",
+                    statement=(
+                        "Passage supports: Wenn die Zertifizierungs- oder Anerkennungsbasis "
+                        "fuer die Wallet Solution nicht mehr gilt und eine cancellation "
+                        "erfolgt, muss der Wallet Provider das sichtbare EUDI Wallet Trust "
+                        "Mark entfernen."
+                    ),
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    chunk_ids=["ec_ts01_wallet_trust_mark:1.2"],
+                    locators=[
+                        "Specification of EUDI Wallet Trust Mark > 1 Introduction and Overview > 1.2 Scope for the Trust Mark Requirements and Design"
+                    ],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="trust_mark_scope",
+                    claim_id="dynamic_cluster_1_trust_mark_scope",
+                    cluster_id="cluster_trust_mark",
+                    answer_role="scope_boundary",
+                    statement=(
+                        "RP/AP Scope Boundary: Section 1.2 scopes the trust mark to "
+                        "the Wallet solution and visible EUDI Wallet Trust Mark; it is "
+                        "not a quality mark for Relying Party services or Attestation "
+                        "Provider qualifications."
+                    ),
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    chunk_ids=["ec_ts01_wallet_trust_mark:1.2"],
+                    locators=[
+                        "Specification of EUDI Wallet Trust Mark > 1 Introduction and Overview > 1.2 Scope for the Trust Mark Requirements and Design"
+                    ],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Wann muesste ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen entfernen, und was sagt das darueber aus, ob damit auch Relying Parties oder Attestation Provider bewertet werden?",
+            [
+                _project_entry(
+                    "dynamic_cluster_1_trust_mark_removal",
+                    "Raw Trust-Mark passage that should be rendered as a product answer.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        details_index = bundle.rendered_answer.index("Pruefdetails:")
+        short_answer = bundle.rendered_answer[:details_index]
+        self.assertTrue(bundle.rendered_answer.startswith("Kurzantwort:"))
+        self.assertNotIn("Passage supports", bundle.rendered_answer)
+        self.assertIn("ec_ts01_wallet_trust_mark", short_answer)
+        self.assertIn("Section 1.2", short_answer)
+        self.assertIn("RP/AP Scope Boundary", short_answer)
+        self.assertIn("Relying Party", short_answer)
+        self.assertIn("Attestation Provider", short_answer)
+
+    def test_synthesis_matrix_rejects_references_and_table_notes_as_core_answer(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Welche Informationen muss die Nutzeranzeige bei Intermediaeren zeigen?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="references",
+                    claim_id="references_claim",
+                    cluster_id="cluster_refs",
+                    answer_role="core_answer",
+                    statement="References: [1] Generic registration API. [2] Annex table.",
+                    source_ids=["references_source"],
+                    chunk_ids=["references_chunk"],
+                    locators=["References"],
+                    facet_tags=["user_display"],
+                    quality_flags=["references_only"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="display",
+                    claim_id="display_claim",
+                    cluster_id="cluster_display",
+                    answer_role="core_answer",
+                    statement=(
+                        "The user display shows the intermediary, the intermediated "
+                        "Wallet-Relying Party, requested attributes, intended use, and privacy policy."
+                    ),
+                    source_ids=["eudi_arf_main_markdown"],
+                    chunk_ids=["display_chunk"],
+                    locators=["ARF 6.6.5"],
+                    facet_tags=[
+                        "actor_boundary",
+                        "user_display",
+                        "purpose_or_intended_use",
+                        "requested_attributes",
+                        "privacy_policy_or_dpa",
+                    ],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: welche Informationen muessen in Registrierung und Nutzeranzeige erhalten bleiben, und wie sollte die Wallet Relying Party, Intermediaer, Zweck, Attribute und Datenschutzinformationen auseinanderhalten?",
+            [_entry("display_claim", "Display claim.", ClaimState.CONFIRMED)],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer.split("Pruefdetails:", 1)[0]
+        self.assertIn("eudi_arf_main_markdown", short_answer)
+        self.assertNotIn("References:", short_answer)
+
+    def test_vnext_renderer_rp_intermediary_product_answer(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="RP intermediary disclosure",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="actor",
+                    claim_id="actor_claim",
+                    cluster_id="cluster_actor",
+                    answer_role="core_answer",
+                    statement=(
+                        "The intermediary authenticates technically to the Wallet Unit "
+                        "with its access certificate while acting for an intermediated Wallet-Relying Party."
+                    ),
+                    source_ids=["eudi_arf_main_markdown"],
+                    chunk_ids=["actor_chunk"],
+                    locators=["ARF 6.6.5"],
+                    facet_tags=["actor_boundary", "technical_requester", "end_relying_party"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="registry",
+                    claim_id="registry_claim",
+                    cluster_id="cluster_registry",
+                    answer_role="core_answer",
+                    statement=(
+                        "The registration certificate contains Relying Party information "
+                        "for the service and must preserve the intermediated Wallet-Relying Party."
+                    ),
+                    source_ids=["ec_ts05_rp_registration_api"],
+                    chunk_ids=["registry_chunk"],
+                    locators=["TS05 WalletRelyingParty.usesIntermediary"],
+                    facet_tags=["registry_information", "certificate_or_trust_anchor", "end_relying_party"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="display",
+                    claim_id="display_claim",
+                    cluster_id="cluster_display",
+                    answer_role="core_answer",
+                    statement=(
+                        "The information set shown to the user includes intended use, "
+                        "requested attributes, request context, privacy policy, and the relevant Relying Party."
+                    ),
+                    source_ids=["ec_ts06_rp_information_set"],
+                    chunk_ids=["display_chunk"],
+                    locators=["TS06 RP information set"],
+                    facet_tags=[
+                        "user_display",
+                        "purpose_or_intended_use",
+                        "requested_attributes",
+                        "privacy_policy_or_dpa",
+                    ],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Wenn eine Wallet-Relying Party ueber einen Intermediaer handelt: welche Informationen muessen in Registrierung und Nutzeranzeige erhalten bleiben, und wie sollte die Wallet Relying Party, Intermediaer, Zweck, Attribute und Datenschutzinformationen auseinanderhalten?",
+            [
+                _entry("actor_claim", "Actor claim.", ClaimState.CONFIRMED),
+                _entry("registry_claim", "Registry claim.", ClaimState.CONFIRMED),
+                _entry("display_claim", "Display claim.", ClaimState.CONFIRMED),
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer.split("Pruefdetails:", 1)[0]
+        self.assertTrue(bundle.rendered_answer.startswith("Kurzantwort:"))
+        for heading in [
+            "Registrierung / Zertifikate:",
+            "Nutzeranzeige / Request-Kontext:",
+            "Zweck, Attribute und Datenschutz:",
+            "Grenzen / offene Punkte:",
+        ]:
+            self.assertIn(heading, short_answer)
+        self.assertIn("Intermediaer", short_answer)
+        self.assertIn("Wallet-Relying Party", short_answer)
+        self.assertIn("Attribute", short_answer)
+        self.assertIn("Datenschutz", short_answer)
+        self.assertIn("eudi_arf_main_markdown", short_answer)
+        self.assertIn("ARF 6.6.5", short_answer)
+
+    def test_vnext_renderer_demotes_off_topic_verified_claims(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Wallet trust mark boundary?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="trust_mark_scope",
+                    claim_id="dynamic_cluster_1_trust_mark_scope",
+                    cluster_id="cluster_trust_mark",
+                    answer_role="core_answer_support",
+                    statement=(
+                        "The visible EUDI Wallet Trust Mark is scoped to the Wallet "
+                        "solution; it does not certify Relying Party service quality "
+                        "or Attestation Provider qualifications."
+                    ),
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    chunk_ids=["ec_ts01_wallet_trust_mark:1.2"],
+                    locators=["Section 1.2 Scope for the Trust Mark Requirements and Design"],
+                    verification_status=ClaimState.CONFIRMED,
+                )
+            ],
+        )
+        generic_wrp_claim = (
+            "Governing EU sources define a wallet-relying party access certificate "
+            "as authenticating and validating the wallet-relying party in wallet interactions."
+        )
+        generic_certificate_claim = (
+            "Governing EU sources describe access certificates as part of the relying-party "
+            "trust infrastructure."
+        )
+
+        bundle = compose_answer_bundle(
+            "Bewertet das sichtbare Wallet-Vertrauenszeichen auch Relying Parties oder Attestation Provider?",
+            [
+                _entry(
+                    "generic_wrp_access_certificate",
+                    generic_wrp_claim,
+                    ClaimState.CONFIRMED,
+                ),
+                _entry(
+                    "generic_access_certificate_ledger_claim",
+                    generic_certificate_claim,
+                    ClaimState.CONFIRMED,
+                ),
+                _project_entry(
+                    "dynamic_cluster_1_trust_mark_scope",
+                    "Trust-Mark Section 1.2 gives the specific answer boundary.",
+                    ClaimState.CONFIRMED,
+                ),
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        details_index = bundle.rendered_answer.index("Pruefdetails:")
+        short_answer = bundle.rendered_answer[:details_index]
+        details = bundle.rendered_answer[details_index:]
+        self.assertIn("ec_ts01_wallet_trust_mark", short_answer)
+        self.assertNotIn(generic_wrp_claim, short_answer)
+        self.assertNotIn(generic_certificate_claim, short_answer)
+        self.assertIn(generic_wrp_claim, details)
+        self.assertIn(generic_certificate_claim, details)
+        self.assertLess(
+            bundle.rendered_answer.index("ec_ts01_wallet_trust_mark"),
+            bundle.rendered_answer.index(generic_wrp_claim),
+        )
+
+    def test_vnext_renderer_excludes_not_answer_eligible_matrix_records(self) -> None:
+        blocked_statement = (
+            "The blocked matrix record is tempting, specific, and should never appear "
+            "in the user-facing answer."
+        )
+        allowed_statement = "Allowed evidence remains available for the short answer."
+        matrix = EvidenceSynthesisMatrix(
+            question="Synthetic verification question?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="blocked_synthesis",
+                    claim_id="blocked_dynamic_claim",
+                    cluster_id="blocked_cluster",
+                    answer_role="core_answer",
+                    statement=blocked_statement,
+                    source_ids=["blocked_source"],
+                    chunk_ids=["blocked_chunk"],
+                    locators=["Blocked locator"],
+                    verification_status=ClaimState.OPEN,
+                    caveats=["verification does not allow answer use"],
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="allowed_synthesis",
+                    claim_id="allowed_dynamic_claim",
+                    cluster_id="allowed_cluster",
+                    answer_role="core_answer",
+                    statement=allowed_statement,
+                    source_ids=["allowed_source"],
+                    chunk_ids=["allowed_chunk"],
+                    locators=["Allowed locator"],
+                    verification_status=ClaimState.INTERPRETIVE,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Synthetic verification question?",
+            [
+                _entry("allowed_dynamic_claim", "Allowed ledger fallback.", ClaimState.CONFIRMED)
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        details_index = bundle.rendered_answer.index("Pruefdetails:")
+        short_answer = bundle.rendered_answer[:details_index]
+        self.assertIn(allowed_statement, short_answer)
+        self.assertNotIn(blocked_statement, short_answer)
 
     def test_eubw_structured_answer_uses_parity_sections(self) -> None:
         bundle = compose_answer_bundle(

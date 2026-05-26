@@ -18,6 +18,7 @@ from eubw_researcher.knowledge import (
     build_dynamic_claim_targets,
     build_reading_artifacts,
     build_research_profile_trace,
+    detect_question_facets,
     load_imported_knowledge_assets,
     selected_evidence_candidates,
     verification_allows_answer_use,
@@ -396,6 +397,7 @@ class ResearchPipeline:
         navigation_session_trace = None
         source_hierarchy_report = None
         research_profile_trace = None
+        question_facets = detect_question_facets(question)
         if (
             self.runtime_config.knowledge_service_enabled
             or self.runtime_config.knowledge_service_emit_clusters
@@ -413,6 +415,9 @@ class ResearchPipeline:
                 source_hierarchy_report,
             ) = knowledge_service.build_evidence_clusters(question)
             knowledge_retrieval_diagnostics = knowledge_service.retrieval_diagnostics()
+            if question_facets:
+                knowledge_retrieval_diagnostics = dict(knowledge_retrieval_diagnostics or {})
+                knowledge_retrieval_diagnostics["question_facets"] = question_facets
             research_profile_trace = build_research_profile_trace(
                 question,
                 self.research_profiles,
