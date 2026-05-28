@@ -850,7 +850,7 @@ class ComposerTests(unittest.TestCase):
         self.assertNotIn("entfernen", short_answer.lower())
         self.assertNotIn("Removal", short_answer)
 
-    def test_vnext_renderer_generic_trust_mark_does_not_prefer_definition_only_anchor(self) -> None:
+    def test_vnext_renderer_generic_trust_mark_keeps_schema_context_secondary(self) -> None:
         matrix = EvidenceSynthesisMatrix(
             question="Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?",
             records=[
@@ -882,7 +882,7 @@ class ComposerTests(unittest.TestCase):
                     chunk_ids=["ec_ts01_wallet_trust_mark:annex_a"],
                     locators=["Specification of EUDI Wallet Trust Mark > Annex A > A.1 WalletTrustMarkInformation JSON Schema"],
                     facet_tags=["trust_mark_meaning"],
-                    quality_flags=["definition_only"],
+                    quality_flags=["answer_ready"],
                     verification_status=ClaimState.CONFIRMED,
                 ),
             ],
@@ -1215,6 +1215,137 @@ class ComposerTests(unittest.TestCase):
         short_answer = bundle.rendered_answer[:details_index]
         self.assertIn(allowed_statement, short_answer)
         self.assertNotIn(blocked_statement, short_answer)
+
+    def test_vnext_wua_pid_question_uses_matrix_instead_of_student_binding_template(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question=(
+                "Welche Informationen und Pruefungen rund um die Wallet Unit Attestation "
+                "braucht ein PID- oder Attribut-Aussteller?"
+            ),
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="wua_provider_responsibilities",
+                    claim_id="dynamic_cluster_wua_transport",
+                    cluster_id="cluster_wua",
+                    answer_role="core_answer_support",
+                    statement=(
+                        "A PID Provider or an Attestation Provider issuing device-bound "
+                        "attestations SHALL indicate support for key attestations in its "
+                        "Issuer Credential Metadata."
+                    ),
+                    source_ids=["ec_ts03_wallet_unit_attestation"],
+                    chunk_ids=["ec_ts03:2.2.2.2"],
+                    locators=[
+                        "2 Solution Description > 2.2 Transport > 2.2.2.2 PID Providers and Attestation Providers Responsibilities for Transport of WUAs"
+                    ],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.INTERPRETIVE,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="wua_scope_boundary",
+                    claim_id="dynamic_cluster_wua_scope",
+                    cluster_id="cluster_wua",
+                    answer_role="scope_boundary",
+                    statement=(
+                        "How Wallet Providers issue WUAs to the Wallet Unit is out of scope "
+                        "for this technical specification."
+                    ),
+                    source_ids=["ec_ts03_wallet_unit_attestation"],
+                    chunk_ids=["ec_ts03:1.2"],
+                    locators=["Specification of Wallet Unit Attestations > 1.2 Scope"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.INTERPRETIVE,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            (
+                "Welche Informationen und Pruefungen rund um die Wallet Unit Attestation "
+                "braucht ein PID- oder Attribut-Aussteller?"
+            ),
+            [
+                _project_entry(
+                    "dynamic_cluster_wua_transport",
+                    "Raw WUA passage.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
+        self.assertIn("ec_ts03_wallet_unit_attestation", short_answer)
+        self.assertIn("Wallet Unit Attestation", short_answer)
+        self.assertNotIn("Immatrikulationsbescheinigungen", short_answer)
+        self.assertNotIn("Studierendenausweise", short_answer)
+
+    def test_vnext_wallet_certification_answer_prefers_normative_certification_records(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question=(
+                "Was regelt die Durchfuehrungsverordnung zur Zertifizierung von "
+                "EUDI-Wallet-Loesungen ueber Zertifikate?"
+            ),
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="certification_scheme",
+                    claim_id="dynamic_certification_2981",
+                    cluster_id="cluster_celex_2981",
+                    answer_role="normative_basis",
+                    statement=(
+                        "National certification schemes shall include governance rules, "
+                        "certificate issuance timelines, and evaluation activities for the "
+                        "wallet solution."
+                    ),
+                    source_ids=["celex_32024R2981_fulltext_en"],
+                    chunk_ids=["celex_2981:article_6"],
+                    locators=["Article 6"],
+                    facet_tags=["wallet_solution_certification", "certificate_or_trust_anchor"],
+                    quality_flags=["snippet_like"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="arf_noise",
+                    claim_id="dynamic_arf_noise",
+                    cluster_id="cluster_arf",
+                    answer_role="technical_spec_context",
+                    statement=(
+                        "Topic 10 in Annex 2 calls this method once-only attestations "
+                        "and requires Wallet Solutions to support this method."
+                    ),
+                    source_ids=["eudi_arf_main_markdown"],
+                    chunk_ids=["arf:topic_10"],
+                    locators=["ARF > 7 Wallet Solution Certification and Risk Management"],
+                    facet_tags=["wallet_solution_certification"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.INTERPRETIVE,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            (
+                "Was regelt die Durchfuehrungsverordnung zur Zertifizierung von "
+                "EUDI-Wallet-Loesungen ueber Zertifikate?"
+            ),
+            [
+                _entry(
+                    "dynamic_certification_2981",
+                    "Raw certification support.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
+        self.assertIn("celex_32024R2981_fulltext_en", short_answer)
+        self.assertIn("Zertifizierungs-Durchfuehrungsverordnung", short_answer)
+        self.assertNotIn("once-only attestations", short_answer)
 
     def test_eubw_structured_answer_uses_parity_sections(self) -> None:
         bundle = compose_answer_bundle(

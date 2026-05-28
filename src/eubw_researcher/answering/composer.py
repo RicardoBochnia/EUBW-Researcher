@@ -1047,6 +1047,28 @@ _SHORT_ANSWER_BLOCKING_QUALITY_FLAGS = {
 }
 
 
+def _schema_or_data_model_context_record(record: object) -> bool:
+    surface = normalize_text_for_matching(
+        " ".join(
+            [
+                str(getattr(record, "statement", "") or ""),
+                " ".join(str(source_id) for source_id in (getattr(record, "source_ids", []) or [])),
+                " ".join(str(locator) for locator in (getattr(record, "locators", []) or [])),
+            ]
+        )
+    )
+    return any(
+        marker in surface
+        for marker in (
+            "json schema",
+            "schema definition",
+            "data model specified",
+            "wallettrustmarkinformation",
+            "trustmarkresource",
+        )
+    )
+
+
 def _short_answer_anchor_records(records: Sequence) -> list:
     eligible = [
         record
@@ -1151,7 +1173,14 @@ def _product_summary_lines(
                 )
             )
         if len(lines) == 1:
-            meaning_anchor_records = _short_answer_anchor_records(meaning_records)
+            primary_meaning_records = [
+                record
+                for record in meaning_records
+                if not _schema_or_data_model_context_record(record)
+            ]
+            meaning_anchor_records = _short_answer_anchor_records(
+                primary_meaning_records or meaning_records
+            )
             meaning_anchor_source_ids = _matrix_source_ids(meaning_anchor_records)
             lines.append(
                 "- Das sichtbare Wallet-Vertrauenszeichen ist ein nutzerseitig sichtbarer "
@@ -1176,6 +1205,73 @@ def _product_summary_lines(
                     "Hauptanker fuer die Bedeutungsaussage."
                     + _source_suffix(context_source_ids)
                 )
+        return lines
+
+    certification_question = _has_question_terms(
+        normalized_question,
+        ["zertifizierung", "certification", "certification scheme", "conformity assessment"],
+    ) and _has_question_terms(
+        normalized_question,
+        ["wallet", "wallet solution", "wallet-loesung", "wallet loesung", "eudi-wallet"],
+    )
+    if evidence_synthesis_matrix is not None and not certification_question:
+        certification_question = any(
+            "wallet_solution_certification" in (getattr(record, "facet_tags", []) or [])
+            for record in evidence_synthesis_matrix.records
+        )
+    if certification_question:
+        certification_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            [
+                "certification",
+                "certification scheme",
+                "conformity assessment",
+                "wallet solution",
+                "certificate",
+            ],
+            min_term_hits=2,
+            required_facets=("wallet_solution_certification",),
+            allowed_answer_roles=("normative_basis", "core_answer", "core_answer_support", "candidate_core_claim"),
+            required_source_ids=("celex_32024R2981_fulltext_en",),
+        )
+        eidas_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            [
+                "certified European Digital Identity Wallet",
+                "certificate and certification assessment report",
+                "conformity assessment",
+                "certification",
+            ],
+            min_term_hits=1,
+            required_facets=("wallet_solution_certification",),
+            allowed_answer_roles=("normative_basis", "core_answer", "core_answer_support", "candidate_core_claim"),
+            required_source_ids=("celex_32024R1183_fulltext_en",),
+        )
+        lines.append(
+            "- Die Zertifizierungs-Durchfuehrungsverordnung behandelt die EUDI-Wallet-Loesung "
+            "als Konformitaets- und Evaluierungsgegenstand: nationale Zertifizierungsschemata, "
+            "Zertifikate, Evaluierungsaktivitaeten und vorzulegende Nachweise muessen "
+            "quellengebunden geregelt werden."
+            + _source_suffix(_matrix_source_ids(certification_records))
+        )
+        if eidas_records:
+            lines.append(
+                "- Der eIDAS-Rahmen bleibt der hoeherliegende Bezug: Mitgliedstaaten melden "
+                "zertifizierte Wallets samt Zertifikat beziehungsweise Certification Assessment "
+                "Report; die Durchfuehrungsverordnung konkretisiert diese Zertifizierungspruefung."
+                + _source_suffix(_matrix_source_ids(eidas_records))
+            )
+        if _has_question_terms(
+            normalized_question,
+            ["aussetzung", "ausgesetzt", "suspension", "entzug", "withdrawal", "revocation", "widerruf"],
+        ):
+            lines.append(
+                "- Aussetzung oder Entzug sollte deshalb als Zertifikats-/Konformitaetsstatus "
+                "und Governancefolge behandelt werden, nicht als frei erfundene Aussage ueber "
+                "eine einzelne Wallet-Funktion, solange die geoeffnete Evidenz diese Folge "
+                "nicht gesondert belegt."
+                + _source_suffix(_matrix_source_ids(certification_records or eidas_records))
+            )
         return lines
 
     if _has_question_terms(normalized_question, ["pubeaa", "pub-eaa"]) and _has_question_terms(
@@ -1464,7 +1560,13 @@ def _product_summary_lines(
         )
         return lines
 
-    if _has_question_terms(normalized_question, ["pid", "device binding", "device-bound", "batch", "studierendenausweis"]):
+    if _has_question_terms(normalized_question, ["device binding", "device-bound", "batch", "studierendenausweis"]) or (
+        _has_question_terms(normalized_question, ["pid"])
+        and _has_question_terms(
+            normalized_question,
+            ["subject binding", "device binding", "device-bound", "batch", "studierendenausweis"],
+        )
+    ):
         lines.append(
             "- PID-/Subject-Binding und Device-/Key-Binding sollten getrennt bewertet werden: PID klaert fachliche Identitaetsbindung, Device-Binding erschwert Weitergabe und erhoeht Re-Issuance-Aufwand."
             + _source_suffix(_sources_from_bullets(non_dynamic_bullets[:3]))

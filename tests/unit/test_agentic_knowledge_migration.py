@@ -435,6 +435,67 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         self.assertIn("linkability_risk", facets)
         self.assertNotIn("open_issue_or_member_state_choice", facets)
 
+    def test_certification_query_does_not_expand_generic_certificates_to_wrp_certificates(self) -> None:
+        question = (
+            "Was regelt die Durchfuehrungsverordnung zur Zertifizierung von "
+            "EUDI-Wallet-Loesungen ueber Zertifikate, deren Aussetzung oder Entzug?"
+        )
+
+        expansion = expand_query(question)
+        facets = set(detect_question_facets(question))
+
+        self.assertIn("certification of european digital identity wallets", expansion.all_terms)
+        self.assertIn("wallet solution certification", expansion.phrases)
+        self.assertNotIn("access certificates", expansion.all_terms)
+        self.assertNotIn("registration certificates", expansion.all_terms)
+        self.assertIn("wallet_solution_certification", facets)
+
+    def test_protocol_state_nonce_question_does_not_trigger_actor_boundary_facet(self) -> None:
+        question = (
+            "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz von "
+            "Wallet-Interaktionen gegen CSRF, Replay oder falsche Response-Zuordnung?"
+        )
+
+        facets = set(detect_question_facets(question))
+
+        self.assertNotIn("actor_boundary", facets)
+
+    def test_openidvp_state_nonce_reading_plan_prefers_openidvp_source(self) -> None:
+        catalog_path = REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json"
+        _, bundle, _, _ = load_or_build_ingestion_bundle(catalog_path)
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
+        service = KnowledgeService(bundle, terminology=terminology)
+        question = (
+            "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz von "
+            "Wallet-Interaktionen gegen CSRF, Replay oder falsche Response-Zuordnung?"
+        )
+
+        clusters, _, _ = service.build_evidence_clusters(question)
+        diagnostics = service.retrieval_diagnostics() or {}
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.knowledge_composer_vnext.yaml")
+        targets, selected_evidence = build_dynamic_claim_targets(clusters, max_targets=8)
+        verification = [
+            ClaimVerificationRecord(
+                claim_id=target.target_id,
+                claim_type=ClaimType.SYNTHESIS,
+                verification_result=ClaimState.INTERPRETIVE,
+                decision_reason="fixture",
+                source_ids=target.source_ids,
+                answer_use_allowed=True,
+            )
+            for target in targets
+        ]
+        reading_plan, _, _ = build_reading_artifacts(
+            question=question,
+            clusters=clusters,
+            selected_evidence=selected_evidence,
+            claim_verification=verification,
+            runtime_config=runtime,
+        )
+
+        self.assertNotIn("actor_boundary", diagnostics.get("question_facets", []))
+        self.assertEqual("openid4vp_1_0_official", reading_plan.items[0].source_id)
+
     def test_provider_portability_opens_wua_and_ts10_without_mandaten_data_false_friend(self) -> None:
         catalog_path = REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json"
         _, bundle, _, _ = load_or_build_ingestion_bundle(catalog_path)

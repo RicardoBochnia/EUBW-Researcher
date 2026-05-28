@@ -83,6 +83,7 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "betroffenen": ("affected",),
     "ca": ("ca", "certificate authority", "access ca", "access certificate authority"),
     "certificate": ("certificate", "certificate policy", "practice statement"),
+    "certification": ("certification", "certification scheme", "conformity assessment"),
     "client": ("client", "resource owner", "authorization server", "token endpoint"),
     "delegationskette": (
         "delegation",
@@ -252,7 +253,22 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "widerrufsstatus": ("revocation status", "status", "validity"),
     "wodurch": ("how", "means", "mechanism"),
     "wrp": ("wallet-relying party", "registration", "access certificate", "registration certificate"),
-    "zertifikate": ("certificates", "access certificates", "registration certificates"),
+    "zertifikat": ("certificate", "certificate status"),
+    "zertifikate": ("certificates", "certificate status"),
+    "zertifizierung": (
+        "certification",
+        "certification scheme",
+        "conformity assessment",
+        "certification of european digital identity wallets",
+    ),
+    "zertifizierungen": (
+        "certification",
+        "certification scheme",
+        "conformity assessment",
+        "certification of european digital identity wallets",
+    ),
+    "zertifiziert": ("certified", "certification"),
+    "zertifizieren": ("certify", "certification"),
 }
 
 
@@ -383,6 +399,17 @@ def expand_query(
     ] + _question_phrases(terms)
     if "wallet" in values and any(term in values for term in ("trust mark", "vertrauenszeichen")):
         phrase_candidates.extend(["wallet trust mark", "eudi wallet trust mark"])
+    if (
+        any(term in values for term in ("certification", "zertifizierung"))
+        and any(term in values for term in ("wallet", "wallets", "eudi wallet loesungen"))
+    ):
+        phrase_candidates.extend(
+            [
+                "certification of european digital identity wallets",
+                "certification of european digital identity wallets chapter",
+                "wallet solution certification",
+            ]
+        )
     if any(term in values for term in ("pseudonym", "pseudonyms")):
         phrase_candidates.extend(
             [

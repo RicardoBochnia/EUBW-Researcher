@@ -56,8 +56,6 @@ _FACET_TERMS: dict[str, tuple[str, ...]] = {
         "trennen",
         "unterscheiden",
         "boundary",
-        "role",
-        "rolle",
         "intermediaer",
         "intermediary",
         "on behalf",
@@ -134,6 +132,16 @@ _FACET_TERMS: dict[str, tuple[str, ...]] = {
         "rprc",
         "wrprc",
         "trust anchor",
+    ),
+    "wallet_solution_certification": (
+        "certification",
+        "zertifizierung",
+        "certification scheme",
+        "conformity assessment",
+        "wallet solution certification",
+        "certification of european digital identity wallets",
+        "eudi wallet loesungen",
+        "eudi-wallet-loesungen",
     ),
     "open_issue_or_member_state_choice": (
         "open issue",
@@ -232,6 +240,24 @@ _TRUST_MARK_SCOPE_TERMS = _normalized_terms(
         "bewertung",
     )
 )
+_WALLET_CERTIFICATION_TERMS = _normalized_terms(
+    (
+        "certification",
+        "zertifizierung",
+        "certification scheme",
+        "conformity assessment",
+    )
+)
+_WALLET_SOLUTION_TERMS = _normalized_terms(
+    (
+        "wallet solution",
+        "wallet solutions",
+        "wallet loesung",
+        "wallet loesungen",
+        "eudi wallet",
+        "eudi-wallet",
+    )
+)
 
 
 def _surface_has_trust_mark(surface: str) -> bool:
@@ -275,6 +301,13 @@ def detect_question_facets(question: str) -> list[str]:
             if facet in _trust_mark_facets_for_surface(surface):
                 facets.append(facet)
             continue
+        if facet == "wallet_solution_certification":
+            if _surface_has_any(surface, _WALLET_CERTIFICATION_TERMS) and _surface_has_any(
+                surface,
+                _WALLET_SOLUTION_TERMS,
+            ):
+                facets.append(facet)
+            continue
         if facet == "requested_attributes":
             attribute_surface = surface.replace("attestation provider", "")
             attribute_surface = attribute_surface.replace("attestation providern", "")
@@ -303,6 +336,17 @@ def facet_hits_for_text(text: str, facets: Iterable[str] | None = None) -> dict[
             if facet not in _trust_mark_facets_for_surface(surface):
                 continue
             matched = [term for term in terms if term in surface]
+            if matched:
+                hits[facet] = matched
+            continue
+        if facet == "wallet_solution_certification":
+            matched = [
+                term
+                for term in terms
+                if term in surface
+                and _surface_has_any(surface, _WALLET_CERTIFICATION_TERMS)
+                and _surface_has_any(surface, _WALLET_SOLUTION_TERMS)
+            ]
             if matched:
                 hits[facet] = matched
             continue

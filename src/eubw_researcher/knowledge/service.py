@@ -92,6 +92,7 @@ TERM_ALIASES = {
     "betroffenen": ["affected"],
     "ca": ["ca", "certificate authority", "access ca", "access certificate authority"],
     "certificate": ["certificate", "certificate policy", "practice statement"],
+    "certification": ["certification", "certification scheme", "conformity assessment"],
     "client": ["client", "resource owner", "authorization server", "token endpoint"],
     "delegationskette": [
         "delegation",
@@ -218,7 +219,22 @@ TERM_ALIASES = {
     "widerrufsstatus": ["revocation status", "status", "validity"],
     "wodurch": ["how", "means", "mechanism"],
     "wrp": ["wallet-relying party", "registration", "access certificate", "registration certificate"],
-    "zertifikate": ["certificates", "access certificates", "registration certificates"],
+    "zertifikat": ["certificate", "certificate status"],
+    "zertifikate": ["certificates", "certificate status"],
+    "zertifizierung": [
+        "certification",
+        "certification scheme",
+        "conformity assessment",
+        "certification of european digital identity wallets",
+    ],
+    "zertifizierungen": [
+        "certification",
+        "certification scheme",
+        "conformity assessment",
+        "certification of european digital identity wallets",
+    ],
+    "zertifiziert": ["certified", "certification"],
+    "zertifizieren": ["certify", "certification"],
 }
 
 

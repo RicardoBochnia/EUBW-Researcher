@@ -66,8 +66,6 @@ ROLE_BOUNDARY_FACETS: dict[str, tuple[str, ...]] = {
         "auseinanderhalten",
         "abgrenz",
         "boundary",
-        "role",
-        "rolle",
         "intermediary",
         "intermediaer",
         "relying party",
@@ -139,6 +137,16 @@ ROLE_BOUNDARY_FACETS: dict[str, tuple[str, ...]] = {
         "rpac",
         "rprc",
     ),
+    "wallet_solution_certification": (
+        "certification",
+        "zertifizierung",
+        "certification scheme",
+        "conformity assessment",
+        "wallet solution certification",
+        "certification of european digital identity wallets",
+        "wallet solution",
+        "wallet solutions",
+    ),
     "open_issue_or_member_state_choice": (
         "open issue",
         "offene frage",
@@ -202,6 +210,7 @@ CENTRAL_ROLE_BOUNDARY_FACETS = {
     "pseudonym_account_binding",
     "attribute_presentation_limit",
     "linkability_risk",
+    "wallet_solution_certification",
 }
 
 FACET_COOCCURRENCE_BOOSTS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
@@ -214,6 +223,7 @@ FACET_COOCCURRENCE_BOOSTS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], .
     ("pseudonym_account_binding", ("pseudonym", "pseudonymous"), ("account", "binding", "unique")),
     ("attribute_presentation_limit", ("attribute", "attributes", "claims"), ("presentation", "selective disclosure", "disclosure")),
     ("linkability_risk", ("linkable", "linkability", "unlinkability"), ("pseudonym", "presentation", "relying party")),
+    ("wallet_solution_certification", ("certification", "certification scheme", "conformity assessment"), ("wallet solution", "european digital identity wallets")),
 )
 
 
@@ -348,7 +358,11 @@ def _quality_flags(text: str) -> list[str]:
         flags.append("table_note")
     if len(re.findall(r"[.!?]", text)) == 0 and len(text.split()) < 18:
         flags.append("title_only")
-    if any(marker in normalized for marker in ("means ", "definition", "for the purposes of")):
+    if (
+        re.search(r"\bmeans\b", normalized)
+        or "for the purposes of" in normalized
+        or re.match(r"^\s*article\s+\d+[a-z]?\s+definitions\b", normalized)
+    ):
         flags.append("definition_only")
     if len(text.split()) < 16 or text.endswith("..."):
         flags.append("snippet_like")
@@ -414,6 +428,18 @@ def _facet_score(record, question_facets: set[str]) -> int:
         term in normalized for term in ("out of scope", "relying party", "attestation provider")
     ):
         score += 120
+    if "wallet_solution_certification" in question_facets and any(
+        term in normalized
+        for term in (
+            "certification of european digital identity wallets",
+            "national certification schemes",
+            "certificate and certification assessment report",
+            "certification body",
+            "conformity assessment body",
+            "wallet solution",
+        )
+    ):
+        score += 95
     if "pseudonym_legal_permission" in question_facets and any(
         term in normalized
         for term in ("pseudonym", "pseudonyms", "pseudonymous authentication")
