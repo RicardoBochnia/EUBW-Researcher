@@ -29,11 +29,17 @@ STOPWORDS = {
     "the",
     "to",
     "und",
+    "wann",
     "was",
+    "welche",
     "wenn",
     "wie",
     "with",
     "zu",
+    "kann",
+    "nutzen",
+    "statt",
+    "entstehen",
 }
 
 GENERIC_ROLE_TERMS = {
@@ -108,6 +114,7 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "handlungsbefugnis": ("authority", "representation", "mandate", "powers"),
     "identitaetsabgleich": ("identity matching", "unequivocal matching", "identity", "matching"),
     "identitaetsmatching": ("identity matching", "unequivocal matching", "identity", "matching"),
+    "identitaet": ("identity", "legal identity", "identification"),
     "immabescheinigung": ("enrolment", "enrollment", "student", "attestation", "credential", "certificate"),
     "immabescheinigungen": ("enrolment", "enrollment", "student", "attestation", "credential", "certificate"),
     "immatrikulationsbescheinigung": ("enrolment", "enrollment", "student", "attestation", "credential", "certificate"),
@@ -116,6 +123,10 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "juristische": ("legal",),
     "log": ("log", "audit"),
     "logging": ("log", "audit"),
+    "linkbar": ("linkable", "linkability", "unlinkability"),
+    "linkbare": ("linkable", "linkability", "unlinkability"),
+    "linkbaren": ("linkable", "linkability", "unlinkability"),
+    "linkbares": ("linkable", "linkability", "unlinkability"),
     "lote": ("lote", "list of trusted entities", "trusted list", "trusted list provider"),
     "mandat": ("mandate", "delegation", "authorisation", "authorization", "powers", "represent", "status", "revocation", "validity", "constraints"),
     "mandate": ("mandate", "delegation", "authorisation", "authorization", "powers", "represent", "status", "revocation", "validity", "constraints"),
@@ -130,6 +141,40 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "person": ("person",),
     "portabilitaet": ("portability", "migration", "export", "transfer", "migration object", "re-issuance", "rebinding", "device-bound"),
     "protokollieren": ("log", "audit"),
+    "pseudonym": (
+        "pseudonym",
+        "pseudonyms",
+        "pseudonymous authentication",
+        "pseudonym generation",
+        "wallet-relying party specific pseudonym",
+    ),
+    "pseudonyme": (
+        "pseudonym",
+        "pseudonyms",
+        "pseudonymous authentication",
+        "pseudonym generation",
+        "wallet-relying party specific pseudonym",
+    ),
+    "pseudonymen": (
+        "pseudonym",
+        "pseudonyms",
+        "pseudonymous authentication",
+        "pseudonym generation",
+        "wallet-relying party specific pseudonym",
+    ),
+    "pseudonymes": (
+        "pseudonym",
+        "pseudonyms",
+        "pseudonymous authentication",
+        "pseudonym generation",
+        "wallet-relying party specific pseudonym",
+    ),
+    "pseudonymous": (
+        "pseudonym",
+        "pseudonyms",
+        "pseudonymous authentication",
+        "pseudonym generation",
+    ),
     "pruefbarkeit": ("audit", "verification", "traceability"),
     "providers": ("provider",),
     "pubeaa": (
@@ -166,6 +211,7 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "sichtbare": ("visible", "display", "displayed", "shown"),
     "sichtbaren": ("visible", "display", "displayed", "shown"),
     "sichtbares": ("visible", "display", "displayed", "shown"),
+    "offenlegung": ("disclosure", "selective disclosure", "reveal identity", "identity disclosure"),
     "spezifikation": ("specification",),
     "spezifikationen": ("specification",),
     "stellen": ("bodies", "public sector bodies", "public authorities"),
@@ -180,6 +226,24 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "vertretung": ("representation", "mandate", "authority", "powers", "represent"),
     "vertretungsrechte": ("representation", "mandate", "authority", "powers", "represent"),
     "vertrauensniveau": ("level of assurance", "assurance", "substantial level of assurance", "authentication"),
+    "attributpraesentation": (
+        "attribute presentation",
+        "presentation of attributes",
+        "selective disclosure",
+        "claims",
+        "credentials",
+    ),
+    "attributpraesentationen": (
+        "attribute presentation",
+        "presentation of attributes",
+        "selective disclosure",
+        "claims",
+        "credentials",
+    ),
+    "authentifizierung": ("authentication", "authenticate"),
+    "bindung": ("binding", "user binding", "cryptographic binding"),
+    "account": ("account", "user account"),
+    "account bindung": ("account binding", "user account binding", "user account"),
     "vorrang": ("priority", "authentic", "source"),
     "vorschlag": ("proposal",),
     "wechsel": ("migration", "transfer", "export", "portability", "migration object", "re-issuance", "rebinding"),
@@ -319,6 +383,34 @@ def expand_query(
     ] + _question_phrases(terms)
     if "wallet" in values and any(term in values for term in ("trust mark", "vertrauenszeichen")):
         phrase_candidates.extend(["wallet trust mark", "eudi wallet trust mark"])
+    if any(term in values for term in ("pseudonym", "pseudonyms")):
+        phrase_candidates.extend(
+            [
+                "pseudonymous authentication",
+                "pseudonym generation",
+                "wallet-relying party specific pseudonym",
+                "linkable pseudonymous authentication",
+                "verifiable pseudonyms",
+                "attested pseudonyms",
+            ]
+        )
+    if "selective disclosure" in values or "attribute presentation" in values:
+        phrase_candidates.extend(
+            [
+                "selective disclosure",
+                "presentation of attributes",
+                "strictly necessary claims",
+                "minimal dataset",
+            ]
+        )
+    if "linkability" in values or "unlinkability" in values:
+        phrase_candidates.extend(
+            [
+                "relying party linkability",
+                "verifier-to-verifier unlinkable presentations",
+                "cross-party linkability",
+            ]
+        )
     _append_unique(phrases, phrase_seen, phrase_candidates)
 
     term_weights = {term: _weight_for_term(term) for term in values}

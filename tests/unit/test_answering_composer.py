@@ -743,6 +743,7 @@ class ComposerTests(unittest.TestCase):
                     locators=[
                         "Specification of EUDI Wallet Trust Mark > 1 Introduction and Overview > 1.2 Scope for the Trust Mark Requirements and Design"
                     ],
+                    facet_tags=["trust_mark_meaning", "trust_mark_removal"],
                     verification_status=ClaimState.CONFIRMED,
                 ),
                 EvidenceSynthesisRecord(
@@ -761,6 +762,7 @@ class ComposerTests(unittest.TestCase):
                     locators=[
                         "Specification of EUDI Wallet Trust Mark > 1 Introduction and Overview > 1.2 Scope for the Trust Mark Requirements and Design"
                     ],
+                    facet_tags=["trust_mark_meaning", "trust_mark_scope_boundary"],
                     verification_status=ClaimState.CONFIRMED,
                 ),
             ],
@@ -785,10 +787,175 @@ class ComposerTests(unittest.TestCase):
         self.assertTrue(bundle.rendered_answer.startswith("Kurzantwort:"))
         self.assertNotIn("Passage supports", bundle.rendered_answer)
         self.assertIn("ec_ts01_wallet_trust_mark", short_answer)
-        self.assertIn("Section 1.2", short_answer)
-        self.assertIn("RP/AP Scope Boundary", short_answer)
-        self.assertIn("Relying Party", short_answer)
+        self.assertIn("1.2 Scope", short_answer)
+        self.assertIn("Daraus folgt keine Bewertung", short_answer)
+        self.assertIn("Relying Parties", short_answer)
         self.assertIn("Attestation Provider", short_answer)
+        self.assertNotIn("RP/AP Scope Boundary", short_answer)
+
+    def test_vnext_renderer_generic_trust_mark_answer_does_not_render_removal(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="trust_mark_meaning",
+                    claim_id="dynamic_cluster_1_trust_mark_meaning",
+                    cluster_id="cluster_trust_mark",
+                    answer_role="core_answer_support",
+                    statement=(
+                        "The visible EUDI Wallet Trust Mark helps users recognize "
+                        "the wallet solution and verify that the mark belongs to the wallet."
+                    ),
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    chunk_ids=["ec_ts01_wallet_trust_mark:1.1"],
+                    locators=["Specification of EUDI Wallet Trust Mark > 1 Introduction and Overview > 1.1 Purpose"],
+                    facet_tags=["trust_mark_meaning"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="loose_openid_context",
+                    claim_id="dynamic_cluster_2_openid_context",
+                    cluster_id="cluster_openid",
+                    answer_role="background",
+                    statement="OpenID material mentions wallet users but does not define the visible wallet trust mark.",
+                    source_ids=["openid4vp_1_0_official"],
+                    chunk_ids=["openid4vp:privacy"],
+                    locators=["OpenID for Verifiable Presentations 1.0 > 15 Privacy Considerations"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?",
+            [
+                _project_entry(
+                    "dynamic_cluster_1_trust_mark_meaning",
+                    "Raw Trust-Mark meaning passage.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        details_index = bundle.rendered_answer.index("Pruefdetails:")
+        short_answer = bundle.rendered_answer[:details_index]
+        self.assertIn("Trust-Hinweis", short_answer)
+        self.assertIn("ec_ts01_wallet_trust_mark", short_answer)
+        self.assertNotIn("OpenID", short_answer)
+        self.assertNotIn("Aufhebung", short_answer)
+        self.assertNotIn("entfernen", short_answer.lower())
+        self.assertNotIn("Removal", short_answer)
+
+    def test_vnext_renderer_generic_trust_mark_does_not_prefer_definition_only_anchor(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="celex_trust_mark_meaning",
+                    claim_id="dynamic_cluster_1_celex_meaning",
+                    cluster_id="cluster_celex_trust_mark",
+                    answer_role="normative_basis",
+                    statement=(
+                        "The EU Digital Identity Wallet Trust Mark should be used to "
+                        "indicate in a clear, simple and recognisable manner that a "
+                        "wallet has been provided in accordance with Regulation (EU) "
+                        "No 910/2014."
+                    ),
+                    source_ids=["celex_32024R2981_fulltext_en"],
+                    chunk_ids=["celex_32024R2981:recital_15"],
+                    locators=["Commission Implementing Regulation (EU) 2024/2981 > Recital 15"],
+                    facet_tags=["trust_mark_meaning"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="ec_ts01_schema",
+                    claim_id="dynamic_cluster_2_ec_ts01_schema",
+                    cluster_id="cluster_ec_ts01_schema",
+                    answer_role="core_answer_support",
+                    statement="A.1 WalletTrustMarkInformation JSON Schema (normative).",
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    chunk_ids=["ec_ts01_wallet_trust_mark:annex_a"],
+                    locators=["Specification of EUDI Wallet Trust Mark > Annex A > A.1 WalletTrustMarkInformation JSON Schema"],
+                    facet_tags=["trust_mark_meaning"],
+                    quality_flags=["definition_only"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?",
+            [
+                _project_entry(
+                    "dynamic_cluster_1_celex_meaning",
+                    "Trust-Mark meaning support.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
+        first_bullet = short_answer.splitlines()[1]
+        self.assertIn("celex_32024R2981_fulltext_en", short_answer)
+        self.assertNotIn("ec_ts01_wallet_trust_mark", first_bullet)
+        self.assertIn("ec_ts01_wallet_trust_mark", short_answer)
+        self.assertIn("Technischer Kontext", short_answer)
+
+    def test_vnext_renderer_pseudonym_sources_require_matching_facets(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung nutzen?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="pseudonym_legal",
+                    claim_id="dynamic_cluster_1_pseudonym_legal",
+                    cluster_id="cluster_pseudonym",
+                    answer_role="normative_basis",
+                    statement="Relying parties shall not refuse pseudonyms where identification is not legally required.",
+                    source_ids=["celex_32024R1183_fulltext_en"],
+                    chunk_ids=["celex:5b"],
+                    locators=["Article 5b"],
+                    facet_tags=["pseudonym_legal_permission"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="loose_account_background",
+                    claim_id="dynamic_cluster_2_loose_account",
+                    cluster_id="cluster_account",
+                    answer_role="background",
+                    statement="A nearby source mentions account handling but does not answer pseudonym account binding.",
+                    source_ids=["loose_account_source"],
+                    chunk_ids=["loose:1"],
+                    locators=["Loose account context"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung nutzen?",
+            [
+                _entry(
+                    "dynamic_cluster_1_pseudonym_legal",
+                    "Pseudonym legal support.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
+        self.assertIn("celex_32024R1183_fulltext_en", short_answer)
+        self.assertNotIn("loose_account_source", short_answer)
 
     def test_synthesis_matrix_rejects_references_and_table_notes_as_core_answer(self) -> None:
         matrix = EvidenceSynthesisMatrix(

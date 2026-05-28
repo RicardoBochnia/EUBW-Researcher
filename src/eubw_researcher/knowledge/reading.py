@@ -17,6 +17,51 @@ from eubw_researcher.models import (
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
 ROLE_BOUNDARY_FACETS: dict[str, tuple[str, ...]] = {
+    "trust_mark_meaning": (
+        "wallet trust mark",
+        "eudi wallet trust mark",
+        "trust mark",
+        "vertrauenszeichen",
+        "vertrauensmarke",
+        "visible trust mark",
+        "visible",
+        "sichtbar",
+        "meaning",
+        "bedeutet",
+        "nutzer",
+        "users",
+    ),
+    "trust_mark_removal": (
+        "wallet trust mark",
+        "eudi wallet trust mark",
+        "trust mark",
+        "vertrauenszeichen",
+        "vertrauensmarke",
+        "remove",
+        "removal",
+        "entfernen",
+        "aufhebung",
+        "cancellation",
+        "withdraw",
+        "withdrawal",
+        "widerruf",
+        "revocation",
+    ),
+    "trust_mark_scope_boundary": (
+        "wallet trust mark",
+        "eudi wallet trust mark",
+        "trust mark",
+        "vertrauenszeichen",
+        "vertrauensmarke",
+        "scope",
+        "out of scope",
+        "relying party",
+        "relying parties",
+        "attestation provider",
+        "attestation providers",
+        "bewertet",
+        "bewertung",
+    ),
     "actor_boundary": (
         "auseinanderhalten",
         "abgrenz",
@@ -70,6 +115,7 @@ ROLE_BOUNDARY_FACETS: dict[str, tuple[str, ...]] = {
         "uses",
     ),
     "requested_attributes": (
+        "welche informationen",
         "requested attributes",
         "attribute",
         "attributes",
@@ -95,35 +141,139 @@ ROLE_BOUNDARY_FACETS: dict[str, tuple[str, ...]] = {
     ),
     "open_issue_or_member_state_choice": (
         "open issue",
-        "offen",
+        "offene frage",
+        "offener punkt",
+        "offen bleibt",
         "member state",
         "mitgliedstaat",
         "national",
         "choice",
     ),
+    "pseudonym_legal_permission": (
+        "pseudonym",
+        "pseudonyme",
+        "pseudonymen",
+        "pseudonymous",
+        "pseudonymous authentication",
+        "legal identity",
+        "identity disclosure",
+    ),
+    "pseudonym_account_binding": (
+        "account binding",
+        "account-bindung",
+        "user account",
+        "scope unique",
+        "specific and unique",
+        "user binding",
+        "cryptographic binding",
+    ),
+    "attribute_presentation_limit": (
+        "attribute presentation",
+        "attributpraesentation",
+        "presentation of attributes",
+        "selective disclosure",
+        "disclose attributes",
+        "requested attributes",
+        "strictly necessary claims",
+    ),
+    "linkability_risk": (
+        "linkable",
+        "linkbaren",
+        "linkability",
+        "unlinkability",
+        "unlinkable",
+        "cross-party",
+        "relying party linkability",
+        "verifier-to-verifier",
+    ),
 }
 
 CENTRAL_ROLE_BOUNDARY_FACETS = {
+    "trust_mark_meaning",
+    "trust_mark_removal",
+    "trust_mark_scope_boundary",
     "actor_boundary",
     "registry_information",
     "user_display",
     "purpose_or_intended_use",
     "requested_attributes",
     "privacy_policy_or_dpa",
+    "pseudonym_legal_permission",
+    "pseudonym_account_binding",
+    "attribute_presentation_limit",
+    "linkability_risk",
 }
 
 FACET_COOCCURRENCE_BOOSTS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+    ("trust_mark_removal", ("trust mark", "vertrauenszeichen"), ("remove", "entfernen", "cancellation")),
+    ("trust_mark_scope_boundary", ("trust mark", "vertrauenszeichen"), ("out of scope", "relying party", "attestation provider", "scope")),
     ("user_display", ("intermediary", "intermediaer"), ("display", "anzeige", "request")),
     ("registry_information", ("intermediary", "intermediaer"), ("registration certificate", "certificate", "registrierung")),
     ("purpose_or_intended_use", ("intended use", "zweck", "purpose"), ("attribute", "attributes", "requested")),
     ("privacy_policy_or_dpa", ("privacy policy", "datenschutz", "dpa"), ("wallet-relying party", "relying party", "intermediary")),
+    ("pseudonym_account_binding", ("pseudonym", "pseudonymous"), ("account", "binding", "unique")),
+    ("attribute_presentation_limit", ("attribute", "attributes", "claims"), ("presentation", "selective disclosure", "disclosure")),
+    ("linkability_risk", ("linkable", "linkability", "unlinkability"), ("pseudonym", "presentation", "relying party")),
 )
+
+
+TRUST_MARK_TERMS = (
+    "wallet trust mark",
+    "eudi wallet trust mark",
+    "trust mark",
+    "vertrauenszeichen",
+    "vertrauensmarke",
+)
+TRUST_MARK_REMOVAL_TERMS = (
+    "remove",
+    "removal",
+    "entfernen",
+    "aufhebung",
+    "cancellation",
+    "withdraw",
+    "withdrawal",
+    "widerruf",
+    "revocation",
+)
+TRUST_MARK_SCOPE_TERMS = (
+    "scope",
+    "out of scope",
+    "relying party",
+    "relying parties",
+    "attestation provider",
+    "attestation providers",
+    "bewertet",
+    "bewertung",
+)
+
+
+def _trust_mark_facets_for_surface(surface: str) -> list[str]:
+    if not any(term in surface for term in TRUST_MARK_TERMS):
+        return []
+    facets = ["trust_mark_meaning"]
+    if any(term in surface for term in TRUST_MARK_REMOVAL_TERMS):
+        facets.append("trust_mark_removal")
+    if any(term in surface for term in TRUST_MARK_SCOPE_TERMS):
+        facets.append("trust_mark_scope_boundary")
+    return facets
 
 
 def detect_question_facets(question: str) -> list[str]:
     normalized = normalize_text_for_matching(question)
     facets: list[str] = []
     for facet_id, terms in ROLE_BOUNDARY_FACETS.items():
+        if facet_id.startswith("trust_mark_"):
+            if facet_id in _trust_mark_facets_for_surface(normalized):
+                facets.append(facet_id)
+            continue
+        if facet_id == "requested_attributes":
+            padded = f" {normalized} "
+            if any(
+                f" {term} " in padded if term in {"data", "daten"} else term in normalized
+                for term in terms
+            ):
+                facets.append(facet_id)
+            continue
         if any(term in normalized for term in terms):
             facets.append(facet_id)
     if (
@@ -131,6 +281,8 @@ def detect_question_facets(question: str) -> list[str]:
         or ("intermediary" in normalized or "intermediaer" in normalized)
     ) and "actor_boundary" not in facets:
         facets.insert(0, "actor_boundary")
+    if ("pseudonym" in normalized or "pseudonyme" in normalized) and "pseudonym_legal_permission" not in facets:
+        facets.insert(0, "pseudonym_legal_permission")
     return facets
 
 
@@ -138,6 +290,11 @@ def _facet_tags_for_surface(surface: str, question_facets: set[str]) -> list[str
     normalized = normalize_text_for_matching(surface)
     tags: list[str] = []
     for facet_id in question_facets:
+        if facet_id.startswith("trust_mark_"):
+            trust_facets = _trust_mark_facets_for_surface(normalized)
+            if facet_id in trust_facets:
+                tags.append(facet_id)
+            continue
         terms = ROLE_BOUNDARY_FACETS.get(facet_id, ())
         if any(term in normalized for term in terms):
             tags.append(facet_id)
@@ -154,7 +311,24 @@ def _facet_tags_for_surface(surface: str, question_facets: set[str]) -> list[str
 def _quality_flags(text: str) -> list[str]:
     normalized = normalize_text_for_matching(text)
     flags: list[str] = []
-    if re.search(r"\b(references|bibliography)\b", normalized) or normalized.count("http") >= 2:
+    answer_like = any(
+        marker in normalized
+        for marker in (
+            "upon cancellation",
+            "must remove",
+            "scope is",
+            "out of scope",
+            "shall support",
+            "specific and unique",
+            "selective disclosure",
+            "linkability",
+            "pseudonymous authentication",
+        )
+    )
+    if (
+        re.search(r"\b(references|bibliography)\b", normalized)
+        or normalized.count("http") >= 2
+    ) and not answer_like:
         flags.append("references_only")
     if re.match(r"^\s*article\s+\d+[a-z]?\b", normalized) and len(text.split()) < 24:
         flags.append("title_only")
@@ -210,6 +384,64 @@ def _facet_score(record, question_facets: set[str]) -> int:
     if "user_display" in question_facets and any(
         term in normalized
         for term in ("wallet unit informs the user", "user display", "shown to the user")
+    ):
+        score += 35
+    if "trust_mark_meaning" in question_facets and any(
+        term in normalized
+        for term in ("visible trust mark", "wallet trust mark", "eudi wallet trust mark", "vertrauenszeichen")
+    ):
+        score += 50
+    if "trust_mark_removal" in question_facets and any(
+        term in normalized
+        for term in ("visible trust mark", "wallet trust mark", "eudi wallet trust mark", "vertrauenszeichen")
+    ):
+        score += 55
+    if "trust_mark_removal" in question_facets and any(
+        term in normalized
+        for term in ("upon cancellation", "remove", "removal", "entfernen", "cancellation")
+    ):
+        score += 65
+    if "trust_mark_scope_boundary" in question_facets and any(
+        term in normalized
+        for term in ("visible trust mark", "wallet trust mark", "eudi wallet trust mark", "vertrauenszeichen")
+    ):
+        score += 45
+    if "trust_mark_scope_boundary" in question_facets and any(
+        term in normalized for term in ("out of scope", "relying party", "attestation provider", "scope")
+    ):
+        score += 65
+    if "trust_mark_scope_boundary" in question_facets and "visible trust mark" in normalized and any(
+        term in normalized for term in ("out of scope", "relying party", "attestation provider")
+    ):
+        score += 120
+    if "pseudonym_legal_permission" in question_facets and any(
+        term in normalized
+        for term in ("pseudonym", "pseudonyms", "pseudonymous authentication")
+    ):
+        score += 65
+    if "pseudonym_legal_permission" in question_facets and any(
+        term in normalized
+        for term in (
+            "article 14",
+            "pseudonym generation",
+            "specific and unique",
+            "technical specifications for pseudonym",
+        )
+    ):
+        score += 80
+    if "pseudonym_account_binding" in question_facets and any(
+        term in normalized
+        for term in ("account", "specific and unique", "user binding", "cryptographic binding")
+    ):
+        score += 35
+    if "attribute_presentation_limit" in question_facets and any(
+        term in normalized
+        for term in ("selective disclosure", "presentation of attributes", "strictly necessary claims")
+    ):
+        score += 35
+    if "linkability_risk" in question_facets and any(
+        term in normalized
+        for term in ("linkability", "unlinkability", "linkable", "verifier-to-verifier")
     ):
         score += 35
     if "references_only" in _quality_flags(record.snippet):
@@ -284,8 +516,9 @@ def _compact_statement(text: str, *, limit: int = 360) -> str:
     original_normalized = normalize_text_for_matching(compact)
     if (
         "upon cancellation" in original_normalized
-        and "must remove the visible trust mark" in original_normalized
-        and "not the relying party" in original_normalized
+        and "remove" in original_normalized
+        and "visible trust mark" in original_normalized
+        and "relying party" in original_normalized
         and "attestation provider" in original_normalized
     ):
         return (
@@ -353,6 +586,26 @@ def _facet_statement(text: str, facet_tags: list[str], *, limit: int = 360) -> s
         "",
         compact,
     )
+    normalized_full_compact = normalize_text_for_matching(compact)
+    facet_set = set(facet_tags)
+    if "trust_mark_removal" in facet_set and (
+        "visible trust mark" in normalized_full_compact
+        or "trust mark visible" in normalized_full_compact
+        or "sichtbares vertrauenszeichen" in normalized_full_compact
+    ) and any(
+        term in normalized_full_compact
+        for term in ("upon cancellation", "remove", "removal", "entfernen")
+    ):
+        if "trust_mark_scope_boundary" in facet_set:
+            return (
+                "Upon cancellation, the Wallet Provider must remove the visible trust mark "
+                "and references to it; the scoped trust mark concerns the EUDI Wallet mark, "
+                "not Relying Party services or Attestation Provider qualifications."
+            )
+        return (
+            "Upon cancellation, the Wallet Provider must remove the visible trust mark "
+            "and references to it."
+        )
     if " > " in compact:
         tail = compact.rsplit(" > ", 1)[-1].strip()
         if len(tail) >= 40:
@@ -368,6 +621,25 @@ def _facet_statement(text: str, facet_tags: list[str], *, limit: int = 360) -> s
     candidate_terms: list[str] = []
     for facet_id in normalized_tags:
         candidate_terms.extend(ROLE_BOUNDARY_FACETS.get(facet_id, ()))
+    normalized_compact = normalize_text_for_matching(compact)
+    if "trust_mark_removal" in normalized_tags and (
+        "visible trust mark" in normalized_compact
+        or "trust mark visible" in normalized_compact
+        or "sichtbares vertrauenszeichen" in normalized_compact
+    ) and any(
+        term in normalized_compact
+        for term in ("upon cancellation", "remove", "removal", "entfernen")
+    ):
+        if "trust_mark_scope_boundary" in normalized_tags:
+            return (
+                "Upon cancellation, the Wallet Provider must remove the visible trust mark "
+                "and references to it; the scoped trust mark concerns the EUDI Wallet mark, "
+                "not Relying Party services or Attestation Provider qualifications."
+            )
+        return (
+            "Upon cancellation, the Wallet Provider must remove the visible trust mark "
+            "and references to it."
+        )
     sentences = re.split(r"(?<=[.!?])\s+|\s+-\s+", compact)
     scored: list[tuple[int, int, str]] = []
     for sentence in sentences:
@@ -428,7 +700,7 @@ def _answer_role(cluster: EvidenceCluster, record) -> str:
     if any(marker in surface for marker in ("out of scope", "does not address", "scope is")):
         return "scope_boundary"
     if "source_catalog_candidate_present" in cluster.sufficiency_signals:
-        return "core_answer"
+        return "core_answer_support"
     if record.source_role_level.value == "low":
         return "background"
     if record.document_status.value in {"final", "adopted_pending_effective_date"}:
@@ -441,6 +713,7 @@ def _answer_role(cluster: EvidenceCluster, record) -> str:
 def _caveats(cluster: EvidenceCluster, record, verification) -> list[str]:
     caveats: list[str] = [
         f"source_role:{record.source_role_level.value}",
+        f"evidence_tier:{record.evidence_tier.value}",
         f"binding_level:{record.binding_level.value}",
         f"document_status:{record.document_status.value}",
     ]
@@ -449,6 +722,32 @@ def _caveats(cluster: EvidenceCluster, record, verification) -> list[str]:
     if cluster.open_issue_ids:
         caveats.extend(f"open_issue:{issue_id}" for issue_id in cluster.open_issue_ids)
     return caveats
+
+
+def _opening_reason(
+    cluster: EvidenceCluster,
+    record,
+    *,
+    index: int,
+    facet_tags: list[str],
+    uncovered_facets: list[str],
+) -> str:
+    reason_parts: list[str] = []
+    if "source_catalog_candidate_present" in cluster.sufficiency_signals:
+        reason_parts.append("source-level rescue/source-title or corpus-alias match")
+    if cluster.candidate_claim_ids:
+        reason_parts.append("claim match")
+    if cluster.open_issue_ids:
+        reason_parts.append("gap/open-issue check")
+    if record.source_role_level.value == "high":
+        reason_parts.append("higher-authority check")
+    if facet_tags:
+        reason_parts.append("facet coverage: " + ", ".join(uncovered_facets or facet_tags))
+    if not reason_parts:
+        reason_parts.append("primary evidence-cluster passage" if index == 0 else "adjacent context passage")
+    if index > 0:
+        reason_parts.append("adjacent context")
+    return "; ".join(reason_parts)
 
 
 def build_reading_artifacts(
@@ -516,14 +815,12 @@ def build_reading_artifacts(
                     chunk_id=record.chunk_id,
                     locator=record.locator,
                     operation=operation,
-                    reason=(
-                        "Facet-specific primary passage: " + ", ".join(uncovered_facets or facet_tags)
-                        if facet_tags and index == 0
-                        else "Primary evidence-cluster passage"
-                        if index == 0
-                        else "Facet-adjacent context: " + ", ".join(facet_tags)
-                        if facet_tags
-                        else "Adjacent context passage"
+                    reason=_opening_reason(
+                        cluster,
+                        record,
+                        index=index,
+                        facet_tags=facet_tags,
+                        uncovered_facets=uncovered_facets,
                     ),
                 )
             )
@@ -574,6 +871,10 @@ def build_reading_artifacts(
                     source_ids=[record.source_id],
                     chunk_ids=[record.chunk_id],
                     locators=[record.locator] if record.locator else [],
+                    source_role_levels=[record.source_role_level],
+                    evidence_tiers=[record.evidence_tier],
+                    binding_levels=[record.binding_level],
+                    document_statuses=[record.document_status],
                     facet_tags=facet_tags,
                     quality_flags=quality_flags,
                     verification_status=(

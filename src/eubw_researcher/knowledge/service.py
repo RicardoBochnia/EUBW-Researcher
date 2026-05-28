@@ -242,16 +242,25 @@ def _snippet(text: str, terms: Iterable[str], *, max_length: int = 2800) -> str:
     lowered = normalize_text_for_matching(compact)
     term_list = list(terms)
     priority_markers = {
+        "account",
         "cancel",
         "cancellation",
+        "claim",
+        "claims",
         "remove",
         "removal",
+        "pseudonym",
+        "pseudonyms",
+        "pseudonymous",
         "revoke",
         "revocation",
         "scope",
+        "selective",
         "visible",
         "withdraw",
         "withdrawal",
+        "unlinkability",
+        "linkability",
     }
     prioritized_terms = [
         term for term in term_list if term in priority_markers
@@ -292,6 +301,7 @@ class KnowledgeService:
             for chunk in document.chunks
         }
         self._sources_by_id = ingestion_bundle.catalog.by_id()
+        self._source_aliases_by_id = self._build_source_aliases_by_id()
         self._claims_by_id = {
             claim.claim_id: claim for claim in (candidate_claims or [])
         }
@@ -308,6 +318,20 @@ class KnowledgeService:
         self._last_clusters_by_id: dict[str, EvidenceCluster] = {}
         self._last_retrieval_diagnostics: dict[str, object] | None = None
         self._last_question_facets: list[str] = []
+
+    def _build_source_aliases_by_id(self) -> dict[str, list[str]]:
+        aliases: dict[str, list[str]] = defaultdict(list)
+        seen: dict[str, set[str]] = defaultdict(set)
+        for chunk in self._chunks_by_id.values():
+            source_aliases = aliases[chunk.source_id]
+            source_seen = seen[chunk.source_id]
+            for value in (chunk.title, chunk.extracted_anchor_label or ""):
+                normalized = searchable_text(value)
+                if not normalized or normalized in source_seen:
+                    continue
+                source_seen.add(normalized)
+                source_aliases.append(normalized)
+        return {source_id: values for source_id, values in aliases.items()}
 
     def search_claims(
         self,
@@ -865,6 +889,7 @@ class KnowledgeService:
             candidate_claims=self._claims_by_id.values(),
             open_issues=self._open_issues_by_id.values(),
             relation_edges=self._relations_by_id.values(),
+            source_aliases=self._source_aliases_by_id,
         )
         source_candidates_by_id = {
             candidate.source_id: candidate for candidate in source_candidates

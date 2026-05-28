@@ -945,6 +945,10 @@ class EvidenceSynthesisRecord:
     source_ids: List[str] = field(default_factory=list)
     chunk_ids: List[str] = field(default_factory=list)
     locators: List[str] = field(default_factory=list)
+    source_role_levels: List[SourceRoleLevel] = field(default_factory=list)
+    evidence_tiers: List[EvidenceTier] = field(default_factory=list)
+    binding_levels: List[BindingLevel] = field(default_factory=list)
+    document_statuses: List[DocumentStatus] = field(default_factory=list)
     facet_tags: List[str] = field(default_factory=list)
     quality_flags: List[str] = field(default_factory=list)
     verification_status: Optional[ClaimState] = None

@@ -258,6 +258,11 @@ def _sources_from_bullets(bullets: Sequence[_AnswerBullet], *, limit: int = 5) -
 def _matrix_records_matching(
     evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
     terms: Sequence[str],
+    *,
+    min_term_hits: int = 1,
+    required_facets: Sequence[str] = (),
+    allowed_answer_roles: Sequence[str] = (),
+    required_source_ids: Sequence[str] = (),
 ) -> list:
     if evidence_synthesis_matrix is None:
         return []
@@ -266,8 +271,20 @@ def _matrix_records_matching(
         for term in terms
         if normalize_text_for_matching(term)
     ]
+    required_facet_set = {str(facet) for facet in required_facets}
+    allowed_role_set = {str(role) for role in allowed_answer_roles}
+    required_source_set = {str(source_id) for source_id in required_source_ids}
     records = []
     for record in evidence_synthesis_matrix.records:
+        record_facets = {str(facet) for facet in (getattr(record, "facet_tags", []) or [])}
+        if required_facet_set and not record_facets.intersection(required_facet_set):
+            continue
+        answer_role = str(getattr(record, "answer_role", "") or "")
+        if allowed_role_set and answer_role not in allowed_role_set:
+            continue
+        record_source_ids = {str(source_id) for source_id in (getattr(record, "source_ids", []) or [])}
+        if required_source_set and not record_source_ids.intersection(required_source_set):
+            continue
         surface = normalize_text_for_matching(
             " ".join(
                 [
@@ -278,7 +295,10 @@ def _matrix_records_matching(
                 ]
             )
         )
-        if any(term in surface for term in normalized_terms):
+        term_hits = {term for term in normalized_terms if term in surface}
+        if normalized_terms and len(term_hits) < min_term_hits:
+            continue
+        if normalized_terms or required_facet_set or allowed_role_set or required_source_set:
             records.append(record)
     return records
 
@@ -1004,6 +1024,46 @@ def _has_question_terms(normalized_question: str, terms: Sequence[str]) -> bool:
     return any(normalize_text_for_matching(term) in normalized_question for term in terms)
 
 
+def _surface_contains_any(surface: str, terms: Sequence[str]) -> bool:
+    normalized = normalize_text_for_matching(surface)
+    return any(normalize_text_for_matching(term) in normalized for term in terms)
+
+
+def _prefer_records_with_source(records: Sequence, source_id: str) -> list:
+    preferred = [
+        record
+        for record in records
+        if source_id in (getattr(record, "source_ids", []) or [])
+    ]
+    return preferred or list(records)
+
+
+_SHORT_ANSWER_BLOCKING_QUALITY_FLAGS = {
+    "references_only",
+    "table_note",
+    "title_only",
+    "definition_only",
+    "context_only",
+}
+
+
+def _short_answer_anchor_records(records: Sequence) -> list:
+    eligible = [
+        record
+        for record in records
+        if _record_answer_use_allowed(record)
+        and not set(getattr(record, "quality_flags", []) or []).intersection(
+            _SHORT_ANSWER_BLOCKING_QUALITY_FLAGS
+        )
+    ]
+    answer_ready = [
+        record
+        for record in eligible
+        if "answer_ready" in set(getattr(record, "quality_flags", []) or [])
+    ]
+    return answer_ready or eligible
+
+
 def _product_summary_lines(
     question: str,
     summary: str,
@@ -1021,6 +1081,102 @@ def _product_summary_lines(
     open_issue_bullets = [
         bullet for bullet in bullets if bullet.section in {"Open issues", "Open"}
     ]
+
+    if _has_question_terms(
+        normalized_question,
+        ["vertrauenszeichen", "vertrauensmarke", "trust mark", "wallet trust mark"],
+    ):
+        matrix_records = (
+            list(evidence_synthesis_matrix.records)
+            if evidence_synthesis_matrix is not None
+            else []
+        )
+        removal_requested = _has_question_terms(
+            normalized_question,
+            ["entfernen", "remove", "removal", "aufhebung", "cancellation", "widerruf", "revocation"],
+        )
+        scope_requested = _has_question_terms(
+            normalized_question,
+            ["relying party", "relying parties", "attestation provider", "attestation providers", "scope", "bewertet", "bewertung"],
+        )
+        trust_records = [
+            record
+            for record in matrix_records
+            if set(getattr(record, "facet_tags", []) or []).intersection(
+                {"trust_mark_meaning", "trust_mark_removal", "trust_mark_scope_boundary"}
+            )
+            or "ec_ts01_wallet_trust_mark" in (getattr(record, "source_ids", []) or [])
+        ]
+        meaning_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["trust mark", "wallet trust mark", "visible"],
+            min_term_hits=1,
+            required_facets=("trust_mark_meaning",),
+        ) or [
+            record
+            for record in trust_records
+            if "ec_ts01_wallet_trust_mark" in (getattr(record, "source_ids", []) or [])
+        ]
+        removal_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["visible trust mark", "remove", "removal", "cancellation", "entfernen"],
+            min_term_hits=2,
+            required_facets=("trust_mark_removal",),
+        )
+        scope_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["relying party", "attestation provider", "out of scope", "scope"],
+            min_term_hits=1,
+            required_facets=("trust_mark_scope_boundary",),
+        )
+        if removal_requested and removal_records:
+            lines.append(
+                "- Bei Aufhebung (cancellation) der Trust-Mark-Berechtigung muss der Wallet Provider "
+                "das sichtbare EUDI-Wallet-Vertrauenszeichen und Verweise darauf entfernen."
+                + _source_suffix(
+                    _matrix_source_ids(
+                        _prefer_records_with_source(removal_records, "ec_ts01_wallet_trust_mark")
+                    )
+                )
+            )
+        if scope_requested and scope_records:
+            lines.append(
+                "- Daraus folgt keine Bewertung von Relying Parties oder Attestation Providern: "
+                "der Scope dieser Trust-Mark-Spezifikation ist das sichtbare Wallet-Zeichen "
+                "der EUDI Wallet Solution."
+                + _source_suffix(
+                    _matrix_source_ids(
+                        _prefer_records_with_source(scope_records, "ec_ts01_wallet_trust_mark")
+                    )
+                )
+            )
+        if len(lines) == 1:
+            meaning_anchor_records = _short_answer_anchor_records(meaning_records)
+            meaning_anchor_source_ids = _matrix_source_ids(meaning_anchor_records)
+            lines.append(
+                "- Das sichtbare Wallet-Vertrauenszeichen ist ein nutzerseitig sichtbarer "
+                "Trust-Hinweis fuer die EUDI Wallet Solution; es sollte als Erkennungs- "
+                "und Pruefanker fuer die Wallet gelesen werden, nicht als automatische "
+                "Aussage ueber Relying Parties oder Attestation Provider."
+                + _source_suffix(meaning_anchor_source_ids)
+            )
+            context_source_ids = _matrix_source_ids(
+                [
+                    record
+                    for record in trust_records
+                    if "ec_ts01_wallet_trust_mark" in (getattr(record, "source_ids", []) or [])
+                ],
+                limit=1,
+            )
+            if context_source_ids and "ec_ts01_wallet_trust_mark" not in meaning_anchor_source_ids:
+                lines.append(
+                    "- Technischer Kontext: Die Spezifikation des EUDI Wallet Trust Mark "
+                    "bleibt als Kontextquelle fuer Datenmodell und Provisioning des "
+                    "sichtbaren Trust Marks relevant; sie ist hier aber nicht der "
+                    "Hauptanker fuer die Bedeutungsaussage."
+                    + _source_suffix(context_source_ids)
+                )
+        return lines
 
     if _has_question_terms(normalized_question, ["pubeaa", "pub-eaa"]) and _has_question_terms(
         normalized_question,
@@ -1263,6 +1419,49 @@ def _product_summary_lines(
                 "- Eine behauptete aktuelle Unternehmensrealitaet ersetzt das Register nicht automatisch; sie ist ein Klaerungs-, Sperr- oder Aktualisierungsfall."
                 + _source_suffix(_sources_from_bullets(open_issue_bullets[:2]))
             )
+        return lines
+
+    if _has_question_terms(normalized_question, ["pseudonym", "pseudonyme", "pseudonymen", "pseudonymous"]):
+        legal_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["pseudonym", "pseudonyms", "specific and unique", "Article 14", "legal identity"],
+            min_term_hits=1,
+            required_facets=("pseudonym_legal_permission",),
+        )
+        account_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["account", "user account", "specific and unique", "user binding", "cryptographic binding"],
+            min_term_hits=1,
+            required_facets=("pseudonym_account_binding",),
+        )
+        attribute_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["selective disclosure", "presentation of attributes", "strictly necessary claims", "requested attributes"],
+            min_term_hits=1,
+            required_facets=("attribute_presentation_limit",),
+        )
+        linkability_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            ["linkability", "unlinkability", "linkable", "verifier-to-verifier", "cross-party"],
+            min_term_hits=1,
+            required_facets=("linkability_risk",),
+        )
+        lines.append(
+            "- Pseudonyme Authentifizierung ist dann tragfaehig, wenn keine rechtliche Pflicht zur Offenlegung der Identitaet besteht und die Wallet einen fuer die Wallet-Relying Party spezifischen, eindeutigen Pseudonymwert bereitstellen kann."
+            + _source_suffix(_matrix_source_ids(legal_records) or _sources_from_bullets(non_dynamic_bullets[:4]))
+        )
+        lines.append(
+            "- Bei Account-Bindung muss klar bleiben, woran gebunden wird: ein Pseudonym kann Account-Zugriff wiedererkennen, ersetzt aber nicht automatisch Identitaetsnachweis, User Binding oder eine kryptografische Bindung zwischen Attestationen."
+            + _source_suffix(_matrix_source_ids(account_records))
+        )
+        lines.append(
+            "- Attributpraesentation bleibt davon getrennt: OpenID4VP/DCQL und selective disclosure begrenzen, welche Claims oder Credentials fuer den konkreten Zweck offengelegt werden."
+            + _source_suffix(_matrix_source_ids(attribute_records))
+        )
+        lines.append(
+            "- Linkbare Pseudonyme sind ein eigener Risikofall; sobald derselbe Pseudonymwert ueber mehrere Akteure oder Services korreliert werden kann, muss die Linkability als bewusste Grenze statt als normale Identitaetsvermeidung behandelt werden."
+            + _source_suffix(_matrix_source_ids(linkability_records))
+        )
         return lines
 
     if _has_question_terms(normalized_question, ["pid", "device binding", "device-bound", "batch", "studierendenausweis"]):

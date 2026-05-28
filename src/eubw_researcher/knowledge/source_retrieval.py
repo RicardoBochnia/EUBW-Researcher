@@ -173,6 +173,7 @@ def retrieve_source_candidates(
     candidate_claims: Iterable[CandidateClaimRecord] = (),
     open_issues: Iterable[OpenIssueRecord] = (),
     relation_edges: Iterable[RelationGraphEdge] = (),
+    source_aliases: dict[str, Iterable[str]] | None = None,
     limit: int = 40,
 ) -> list[SourceRetrievalCandidate]:
     claim_scores = _claim_source_scores(candidate_claims, expansion)
@@ -191,16 +192,26 @@ def retrieve_source_candidates(
     candidates: list[SourceRetrievalCandidate] = []
     for source in catalog.entries:
         surfaces = _source_surfaces(source)
+        alias_surface = searchable_text(
+            " ".join(source_aliases.get(source.source_id, ())) if source_aliases else ""
+        )
         title_weight, title_terms = _weighted_hits(surfaces["title"], distinctive_terms, expansion)
         id_weight, id_terms = _weighted_hits(surfaces["ids"], expansion.all_terms, expansion)
         path_weight, path_terms = _weighted_hits(surfaces["path"], expansion.all_terms, expansion)
         metadata_weight, metadata_terms = _weighted_hits(surfaces["metadata"], distinctive_terms, expansion)
         all_weight, all_terms = _weighted_hits(surfaces["all"], distinctive_terms, expansion)
+        alias_weight, alias_terms = _weighted_hits(alias_surface, distinctive_terms, expansion)
         title_phrase_weight, title_phrases = _weighted_hits(surfaces["title"], expansion.phrases, expansion)
         path_phrase_weight, path_phrases = _weighted_hits(surfaces["path"], expansion.phrases, expansion)
+        alias_phrase_weight, alias_phrases = _weighted_hits(alias_surface, expansion.phrases, expansion)
 
         title_terms_score = min(1.0, title_weight / distinctive_total)
-        phrase_score = min(1.0, (title_phrase_weight + path_phrase_weight) / phrase_total)
+        phrase_score = min(
+            1.0,
+            (title_phrase_weight + path_phrase_weight) / phrase_total,
+        )
+        alias_score = min(1.0, alias_weight / distinctive_total)
+        alias_phrase_score = min(1.0, alias_phrase_weight / phrase_total)
         id_path_score = min(1.0, (id_weight + path_weight) / max(1.0, sum(expansion.term_weights.get(term, 1.0) for term in expansion.all_terms)))
         metadata_score = min(1.0, metadata_weight / distinctive_total)
         broad_source_score = min(1.0, all_weight / distinctive_total)
@@ -226,6 +237,8 @@ def retrieve_source_candidates(
         channel_scores = {
             "source_title_terms": title_terms_score,
             "source_title_or_path_phrase": phrase_score,
+            "source_corpus_alias_terms": alias_score,
+            "source_corpus_alias_phrase": alias_phrase_score,
             "source_id_or_path": id_path_score,
             "source_metadata": metadata_score,
             "source_broad_field": broad_source_score,
@@ -240,6 +253,8 @@ def retrieve_source_candidates(
             1.0,
             0.38 * title_terms_score
             + 0.42 * phrase_score
+            + 0.22 * alias_score
+            + 0.18 * alias_phrase_score
             + 0.28 * id_path_score
             + 0.10 * metadata_score
             + 0.14 * broad_source_score
@@ -250,8 +265,8 @@ def retrieve_source_candidates(
             + kind_score
             + unique_title_phrase_bonus,
         )
-        matched_terms = tuple(dict.fromkeys([*title_terms, *id_terms, *path_terms, *metadata_terms, *all_terms]))
-        matched_phrases = tuple(dict.fromkeys([*title_phrases, *path_phrases]))
+        matched_terms = tuple(dict.fromkeys([*title_terms, *id_terms, *path_terms, *metadata_terms, *all_terms, *alias_terms]))
+        matched_phrases = tuple(dict.fromkeys([*title_phrases, *path_phrases, *alias_phrases]))
         if score <= 0 or (not matched_terms and not matched_phrases and not claim_score and not issue_score):
             continue
         reasons: list[str] = []
@@ -261,6 +276,8 @@ def retrieve_source_candidates(
             reasons.append("source_title_terms")
         if id_terms or path_terms:
             reasons.append("source_id_path_terms")
+        if alias_terms or alias_phrases:
+            reasons.append("corpus_derived_source_alias")
         if claim_score:
             reasons.append("imported_claim_signal")
         if issue_score:

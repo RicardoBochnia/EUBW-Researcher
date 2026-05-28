@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from eubw_researcher.evaluation.review import (
+    _central_concept_groups,
     build_manual_review_artifact,
     build_manual_review_report,
     build_manual_review_report_markdown,
@@ -284,6 +285,163 @@ class EvaluationRunnerTests(unittest.TestCase):
             any("ec_ts01_wallet_trust_mark" in follow_up for follow_up in report.open_follow_ups)
         )
 
+    def test_manual_review_rejects_missing_central_pseudonym_concepts(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung statt "
+            "Offenlegung der Identitaet nutzen, und welche Grenzen entstehen bei "
+            "Account-Bindung, Attributpraesentation und linkbaren Pseudonymen?"
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- Wallet-Relying-Party registrations and notifications should be checked.\n"
+            "Pruefdetails:\n- Synthetic support."
+        )
+        result.knowledge_retrieval_diagnostics = {
+            "expanded_terms": [
+                "pseudonym",
+                "pseudonymous authentication",
+                "account binding",
+                "selective disclosure",
+                "linkability",
+            ],
+            "distinctive_terms": ["pseudonym", "account binding", "linkability"],
+            "phrases": ["pseudonymous authentication", "selective disclosure"],
+            "top_source_candidates": [
+                {
+                    "source_id": "eudi_arf_main_markdown",
+                    "score": 0.82,
+                    "matched_terms": [],
+                    "matched_phrases": [],
+                    "channel_scores": {"source_corpus_alias_phrase": 1.0},
+                    "reasons": ["corpus_derived_source_alias"],
+                }
+            ],
+        }
+        result.opened_passages = [SimpleNamespace(source_id="eudi_arf_main_markdown")]
+        result.reading_plan = SimpleNamespace(
+            items=[SimpleNamespace(source_id="eudi_arf_main_markdown")]
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    statement="Registration API write methods are authorised-user only.",
+                    source_ids=["eudi_arf_main_markdown"],
+                    locators=["Architecture and Reference Framework"],
+                )
+            ]
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="pseudonym_drift",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="pseudonym_drift",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("Central question concepts" in follow_up for follow_up in report.open_follow_ups)
+        )
+
+    def test_central_concepts_ignore_broad_query_expansion_terms(self) -> None:
+        result = SimpleNamespace(
+            question="Wie funktioniert die Authentifizierung einer Wallet Unit?",
+            knowledge_retrieval_diagnostics={
+                "expanded_terms": [
+                    "authentication",
+                    "authenticate",
+                    "pseudonymous authentication",
+                    "pseudonym",
+                ],
+                "distinctive_terms": ["pseudonym"],
+                "phrases": ["pseudonymous authentication"],
+                "question_facets": [],
+            },
+        )
+
+        concept_ids = {
+            concept_id for concept_id, _ in _central_concept_groups(result)
+        }
+
+        self.assertNotIn("pseudonym", concept_ids)
+
+    def test_manual_review_rejects_trust_mark_answer_missing_removal_boundary(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Wann muesste ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen "
+            "entfernen, und was sagt das darueber aus, ob damit auch Relying Parties "
+            "oder Attestation Provider bewertet werden?"
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- Der sichtbare EUDI Wallet Trust Mark ist im Scope; Relying Parties "
+            "und Attestation Provider werden nur als Abgrenzung erwaehnt. "
+            "Quellenanker: ec_ts01_wallet_trust_mark.\n"
+            "Pruefdetails:\n- Synthetic support."
+        )
+        result.knowledge_retrieval_diagnostics = {
+            "expanded_terms": [
+                "trust mark",
+                "wallet trust mark",
+                "remove",
+                "cancellation",
+                "relying party",
+                "attestation provider",
+            ],
+            "distinctive_terms": ["trust mark", "remove", "cancellation"],
+            "phrases": ["wallet trust mark", "visible trust mark"],
+            "top_source_candidates": [
+                {
+                    "source_id": "ec_ts01_wallet_trust_mark",
+                    "score": 0.82,
+                    "matched_terms": ["trust mark"],
+                    "matched_phrases": ["wallet trust mark"],
+                    "channel_scores": {"source_title_or_path_phrase": 1.0},
+                    "reasons": ["distinctive_source_phrase"],
+                }
+            ],
+        }
+        result.opened_passages = [SimpleNamespace(source_id="ec_ts01_wallet_trust_mark")]
+        result.reading_plan = SimpleNamespace(
+            items=[SimpleNamespace(source_id="ec_ts01_wallet_trust_mark")]
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    statement=(
+                        "Upon cancellation, the Wallet Provider must remove the visible "
+                        "trust mark; the scope excludes Relying Party services and "
+                        "Attestation Provider qualifications."
+                    ),
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    locators=["Specification of EUDI Wallet Trust Mark > 1.2 Scope"],
+                )
+            ]
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="trust_mark_missing_removal",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="trust_mark_missing_removal",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("user answer" in follow_up for follow_up in report.open_follow_ups)
+        )
+
     def test_manual_review_requires_relative_top_source_candidate_in_user_answer(self) -> None:
         result = _minimal_result("fetch")
         result.question = (
@@ -352,6 +510,79 @@ class EvaluationRunnerTests(unittest.TestCase):
         self.assertTrue(
             any("ec_ts01_wallet_trust_mark" in follow_up for follow_up in report.open_follow_ups)
         )
+
+    def test_manual_review_accepts_secondary_context_anchor_for_top_source_candidate(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = "Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?"
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- Das sichtbare Wallet-Vertrauenszeichen ist ein nutzerseitig sichtbarer "
+            "Trust-Hinweis fuer die EUDI Wallet Solution. Quellenanker: "
+            "celex_32024R2981_fulltext_en.\n"
+            "- Technischer Kontext: Die Spezifikation des EUDI Wallet Trust Mark bleibt "
+            "als Kontextquelle relevant. Quellenanker: ec_ts01_wallet_trust_mark.\n"
+            "Pruefdetails:\nConfirmed:\n- Synthetic support."
+        )
+        result.knowledge_retrieval_diagnostics = {
+            "question_facets": ["trust_mark_meaning"],
+            "top_source_candidates": [
+                {
+                    "source_id": "ec_ts01_wallet_trust_mark",
+                    "score": 0.95,
+                    "matched_terms": ["trust mark", "wallet trust mark"],
+                    "matched_phrases": ["trust mark", "wallet trust mark"],
+                    "channel_scores": {
+                        "source_title_or_path_phrase": 0.35,
+                        "unique_title_phrase_bonus": 0.22,
+                    },
+                    "reasons": ["distinctive_source_phrase"],
+                }
+            ],
+        }
+        result.opened_passages = [
+            SimpleNamespace(source_id="ec_ts01_wallet_trust_mark"),
+            SimpleNamespace(source_id="celex_32024R2981_fulltext_en"),
+        ]
+        result.reading_plan = SimpleNamespace(
+            items=[
+                SimpleNamespace(source_id="ec_ts01_wallet_trust_mark"),
+                SimpleNamespace(source_id="celex_32024R2981_fulltext_en"),
+            ]
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    statement="The EU Digital Identity Wallet Trust Mark should indicate a wallet in a clear and recognisable manner.",
+                    source_ids=["celex_32024R2981_fulltext_en"],
+                    locators=["Recital 15"],
+                    facet_tags=["trust_mark_meaning"],
+                    quality_flags=["answer_ready"],
+                    answer_role="normative_basis",
+                ),
+                SimpleNamespace(
+                    statement="A.1 WalletTrustMarkInformation JSON Schema.",
+                    source_ids=["ec_ts01_wallet_trust_mark"],
+                    locators=["Annex A"],
+                    facet_tags=["trust_mark_meaning"],
+                    quality_flags=["definition_only"],
+                    answer_role="core_answer_support",
+                ),
+            ]
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="trust_mark_secondary_context",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="trust_mark_secondary_context",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.final_judgment, "accept")
 
     def test_manual_review_rejects_template_or_snippet_dump(self) -> None:
         cases = [

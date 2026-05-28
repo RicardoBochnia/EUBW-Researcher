@@ -286,6 +286,58 @@ def _surface_contains_any(surface: str, values: List[str]) -> bool:
     )
 
 
+def _central_concept_groups(result) -> list[tuple[str, list[str]]]:
+    diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None) or {}
+    question = getattr(result, "question", "") or ""
+    surface = normalize_text_for_matching(question)
+    question_facets = {
+        str(facet)
+        for facet in diagnostics.get("question_facets", []) or []
+        if isinstance(facet, str)
+    }
+    groups: list[tuple[str, list[str]]] = []
+    if (
+        "trust mark" in surface
+        or "vertrauenszeichen" in surface
+        or "vertrauensmarke" in surface
+        or question_facets.intersection(
+            {"trust_mark_meaning", "trust_mark_removal", "trust_mark_scope_boundary"}
+        )
+    ):
+        groups.append(("trust_mark", ["trust mark", "wallet trust mark", "vertrauenszeichen"]))
+    if (
+        any(term in surface for term in ["remove", "removal", "cancellation", "entfernen", "widerruf", "revoke", "revocation"])
+        or "trust_mark_removal" in question_facets
+    ):
+        groups.append(("removal_or_cancellation", ["remove", "removal", "cancellation", "entfernen", "withdraw", "revoke", "revocation", "widerruf"]))
+    if (
+        "attestation provider" in surface
+        or "relying party" in surface
+        or "trust_mark_scope_boundary" in question_facets
+    ):
+        groups.append(("rp_or_ap_scope", ["relying party", "attestation provider", "rps", "rp/ap"]))
+    if "pseudonym" in surface or "pseudonyme" in surface or "pseudonym_legal_permission" in question_facets:
+        groups.append(("pseudonym", ["pseudonym", "pseudonyms", "pseudonymous", "pseudonyme"]))
+    if ("account" in surface and "binding" in surface) or "pseudonym_account_binding" in question_facets:
+        groups.append(("account_binding", ["account", "binding", "user account", "account binding", "user binding"]))
+    if (
+        "selective disclosure" in surface
+        or "attribute presentation" in surface
+        or "attributpraesentation" in surface
+        or "attribute_presentation_limit" in question_facets
+    ):
+        groups.append(("attribute_presentation", ["selective disclosure", "attribute", "presentation", "claims", "credential"]))
+    if (
+        "linkability" in surface
+        or "linkable" in surface
+        or "unlinkability" in surface
+        or "linkbaren" in surface
+        or "linkability_risk" in question_facets
+    ):
+        groups.append(("linkability", ["linkability", "linkable", "unlinkability", "unlinkable"]))
+    return groups
+
+
 def _topic_drift_status(result) -> tuple[bool, str]:
     diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None)
     if not diagnostics:
@@ -316,6 +368,7 @@ def _topic_drift_status(result) -> tuple[bool, str]:
         )
         for record in (matrix.records if matrix is not None else [])
     )
+    answer_before_details = final_answer.split("Pruefdetails:", 1)[0]
 
     for candidate in strong_candidates[:3]:
         source_id = str(candidate.get("source_id", ""))
@@ -340,6 +393,33 @@ def _topic_drift_status(result) -> tuple[bool, str]:
                 False,
                 "The synthesis matrix does not retain the distinctive concept that drove the top source candidate.",
             )
+
+    central_concepts = _central_concept_groups(result)
+    missing_answer_concepts = [
+        concept_id
+        for concept_id, aliases in central_concepts
+        if not _surface_contains_any(answer_before_details, aliases)
+    ]
+    if missing_answer_concepts:
+        return (
+            False,
+            "Central question concepts are absent from the user answer: "
+            + ", ".join(missing_answer_concepts)
+            + ".",
+        )
+
+    missing_matrix_concepts = [
+        concept_id
+        for concept_id, aliases in central_concepts
+        if not _surface_contains_any(matrix_surface, aliases)
+    ]
+    if missing_matrix_concepts:
+        return (
+            False,
+            "Central question concepts are absent from the synthesis matrix: "
+            + ", ".join(missing_matrix_concepts)
+            + ".",
+        )
 
     return True, "High-confidence source candidates were opened and retained in the answer surface."
 

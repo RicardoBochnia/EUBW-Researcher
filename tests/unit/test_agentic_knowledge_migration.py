@@ -276,6 +276,91 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         self.assertTrue(
             any("ec_ts01_wallet_trust_mark" in record.source_ids for record in matrix.records)
         )
+        trust_rows = [
+            record
+            for record in matrix.records
+            if "ec_ts01_wallet_trust_mark" in record.source_ids
+        ]
+        self.assertTrue(
+            any("trust_mark_removal" in record.facet_tags for record in trust_rows)
+        )
+        self.assertTrue(
+            any("trust_mark_scope_boundary" in record.facet_tags for record in trust_rows)
+        )
+        self.assertTrue(
+            any(
+                "remove the visible trust mark" in record.statement
+                and "Relying Party" in record.statement
+                and "Attestation Provider" in record.statement
+                for record in trust_rows
+            )
+        )
+
+    def test_pseudonym_round4_navigation_surfaces_legal_arf_and_openid_facets(self) -> None:
+        catalog_path = REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json"
+        _, bundle, _, _ = load_or_build_ingestion_bundle(catalog_path)
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
+        service = KnowledgeService(bundle, terminology=terminology)
+        question = (
+            "Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung statt "
+            "Offenlegung der Identitaet nutzen, und welche Grenzen entstehen bei "
+            "Account-Bindung, Attributpraesentation und linkbaren Pseudonymen?"
+        )
+
+        clusters, _, _ = service.build_evidence_clusters(question)
+        diagnostics = service.retrieval_diagnostics() or {}
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.knowledge_composer_vnext.yaml")
+        targets, selected_evidence = build_dynamic_claim_targets(clusters, max_targets=8)
+        verification = [
+            ClaimVerificationRecord(
+                claim_id=target.target_id,
+                claim_type=ClaimType.SYNTHESIS,
+                verification_result=ClaimState.INTERPRETIVE,
+                decision_reason="fixture",
+                source_ids=target.source_ids,
+                answer_use_allowed=True,
+            )
+            for target in targets
+        ]
+        reading_plan, opened_passages, matrix = build_reading_artifacts(
+            question=question,
+            clusters=clusters,
+            selected_evidence=selected_evidence,
+            claim_verification=verification,
+            runtime_config=runtime,
+        )
+
+        top_source_ids = {
+            candidate["source_id"]
+            for candidate in diagnostics.get("top_source_candidates", [])[:12]
+        }
+        self.assertIn("eudi_arf_main_markdown", top_source_ids)
+        self.assertIn("openid4vp_1_0_official", top_source_ids)
+        opened_source_ids = {item.source_id for item in reading_plan.items}
+        self.assertIn("eudi_arf_main_markdown", opened_source_ids)
+        self.assertIn("celex_32024R2979_fulltext_en", opened_source_ids)
+        self.assertIn("openid4vp_1_0_official", opened_source_ids)
+        self.assertTrue(
+            any(
+                passage.source_id == "celex_32024R2979_fulltext_en"
+                and passage.locator
+                and "PSEUDONYM" in passage.locator.upper()
+                for passage in opened_passages
+            )
+        )
+        matrix_facets = {
+            facet
+            for record in matrix.records
+            for facet in record.facet_tags
+        }
+        self.assertTrue(
+            {
+                "pseudonym_legal_permission",
+                "pseudonym_account_binding",
+                "attribute_presentation_limit",
+                "linkability_risk",
+            }.issubset(matrix_facets)
+        )
 
     def test_source_title_beats_generic_role_terms(self) -> None:
         title_source = self._synthetic_document(
@@ -307,11 +392,90 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
 
     def test_german_english_domain_expansion_for_retrieval(self) -> None:
         expansion = expand_query("Richtige Immabescheinigung und sichtbares Vertrauenszeichen entfernen")
+        facets = set(detect_question_facets("sichtbares Vertrauenszeichen entfernen"))
 
         self.assertIn("trust mark", expansion.all_terms)
         self.assertIn("remove", expansion.all_terms)
         self.assertIn("selection", expansion.all_terms)
         self.assertIn("student", expansion.all_terms)
+        self.assertIn("trust_mark_meaning", facets)
+        self.assertIn("trust_mark_removal", facets)
+        self.assertNotIn("trust_mark_scope_boundary", facets)
+
+    def test_generic_trust_mark_question_does_not_activate_removal_facet(self) -> None:
+        facets = set(detect_question_facets("Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?"))
+
+        self.assertIn("trust_mark_meaning", facets)
+        self.assertNotIn("trust_mark_removal", facets)
+        self.assertNotIn("trust_mark_scope_boundary", facets)
+
+    def test_generic_authentication_query_does_not_expand_to_pseudonym(self) -> None:
+        expansion = expand_query("Wie funktioniert die Authentifizierung einer Wallet Unit?")
+
+        self.assertIn("authentication", expansion.all_terms)
+        self.assertNotIn("pseudonym", expansion.all_terms)
+        self.assertNotIn("pseudonymous authentication", expansion.all_terms)
+
+    def test_pseudonym_question_expands_without_false_open_issue_facet(self) -> None:
+        question = (
+            "Wann kann ein Wallet-Use-Case pseudonyme Authentifizierung statt "
+            "Offenlegung der Identitaet nutzen, und welche Grenzen entstehen bei "
+            "Account-Bindung, Attributpraesentation und linkbaren Pseudonymen?"
+        )
+
+        expansion = expand_query(question)
+        facets = set(detect_question_facets(question))
+
+        self.assertIn("pseudonym", expansion.all_terms)
+        self.assertIn("selective disclosure", expansion.all_terms)
+        self.assertIn("linkability", expansion.all_terms)
+        self.assertIn("pseudonym_legal_permission", facets)
+        self.assertIn("pseudonym_account_binding", facets)
+        self.assertIn("attribute_presentation_limit", facets)
+        self.assertIn("linkability_risk", facets)
+        self.assertNotIn("open_issue_or_member_state_choice", facets)
+
+    def test_provider_portability_opens_wua_and_ts10_without_mandaten_data_false_friend(self) -> None:
+        catalog_path = REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json"
+        _, bundle, _, _ = load_or_build_ingestion_bundle(catalog_path)
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
+        service = KnowledgeService(bundle, terminology=terminology)
+        question = (
+            "Was passiert bei einem Wechsel des Wallet-Providers mit Nachweisen, "
+            "Mandaten, Vertrauenskette und Auditspur, wenn echte Portabilität "
+            "gefordert wird?"
+        )
+
+        clusters, _, _ = service.build_evidence_clusters(question)
+        diagnostics = service.retrieval_diagnostics() or {}
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.knowledge_composer_vnext.yaml")
+        targets, selected_evidence = build_dynamic_claim_targets(clusters, max_targets=8)
+        verification = [
+            ClaimVerificationRecord(
+                claim_id=target.target_id,
+                claim_type=ClaimType.SYNTHESIS,
+                verification_result=ClaimState.INTERPRETIVE,
+                decision_reason="fixture",
+                source_ids=target.source_ids,
+                answer_use_allowed=True,
+            )
+            for target in targets
+        ]
+        reading_plan, _, _ = build_reading_artifacts(
+            question=question,
+            clusters=clusters,
+            selected_evidence=selected_evidence,
+            claim_verification=verification,
+            runtime_config=runtime,
+        )
+
+        self.assertNotIn(
+            "requested_attributes",
+            diagnostics.get("question_facets", []),
+        )
+        opened_sources = {item.source_id for item in reading_plan.items}
+        self.assertIn("ec_ts03_wallet_unit_attestation", opened_sources)
+        self.assertIn("ec_ts10_data_portability_export", opened_sources)
 
     def test_knowledge_service_exposes_agent_navigation_primitives(self) -> None:
         catalog_path = REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
@@ -525,6 +689,7 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
             matrix.records[0].answer_role,
             {
                 "core_answer",
+                "core_answer_support",
                 "normative_basis",
                 "technical_spec_context",
                 "source_role_context",
