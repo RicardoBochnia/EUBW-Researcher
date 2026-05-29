@@ -143,6 +143,26 @@ _FACET_TERMS: dict[str, tuple[str, ...]] = {
         "eudi wallet loesungen",
         "eudi-wallet-loesungen",
     ),
+    "protocol_security_parameter": (
+        "openid4vp",
+        "openid for verifiable presentations",
+        "authorization request",
+        "authorization response",
+        "response uri",
+        "response_uri",
+        "direct post",
+        "direct_post",
+        "state",
+        "nonce",
+        "wallet nonce",
+        "wallet_nonce",
+        "request id",
+        "request-id",
+        "transaction id",
+        "transaction-id",
+        "csrf",
+        "replay",
+    ),
     "open_issue_or_member_state_choice": (
         "open issue",
         "offene frage",
@@ -258,6 +278,37 @@ _WALLET_SOLUTION_TERMS = _normalized_terms(
         "eudi-wallet",
     )
 )
+_PROTOCOL_PARAMETER_TERMS = _normalized_terms(
+    (
+        "state",
+        "nonce",
+        "wallet nonce",
+        "wallet_nonce",
+        "request id",
+        "request-id",
+        "transaction id",
+        "transaction-id",
+    )
+)
+_PROTOCOL_CONTEXT_TERMS = _normalized_terms(
+    (
+        "openid4vp",
+        "openid for verifiable presentations",
+        "authorization request",
+        "authorization response",
+        "response uri",
+        "response_uri",
+        "direct post",
+        "direct_post",
+        "csrf",
+        "replay",
+        "cross-site request forgery",
+        "session fixation",
+        "verifiable presentation",
+        "holder binding",
+        "oauth",
+    )
+)
 
 
 def _surface_has_trust_mark(surface: str) -> bool:
@@ -266,6 +317,16 @@ def _surface_has_trust_mark(surface: str) -> bool:
 
 def _surface_has_any(surface: str, terms: tuple[str, ...]) -> bool:
     return any(term in surface for term in terms)
+
+
+def _surface_has_protocol_term(surface: str, term: str) -> bool:
+    if term in {"state", "nonce", "csrf", "replay", "oauth"}:
+        return f" {term} " in f" {surface} "
+    return term in surface
+
+
+def _surface_has_any_protocol_term(surface: str, terms: tuple[str, ...]) -> bool:
+    return any(_surface_has_protocol_term(surface, term) for term in terms)
 
 
 def _trust_mark_facets_for_surface(surface: str) -> list[str]:
@@ -291,6 +352,30 @@ def _surface_has_requested_attribute_term(surface: str, terms: tuple[str, ...]) 
     return False
 
 
+def _surface_has_protocol_security_parameter(surface: str) -> bool:
+    has_nonce_or_identifier = _surface_has_any_protocol_term(
+        surface,
+        tuple(term for term in _PROTOCOL_PARAMETER_TERMS if term != "state"),
+    )
+    has_state_protocol_context = _surface_has_protocol_term(surface, "state") and _surface_has_any_protocol_term(
+        surface,
+        (
+            "openid4vp",
+            "openid for verifiable presentations",
+            "authorization request",
+            "authorization response",
+            "response uri",
+            "response_uri",
+            "direct post",
+            "direct_post",
+            "csrf",
+            "replay",
+        ),
+    )
+    has_context = _surface_has_any_protocol_term(surface, _PROTOCOL_CONTEXT_TERMS)
+    return (has_nonce_or_identifier or has_state_protocol_context) and has_context
+
+
 def detect_question_facets(question: str) -> list[str]:
     """Return reusable semantic facets that should constrain evidence synthesis."""
 
@@ -306,6 +391,10 @@ def detect_question_facets(question: str) -> list[str]:
                 surface,
                 _WALLET_SOLUTION_TERMS,
             ):
+                facets.append(facet)
+            continue
+        if facet == "protocol_security_parameter":
+            if _surface_has_protocol_security_parameter(surface):
                 facets.append(facet)
             continue
         if facet == "requested_attributes":
@@ -347,6 +436,13 @@ def facet_hits_for_text(text: str, facets: Iterable[str] | None = None) -> dict[
                 and _surface_has_any(surface, _WALLET_CERTIFICATION_TERMS)
                 and _surface_has_any(surface, _WALLET_SOLUTION_TERMS)
             ]
+            if matched:
+                hits[facet] = matched
+            continue
+        if facet == "protocol_security_parameter":
+            if not _surface_has_protocol_security_parameter(surface):
+                continue
+            matched = [term for term in terms if _surface_has_protocol_term(surface, term)]
             if matched:
                 hits[facet] = matched
             continue

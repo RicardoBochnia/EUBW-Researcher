@@ -94,6 +94,7 @@ TERM_ALIASES = {
     "certificate": ["certificate", "certificate policy", "practice statement"],
     "certification": ["certification", "certification scheme", "conformity assessment"],
     "client": ["client", "resource owner", "authorization server", "token endpoint"],
+    "csrf": ["csrf", "cross-site request forgery", "session fixation"],
     "delegationskette": [
         "delegation",
         "chain",
@@ -139,6 +140,7 @@ TERM_ALIASES = {
     "nachweise": ["credential", "attestation", "evidence"],
     "nachvollziehbarkeit": ["traceability", "audit"],
     "natuerliche": ["natural"],
+    "nonce": ["nonce", "fresh nonce", "cryptographically random nonce"],
     "oeffentliche": ["public sector", "public sector bodies", "public authorities"],
     "person": ["person"],
     "portabilitaet": [
@@ -153,6 +155,8 @@ TERM_ALIASES = {
     ],
     "protokollieren": ["log", "audit"],
     "pruefbarkeit": ["audit", "verification", "traceability"],
+    "pruefung": ["verification", "verify", "checks"],
+    "pruefungen": ["verification", "verify", "checks"],
     "providers": ["provider"],
     "pubeaa": [
         "pubeaa",
@@ -178,6 +182,7 @@ TERM_ALIASES = {
     "registerdaten": ["register", "registration", "authentic", "source"],
     "recht": ["law", "regulation"],
     "regelwerk": ["rulebook", "catalogue", "attribute", "description"],
+    "replay": ["replay", "replay attacks", "preventing replay"],
     "richtigen": ["selection", "scope", "intended use", "purpose"],
     "rollen": ["roles", "client", "resource owner", "authorization server"],
     "rp": ["relying", "party", "wallet-relying-party"],
@@ -205,6 +210,24 @@ TERM_ALIASES = {
     "vertrauensniveau": ["level of assurance", "assurance", "substantial level of assurance", "authentication"],
     "vorrang": ["priority", "authentic", "source"],
     "vorschlag": ["proposal"],
+    "wua": [
+        "wallet unit attestation",
+        "wallet unit attestations",
+        "issuer credential metadata",
+        "proof_types_supported",
+        "key_attestation_required",
+        "x5c",
+        "c_nonce",
+    ],
+    "wuas": [
+        "wallet unit attestation",
+        "wallet unit attestations",
+        "issuer credential metadata",
+        "proof_types_supported",
+        "key_attestation_required",
+        "x5c",
+        "c_nonce",
+    ],
     "wechsel": [
         "migration",
         "transfer",

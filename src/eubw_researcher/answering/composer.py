@@ -556,6 +556,45 @@ def _answer_ready_statement(record: object, question: str, *, limit: int = 420) 
             "der Nachweis bezieht sich auf die Wallet Solution, nicht auf eine Bewertung "
             "von Relying Parties oder Attestation Providern."
         )
+    if _is_german_question(question) and (
+        ("wallet unit attestation" in normalized or "wua" in normalized)
+        and "issuer credential metadata" in normalized
+        and (
+            "proof_types_supported" in statement
+            or "proof support" in normalized
+            or "proof types supported" in normalized
+        )
+    ):
+        return (
+            "Fuer PID- oder Attribut-Aussteller ist die WUA-Pruefung eine "
+            "Issuer-/Transportpflicht: Bei device-bound Attestations muessen "
+            "unterstuetzte WUA-Proof-Typen in der Issuer Credential Metadata "
+            "sichtbar sein, einschliesslich Key-Attestation-Anforderung."
+        )
+    if _is_german_question(question) and (
+        ("wallet unit attestation" in normalized or "wua" in normalized)
+        and "x5c" in normalized
+        and ("trust anchor" in normalized or "trust-anchor" in normalized)
+        and "c_nonce" in statement
+    ):
+        return (
+            "Pruefseitig geht es um kryptografische Bindung: Signatur der WUA, "
+            "`x5c`-Zertifikatskette bis zu einem Wallet-Provider-Trust-Anchor, "
+            "Bindung an den attestierten Schluessel und frischen `c_nonce`."
+        )
+    if _is_german_question(question) and (
+        (
+            "wallet providers issue wuas" in normalized
+            or "wallet provider wuas" in normalized
+            or "wallet providers issue wua" in normalized
+        )
+        and "out of scope" in normalized
+    ):
+        return (
+            "Ausserhalb dieser WUA-Spezifikation bleibt, wie Wallet Provider WUAs "
+            "an Wallet Units ausgeben; spezifiziert sind hier Transfer, Format, "
+            "Inhalt, Lebenszyklus und Widerrufsmechanismus der WUA."
+        )
     return _compact_answer_text(statement, limit=limit)
 
 
@@ -1359,6 +1398,86 @@ def _product_summary_lines(
         )
         return lines
 
+    wua_issuer_question = _has_question_terms(
+        normalized_question,
+        ["wallet unit attestation", "wallet unit attestations", "wua", "unit attestation"],
+    ) and _has_question_terms(
+        normalized_question,
+        ["pid", "attribut", "attestation provider", "issuer", "aussteller"],
+    )
+    if evidence_synthesis_matrix is not None and not wua_issuer_question:
+        wua_issuer_question = any(
+            "ec_ts03_wallet_unit_attestation" in (getattr(record, "source_ids", []) or [])
+            and _surface_contains_any(
+                _record_surface(record),
+                [
+                    "issuer credential metadata",
+                    "proof_types_supported",
+                    "key_attestation_required",
+                    "pid provider",
+                    "attestation provider",
+                ],
+            )
+            for record in evidence_synthesis_matrix.records
+        )
+    if wua_issuer_question:
+        wua_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            [
+                "issuer credential metadata",
+                "proof_types_supported",
+                "proof support",
+                "key_attestation_required",
+                "key attestation",
+                "x5c",
+                "trust anchor",
+                "attested-key",
+                "c_nonce",
+            ],
+            min_term_hits=1,
+            allowed_answer_roles=("core_answer", "core_answer_support", "candidate_core_claim", "technical_spec_context"),
+            required_source_ids=("ec_ts03_wallet_unit_attestation",),
+        )
+        scope_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            [
+                "out of scope",
+                "wallet providers issue wuas",
+                "transfer",
+                "format",
+                "content",
+                "life cycle",
+                "revocation mechanism",
+            ],
+            min_term_hits=1,
+            allowed_answer_roles=("scope_boundary", "core_answer", "core_answer_support", "technical_spec_context"),
+            required_source_ids=("ec_ts03_wallet_unit_attestation",),
+        )
+        if wua_records or scope_records:
+            wua_sources = _matrix_source_ids([*wua_records, *scope_records])
+            lines.append(
+                "- Fuer PID- oder Attribut-Aussteller ist die Wallet Unit Attestation "
+                "kein allgemeiner Wallet-Status, sondern ein im Issuance-/Transportfluss "
+                "zu pruefender Nachweis: device-bound Ausstellungen muessen WUA-Proof-Typen "
+                "in der Issuer Credential Metadata signalisieren und Key Attestation verlangen."
+                + _source_suffix(_matrix_source_ids(wua_records) or wua_sources)
+            )
+            lines.append(
+                "- Die eigentliche Pruefung bleibt kryptografisch: WUA-Signatur, `x5c`-"
+                "Zertifikatskette bis zu einem Wallet-Provider-Trust-Anchor, Bindung an "
+                "den attestierten Schluessel und frischer `c_nonce` muessen zur konkreten "
+                "Ausstellung passen."
+                + _source_suffix(_matrix_source_ids(wua_records) or wua_sources)
+            )
+            if scope_records:
+                lines.append(
+                    "- Ausserhalb dieser WUA-Spezifikation bleibt, wie Wallet Provider WUAs "
+                    "an Wallet Units ausgeben; spezifiziert sind Transfer, Format, Inhalt, "
+                    "Lebenszyklus und Widerrufsmechanismus der WUA."
+                    + _source_suffix(_matrix_source_ids(scope_records) or wua_sources)
+                )
+            return lines
+
     if _has_question_terms(normalized_question, ["access ca", "access certificate authority"]) and _has_question_terms(
         normalized_question,
         ["lote", "list of trusted entities"],
@@ -1401,6 +1520,85 @@ def _product_summary_lines(
         )
         lines.append(
             "- Wo eine technische Spezifikation Trust Establishment oder Public-Key-Finding als ausserhalb ihres Scopes markiert, darf daraus keine rechtliche Provider-Listung abgeleitet werden."
+        )
+        return lines
+
+    protocol_security_question = (
+        _has_question_terms(normalized_question, ["state"])
+        and _has_question_terms(normalized_question, ["nonce"])
+        and _has_question_terms(
+            normalized_question,
+            [
+                "openid4vp",
+                "openid",
+                "authorization response",
+                "authorization request",
+                "csrf",
+                "replay",
+                "response-zuordnung",
+                "response zuordnung",
+            ],
+        )
+    )
+    if evidence_synthesis_matrix is not None and not protocol_security_question:
+        protocol_security_question = any(
+            "protocol_security_parameter" in (getattr(record, "facet_tags", []) or [])
+            for record in evidence_synthesis_matrix.records
+        )
+    if protocol_security_question:
+        state_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            [
+                "state",
+                "authorization response",
+                "request-id",
+                "request id",
+                "response_uri",
+                "response uri",
+                "direct_post",
+            ],
+            min_term_hits=2,
+            required_facets=("protocol_security_parameter",),
+            allowed_answer_roles=("normative_basis", "core_answer", "core_answer_support", "candidate_core_claim"),
+            required_source_ids=("openid4vp_1_0_official",),
+        )
+        nonce_records = _matrix_records_matching(
+            evidence_synthesis_matrix,
+            [
+                "nonce",
+                "securely bind",
+                "verifiable presentation",
+                "preventing replay",
+                "replay",
+                "correct nonce",
+                "fresh cryptographically random",
+            ],
+            min_term_hits=1,
+            required_facets=("protocol_security_parameter",),
+            allowed_answer_roles=("normative_basis", "core_answer", "core_answer_support", "candidate_core_claim"),
+            required_source_ids=("openid4vp_1_0_official",),
+        )
+        protocol_sources = _matrix_source_ids([*state_records, *nonce_records])
+        lines.append(
+            "- In OpenID4VP ist `state` der Korrelationsanker fuer die Antwort: "
+            "bei `direct_post` sendet die Wallet die Authorization Response mit "
+            "`vp_token` und `state` an die `response_uri`; die Response URI kann "
+            "damit pruefen, ob die Antwort zum erwarteten Request gehoert."
+            + _source_suffix(_matrix_source_ids(state_records) or protocol_sources)
+        )
+        lines.append(
+            "- `nonce` bindet die Verifiable Presentation an die konkrete Transaktion: "
+            "der Verifier erzeugt einen frischen Nonce fuer den Authorization Request, "
+            "die Wallet bindet Presentation/Holder-Binding daran, und der Verifier "
+            "muss den zur Session passenden Nonce validieren."
+            + _source_suffix(_matrix_source_ids(nonce_records) or protocol_sources)
+        )
+        lines.append(
+            "- Kurz gesagt: `state` adressiert falsche Response-Zuordnung und "
+            "CSRF-/Session-Verwechslungen, waehrend `nonce` zusammen mit Holder Binding "
+            "Replay alter Presentations verhindert; beides ist Protokollbindung, kein "
+            "Wallet-Status- oder Trust-List-Signal."
+            + _source_suffix(protocol_sources)
         )
         return lines
 
@@ -1893,6 +2091,8 @@ def _has_precise_citation(entry: LedgerEntry) -> bool:
 
 
 def _is_answer_renderable_entry(entry: LedgerEntry) -> bool:
+    if _is_dynamic_entry(entry) and not _has_precise_citation(entry):
+        return False
     if _is_imported_legacy_candidate_entry(entry) and not _has_precise_citation(entry):
         return False
     return True
@@ -1953,6 +2153,8 @@ def _select_answer_entries(
     selected_dynamic = 0
     for entry in entries:
         if not _is_dynamic_entry(entry):
+            continue
+        if not _is_answer_renderable_entry(entry):
             continue
         citation = _primary_citation(entry)
         source_key = citation.source_id if citation is not None else entry.claim_id

@@ -640,6 +640,36 @@ class ComposerTests(unittest.TestCase):
         )
         self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
 
+    def test_vnext_dynamic_entries_without_precise_locator_are_not_rendered(self) -> None:
+        approximate_entry = _entry(
+            "dynamic_cluster_unanchored_archive",
+            "Opened archive evidence without an anchor should stay out of final prose.",
+            ClaimState.INTERPRETIVE,
+        )
+        for citation in approximate_entry.citations:
+            citation.anchor_label = None
+            citation.canonical_url = "https://example.test/archive"
+        for evidence in approximate_entry.supporting_evidence:
+            evidence.citation.anchor_label = None
+            evidence.citation.canonical_url = "https://example.test/archive"
+
+        bundle = compose_answer_bundle(
+            "Synthetic generic question?",
+            [approximate_entry],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+        )
+
+        self.assertNotIn("dynamic_cluster_unanchored_archive", bundle.rendered_answer)
+        self.assertNotIn("Opened archive evidence without an anchor", bundle.rendered_answer)
+        self.assertNotIn(
+            "dynamic_cluster_unanchored_archive",
+            {
+                record.answer_claim_id
+                for record in bundle.pinpoint_evidence_report.records
+            },
+        )
+
     def test_vnext_review_details_compact_long_candidate_claims(self) -> None:
         long_claim = (
             " ".join(["Legacy imported snippet text that should be reviewable but compact."] * 40)
@@ -1230,8 +1260,10 @@ class ComposerTests(unittest.TestCase):
                     answer_role="core_answer_support",
                     statement=(
                         "A PID Provider or an Attestation Provider issuing device-bound "
-                        "attestations SHALL indicate support for key attestations in its "
-                        "Issuer Credential Metadata."
+                        "attestations SHALL indicate `proof_types_supported` support for "
+                        "key attestations in its Issuer Credential Metadata and verify the "
+                        "WUA signature, x5c trust anchor chain, attested key binding, and "
+                        "c_nonce freshness."
                     ),
                     source_ids=["ec_ts03_wallet_unit_attestation"],
                     chunk_ids=["ec_ts03:2.2.2.2"],
@@ -1279,6 +1311,12 @@ class ComposerTests(unittest.TestCase):
         short_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
         self.assertIn("ec_ts03_wallet_unit_attestation", short_answer)
         self.assertIn("Wallet Unit Attestation", short_answer)
+        self.assertIn("Issuer Credential Metadata", short_answer)
+        self.assertIn("Trust-Anchor", short_answer)
+        self.assertIn("c_nonce", short_answer)
+        self.assertIn("Ausserhalb", short_answer)
+        self.assertNotIn("SHALL indicate", short_answer)
+        self.assertNotIn("Note that *how*", short_answer)
         self.assertNotIn("Immatrikulationsbescheinigungen", short_answer)
         self.assertNotIn("Studierendenausweise", short_answer)
 
@@ -1346,6 +1384,88 @@ class ComposerTests(unittest.TestCase):
         self.assertIn("celex_32024R2981_fulltext_en", short_answer)
         self.assertIn("Zertifizierungs-Durchfuehrungsverordnung", short_answer)
         self.assertNotIn("once-only attestations", short_answer)
+
+    def test_vnext_openidvp_state_nonce_answer_uses_protocol_parameter_records(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question=(
+                "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz von "
+                "Wallet-Interaktionen gegen CSRF, Replay oder falsche Response-Zuordnung?"
+            ),
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="openidvp_state_response",
+                    claim_id="dynamic_openidvp_state",
+                    cluster_id="cluster_openidvp",
+                    answer_role="normative_basis",
+                    statement=(
+                        "The Wallet sends the Authorization Response with the parameters "
+                        "vp_token and state to the response_uri of the Verifier; the "
+                        "Response URI checks whether the state value is a valid request-id."
+                    ),
+                    source_ids=["openid4vp_1_0_official"],
+                    chunk_ids=["openid4vp:13.3"],
+                    locators=["OpenID4VP > 13.3 Response Mode direct_post"],
+                    facet_tags=["protocol_security_parameter"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="openidvp_nonce_replay",
+                    claim_id="dynamic_openidvp_nonce",
+                    cluster_id="cluster_openidvp",
+                    answer_role="normative_basis",
+                    statement=(
+                        "The cryptographic proof of possession in a Verifiable Presentation "
+                        "MUST be bound to the respective transaction identified by the nonce "
+                        "parameter; the Verifier MUST reject a response that does not contain "
+                        "the correct nonce value."
+                    ),
+                    source_ids=["openid4vp_1_0_official"],
+                    chunk_ids=["openid4vp:14.1"],
+                    locators=["OpenID4VP > 14.1 Preventing Replay of Verifiable Presentations"],
+                    facet_tags=["protocol_security_parameter"],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+                EvidenceSynthesisRecord(
+                    synthesis_id="notification_noise",
+                    claim_id="dynamic_notification_noise",
+                    cluster_id="cluster_celex_2980",
+                    answer_role="normative_basis",
+                    statement="The Commission shall make available a secure electronic notification system.",
+                    source_ids=["celex_32024R2980_fulltext_en"],
+                    chunk_ids=["celex_2980:article_3"],
+                    locators=["Article 3"],
+                    facet_tags=[],
+                    quality_flags=["answer_ready"],
+                    verification_status=ClaimState.CONFIRMED,
+                ),
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            (
+                "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz von "
+                "Wallet-Interaktionen gegen CSRF, Replay oder falsche Response-Zuordnung?"
+            ),
+            [
+                _entry(
+                    "dynamic_openidvp_state",
+                    "Raw state support.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        short_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
+        self.assertIn("`state`", short_answer)
+        self.assertIn("`nonce`", short_answer)
+        self.assertIn("Replay", short_answer)
+        self.assertIn("openid4vp_1_0_official", short_answer)
+        self.assertNotIn("notification system", short_answer)
 
     def test_eubw_structured_answer_uses_parity_sections(self) -> None:
         bundle = compose_answer_bundle(

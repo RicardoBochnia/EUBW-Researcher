@@ -371,6 +371,24 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertNotIn("pseudonym", concept_ids)
 
+    def test_central_concepts_include_explicit_protocol_security_parameters(self) -> None:
+        result = SimpleNamespace(
+            question=(
+                "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz von "
+                "Wallet-Interaktionen gegen CSRF, Replay oder falsche Response-Zuordnung?"
+            ),
+            knowledge_retrieval_diagnostics={
+                "question_facets": ["protocol_security_parameter"],
+            },
+        )
+
+        concept_ids = {
+            concept_id for concept_id, _ in _central_concept_groups(result)
+        }
+
+        self.assertIn("state_parameter", concept_ids)
+        self.assertIn("nonce_parameter", concept_ids)
+
     def test_manual_review_rejects_trust_mark_answer_missing_removal_boundary(self) -> None:
         result = _minimal_result("fetch")
         result.question = (
@@ -1021,6 +1039,31 @@ class EvaluationRunnerTests(unittest.TestCase):
 
         self.assertTrue(verdict.passed)
         self.assertIn("web_fetch_records>=1:ok", verdict.checks)
+
+    def test_web_metadata_gate_ignores_unapproved_failed_fetch_attempts(self) -> None:
+        scenario = EvaluationScenario(
+            scenario_id="synthetic_failed_fetch_audit",
+            question="Synthetic question?",
+            expectation="Failed official candidates remain audit records only.",
+        )
+        result = _minimal_result("fetch")
+        record = result.web_fetch_records[0]
+        record.source_kind = None
+        record.source_role_level = None
+        record.jurisdiction = None
+        record.citation_quality = None
+        record.metadata_complete = False
+        record.normalization_status = NormalizationStatus.FAILED
+        record.reason = (
+            "Fetched URL matched multiple source kinds and could not be classified "
+            "to a single official source kind."
+        )
+
+        verdict = _evaluate_scenario(scenario, result)
+
+        self.assertTrue(verdict.passed)
+        self.assertIn("web_metadata_complete:ok", verdict.checks)
+        self.assertIn("rejected_web_not_approved:ok", verdict.checks)
 
     def test_required_web_discovery_count_accepts_discovery_records(self) -> None:
         scenario = EvaluationScenario(

@@ -85,6 +85,7 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "certificate": ("certificate", "certificate policy", "practice statement"),
     "certification": ("certification", "certification scheme", "conformity assessment"),
     "client": ("client", "resource owner", "authorization server", "token endpoint"),
+    "csrf": ("csrf", "cross-site request forgery", "session fixation"),
     "delegationskette": (
         "delegation",
         "chain",
@@ -138,6 +139,7 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "nachweise": ("credential", "attestation", "evidence"),
     "nachvollziehbarkeit": ("traceability", "audit"),
     "natuerliche": ("natural",),
+    "nonce": ("nonce", "fresh nonce", "cryptographically random nonce"),
     "oeffentliche": ("public sector", "public sector bodies", "public authorities"),
     "person": ("person",),
     "portabilitaet": ("portability", "migration", "export", "transfer", "migration object", "re-issuance", "rebinding", "device-bound"),
@@ -197,11 +199,14 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
         "validity",
     ),
     "pruefer": ("verifier", "relying", "party"),
+    "pruefung": ("verification", "verify", "checks"),
+    "pruefungen": ("verification", "verify", "checks"),
     "register": ("register", "registration", "authentic", "source"),
     "registerbetreiber": ("registrar", "register", "registration"),
     "registerdaten": ("register", "registration", "authentic", "source"),
     "recht": ("law", "regulation"),
     "regelwerk": ("rulebook", "catalogue", "attribute", "description"),
+    "replay": ("replay", "replay attacks", "preventing replay"),
     "richtige": ("selection", "scope", "intended use", "purpose"),
     "richtigen": ("selection", "scope", "intended use", "purpose"),
     "rollen": ("roles", "client", "resource owner", "authorization server"),
@@ -247,6 +252,24 @@ DOMAIN_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "account bindung": ("account binding", "user account binding", "user account"),
     "vorrang": ("priority", "authentic", "source"),
     "vorschlag": ("proposal",),
+    "wua": (
+        "wallet unit attestation",
+        "wallet unit attestations",
+        "issuer credential metadata",
+        "proof_types_supported",
+        "key_attestation_required",
+        "x5c",
+        "c_nonce",
+    ),
+    "wuas": (
+        "wallet unit attestation",
+        "wallet unit attestations",
+        "issuer credential metadata",
+        "proof_types_supported",
+        "key_attestation_required",
+        "x5c",
+        "c_nonce",
+    ),
     "wechsel": ("migration", "transfer", "export", "portability", "migration object", "re-issuance", "rebinding"),
     "widerruf": ("revocation", "revoked"),
     "widerrufen": ("revocation", "revoked", "lose validity", "validity"),
@@ -436,6 +459,46 @@ def expand_query(
                 "relying party linkability",
                 "verifier-to-verifier unlinkable presentations",
                 "cross-party linkability",
+            ]
+        )
+    if (
+        ("openid4vp" in values or "openid4vp" in terms)
+        and "state" in values
+        and "nonce" in values
+    ):
+        phrase_candidates.extend(
+            [
+                "openid4vp state nonce",
+                "authorization response state",
+                "request-id as state",
+                "nonce authorization request",
+                "preventing replay of verifiable presentations",
+            ]
+        )
+    if (
+        (
+            "wua" in values
+            or "wallet unit attestation" in values
+            or "wallet unit attestations" in values
+        )
+        and any(
+            term in values
+            for term in (
+                "pid",
+                "attestation provider",
+                "credential issuer",
+                "issuer",
+                "aussteller",
+            )
+        )
+    ):
+        phrase_candidates.extend(
+            [
+                "pid providers and attestation providers responsibilities for transport of wuas",
+                "issuer credential metadata proof_types_supported",
+                "key_attestation_required",
+                "wua signature x5c trust anchor",
+                "attested keys c_nonce",
             ]
         )
     _append_unique(phrases, phrase_seen, phrase_candidates)

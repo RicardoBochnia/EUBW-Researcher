@@ -147,6 +147,26 @@ ROLE_BOUNDARY_FACETS: dict[str, tuple[str, ...]] = {
         "wallet solution",
         "wallet solutions",
     ),
+    "protocol_security_parameter": (
+        "openid4vp",
+        "openid for verifiable presentations",
+        "authorization request",
+        "authorization response",
+        "response uri",
+        "response_uri",
+        "direct post",
+        "direct_post",
+        "state",
+        "nonce",
+        "wallet nonce",
+        "wallet_nonce",
+        "request id",
+        "request-id",
+        "transaction id",
+        "transaction-id",
+        "csrf",
+        "replay",
+    ),
     "open_issue_or_member_state_choice": (
         "open issue",
         "offene frage",
@@ -211,6 +231,7 @@ CENTRAL_ROLE_BOUNDARY_FACETS = {
     "attribute_presentation_limit",
     "linkability_risk",
     "wallet_solution_certification",
+    "protocol_security_parameter",
 }
 
 FACET_COOCCURRENCE_BOOSTS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
@@ -224,6 +245,7 @@ FACET_COOCCURRENCE_BOOSTS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], .
     ("attribute_presentation_limit", ("attribute", "attributes", "claims"), ("presentation", "selective disclosure", "disclosure")),
     ("linkability_risk", ("linkable", "linkability", "unlinkability"), ("pseudonym", "presentation", "relying party")),
     ("wallet_solution_certification", ("certification", "certification scheme", "conformity assessment"), ("wallet solution", "european digital identity wallets")),
+    ("protocol_security_parameter", ("state", "nonce", "wallet_nonce", "request-id"), ("openid4vp", "authorization response", "authorization request", "direct_post", "replay")),
 )
 
 
@@ -255,6 +277,33 @@ TRUST_MARK_SCOPE_TERMS = (
     "bewertet",
     "bewertung",
 )
+PROTOCOL_PARAMETER_TERMS = (
+    "state",
+    "nonce",
+    "wallet nonce",
+    "wallet_nonce",
+    "request id",
+    "request-id",
+    "transaction id",
+    "transaction-id",
+)
+PROTOCOL_CONTEXT_TERMS = (
+    "openid4vp",
+    "openid for verifiable presentations",
+    "authorization request",
+    "authorization response",
+    "response uri",
+    "response_uri",
+    "direct post",
+    "direct_post",
+    "csrf",
+    "replay",
+    "cross-site request forgery",
+    "session fixation",
+    "verifiable presentation",
+    "holder binding",
+    "oauth",
+)
 
 
 def _trust_mark_facets_for_surface(surface: str) -> list[str]:
@@ -268,12 +317,58 @@ def _trust_mark_facets_for_surface(surface: str) -> list[str]:
     return facets
 
 
+def _surface_has_protocol_term(surface: str, term: str) -> bool:
+    if term in {"state", "nonce", "csrf", "replay", "oauth"}:
+        return f" {term} " in f" {surface} "
+    return term in surface
+
+
+def _surface_has_protocol_security_parameter(surface: str) -> bool:
+    has_nonce_or_identifier = any(
+        _surface_has_protocol_term(surface, term)
+        for term in PROTOCOL_PARAMETER_TERMS
+        if term != "state"
+    )
+    has_state_protocol_context = _surface_has_protocol_term(surface, "state") and any(
+        _surface_has_protocol_term(surface, term)
+        for term in (
+            "openid4vp",
+            "openid for verifiable presentations",
+            "authorization request",
+            "authorization response",
+            "response uri",
+            "response_uri",
+            "direct post",
+            "direct_post",
+            "csrf",
+            "replay",
+        )
+    )
+    return (has_nonce_or_identifier or has_state_protocol_context) and any(
+        _surface_has_protocol_term(surface, term) for term in PROTOCOL_CONTEXT_TERMS
+    )
+
+
+def _surface_has_protocol_record_context(surface: str) -> bool:
+    return any(
+        term in surface
+        for term in (
+            "openid4vp_1_0_official",
+            "rfc6749_oauth2",
+        )
+    )
+
+
 def detect_question_facets(question: str) -> list[str]:
     normalized = normalize_text_for_matching(question)
     facets: list[str] = []
     for facet_id, terms in ROLE_BOUNDARY_FACETS.items():
         if facet_id.startswith("trust_mark_"):
             if facet_id in _trust_mark_facets_for_surface(normalized):
+                facets.append(facet_id)
+            continue
+        if facet_id == "protocol_security_parameter":
+            if _surface_has_protocol_security_parameter(normalized):
                 facets.append(facet_id)
             continue
         if facet_id == "requested_attributes":
@@ -305,14 +400,20 @@ def _facet_tags_for_surface(surface: str, question_facets: set[str]) -> list[str
             if facet_id in trust_facets:
                 tags.append(facet_id)
             continue
+        if facet_id == "protocol_security_parameter":
+            if _surface_has_protocol_record_context(normalized) and _surface_has_protocol_security_parameter(normalized):
+                tags.append(facet_id)
+            continue
         terms = ROLE_BOUNDARY_FACETS.get(facet_id, ())
         if any(term in normalized for term in terms):
             tags.append(facet_id)
     for facet_id, left_terms, right_terms in FACET_COOCCURRENCE_BOOSTS:
         if facet_id not in question_facets or facet_id in tags:
             continue
-        if any(term in normalized for term in left_terms) and any(
-            term in normalized for term in right_terms
+        if facet_id == "protocol_security_parameter" and not _surface_has_protocol_record_context(normalized):
+            continue
+        if any(_surface_has_protocol_term(normalized, term) for term in left_terms) and any(
+            _surface_has_protocol_term(normalized, term) for term in right_terms
         ):
             tags.append(facet_id)
     return sorted(tags)
@@ -333,6 +434,10 @@ def _quality_flags(text: str) -> list[str]:
             "selective disclosure",
             "linkability",
             "pseudonymous authentication",
+            "securely bind verifiable presentation",
+            "preventing replay",
+            "authorization response with the parameters",
+            "check that the same state value is returned",
         )
     )
     if (
@@ -440,6 +545,39 @@ def _facet_score(record, question_facets: set[str]) -> int:
         )
     ):
         score += 95
+    if "protocol_security_parameter" in question_facets:
+        if _surface_has_protocol_record_context(normalized):
+            score += 45
+        if "nonce" in normalized and any(
+            term in normalized
+            for term in (
+                "securely bind",
+                "preventing replay",
+                "verifiable presentation",
+                "correct nonce",
+                "verifier must verify",
+                "verifier must validate",
+                "fresh cryptographically random",
+            )
+        ):
+            score += 110
+        if "state" in normalized and any(
+            term in normalized
+            for term in (
+                "authorization response",
+                "request-id",
+                "request id",
+                "response uri",
+                "response_uri",
+                "direct_post",
+                "same state value",
+            )
+        ):
+            score += 105
+        if "wallet_unavailable" in normalized or "token endpoint" in normalized:
+            score -= 70
+        if ("member state" in normalized or "state diagram" in normalized) and "nonce" not in normalized:
+            score -= 85
     if "pseudonym_legal_permission" in question_facets and any(
         term in normalized
         for term in ("pseudonym", "pseudonyms", "pseudonymous authentication")
@@ -540,6 +678,30 @@ def _compact_statement(text: str, *, limit: int = 360) -> str:
         flags=re.IGNORECASE,
     )
     original_normalized = normalize_text_for_matching(compact)
+    if (
+        "pid provider or an attestation provider issuing device-bound attestations"
+        in original_normalized
+        and "issuer credential metadata" in original_normalized
+        and (
+            "proof_types_supported" in compact
+            or "proof types supported" in original_normalized
+        )
+    ):
+        return (
+            "PID and Attestation Providers issuing device-bound attestations must "
+            "advertise WUA proof support in Issuer Credential Metadata, require key "
+            "attestation, and verify the WUA signature, x5c trust-anchor chain, "
+            "attested-key binding, and c_nonce freshness."
+        )
+    if (
+        "wallet providers issue wuas to the wallet unit" in original_normalized
+        and "out of scope" in original_normalized
+    ):
+        return (
+            "How Wallet Providers issue WUAs to the Wallet Unit is outside this "
+            "technical specification; the source scopes WUA interoperability to "
+            "transfer, format, content, life cycle, and revocation mechanisms."
+        )
     if (
         "upon cancellation" in original_normalized
         and "remove" in original_normalized

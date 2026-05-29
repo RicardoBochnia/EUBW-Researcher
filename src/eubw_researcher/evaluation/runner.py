@@ -277,7 +277,10 @@ def _evaluate_scenario_with_review_report(
         allowed_records = [
             record
             for record in result.web_fetch_records
-            if record.allowed and record.record_type == "fetch"
+            if record.allowed
+            and record.record_type == "fetch"
+            and getattr(getattr(record, "normalization_status", None), "value", None)
+            == "success"
         ]
         if all(
             (

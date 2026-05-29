@@ -456,8 +456,12 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
             "Wallet-Interaktionen gegen CSRF, Replay oder falsche Response-Zuordnung?"
         )
 
+        expansion = expand_query(question)
         facets = set(detect_question_facets(question))
 
+        self.assertIn("openid4vp state nonce", expansion.phrases)
+        self.assertIn("preventing replay of verifiable presentations", expansion.phrases)
+        self.assertIn("protocol_security_parameter", facets)
         self.assertNotIn("actor_boundary", facets)
 
     def test_openidvp_state_nonce_reading_plan_prefers_openidvp_source(self) -> None:
@@ -485,7 +489,7 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
             )
             for target in targets
         ]
-        reading_plan, _, _ = build_reading_artifacts(
+        reading_plan, _, matrix = build_reading_artifacts(
             question=question,
             clusters=clusters,
             selected_evidence=selected_evidence,
@@ -494,7 +498,18 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         )
 
         self.assertNotIn("actor_boundary", diagnostics.get("question_facets", []))
+        self.assertIn("protocol_security_parameter", diagnostics.get("question_facets", []))
         self.assertEqual("openid4vp_1_0_official", reading_plan.items[0].source_id)
+        protocol_rows = [
+            record
+            for record in matrix.records
+            if "protocol_security_parameter" in record.facet_tags
+            and "openid4vp_1_0_official" in record.source_ids
+        ]
+        self.assertTrue(protocol_rows)
+        protocol_surface = " ".join(record.statement for record in protocol_rows).lower()
+        self.assertIn("nonce", protocol_surface)
+        self.assertIn("state", protocol_surface)
 
     def test_provider_portability_opens_wua_and_ts10_without_mandaten_data_false_friend(self) -> None:
         catalog_path = REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json"
@@ -537,6 +552,55 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         opened_sources = {item.source_id for item in reading_plan.items}
         self.assertIn("ec_ts03_wallet_unit_attestation", opened_sources)
         self.assertIn("ec_ts10_data_portability_export", opened_sources)
+
+    def test_wua_issuer_question_compacts_transport_and_scope_rows(self) -> None:
+        catalog_path = REPO_ROOT / "artifacts" / "real_corpus" / "curated_catalog.json"
+        _, bundle, _, _ = load_or_build_ingestion_bundle(catalog_path)
+        terminology = load_terminology_config(REPO_ROOT / "configs" / "terminology.yaml")
+        service = KnowledgeService(bundle, terminology=terminology)
+        question = (
+            "Welche Informationen und Pruefungen rund um die Wallet Unit Attestation "
+            "braucht ein PID- oder Attribut-Aussteller, bevor er an eine Wallet Unit "
+            "ausstellt, und was bleibt ausserhalb der WUA-Spezifikation?"
+        )
+
+        clusters, _, _ = service.build_evidence_clusters(question)
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.knowledge_composer_vnext.yaml")
+        targets, selected_evidence = build_dynamic_claim_targets(clusters, max_targets=8)
+        verification = [
+            ClaimVerificationRecord(
+                claim_id=target.target_id,
+                claim_type=ClaimType.SYNTHESIS,
+                verification_result=ClaimState.INTERPRETIVE,
+                decision_reason="fixture",
+                source_ids=target.source_ids,
+                answer_use_allowed=True,
+            )
+            for target in targets
+        ]
+        reading_plan, _, matrix = build_reading_artifacts(
+            question=question,
+            clusters=clusters,
+            selected_evidence=selected_evidence,
+            claim_verification=verification,
+            runtime_config=runtime,
+        )
+
+        self.assertIn(
+            "ec_ts03_wallet_unit_attestation",
+            {item.source_id for item in reading_plan.items},
+        )
+        wua_rows = [
+            record
+            for record in matrix.records
+            if "ec_ts03_wallet_unit_attestation" in record.source_ids
+        ]
+        self.assertTrue(wua_rows)
+        wua_surface = " ".join(record.statement for record in wua_rows)
+        self.assertIn("Issuer Credential Metadata", wua_surface)
+        self.assertIn("c_nonce freshness", wua_surface)
+        self.assertIn("outside this technical specification", wua_surface)
+        self.assertNotIn("Note that *how*", wua_surface)
 
     def test_knowledge_service_exposes_agent_navigation_primitives(self) -> None:
         catalog_path = REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"

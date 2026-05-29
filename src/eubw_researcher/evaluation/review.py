@@ -335,6 +335,19 @@ def _central_concept_groups(result) -> list[tuple[str, list[str]]]:
         or "linkability_risk" in question_facets
     ):
         groups.append(("linkability", ["linkability", "linkable", "unlinkability", "unlinkable"]))
+    if (
+        (
+            "state" in surface
+            and "nonce" in surface
+            and any(
+                term in surface
+                for term in ("openid4vp", "openid", "authorization response", "authorization request", "replay", "csrf")
+            )
+        )
+        or "protocol_security_parameter" in question_facets
+    ):
+        groups.append(("state_parameter", ["state"]))
+        groups.append(("nonce_parameter", ["nonce"]))
     return groups
 
 
