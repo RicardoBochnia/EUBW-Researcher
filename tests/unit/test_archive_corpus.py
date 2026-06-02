@@ -4,10 +4,19 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from eubw_researcher.config import load_archive_corpus_config
-from eubw_researcher.corpus import build_catalog_from_archive, ingest_catalog
-from eubw_researcher.models import AnchorQuality, CitationQuality
+from eubw_researcher.corpus import build_catalog_from_archive, ingest_catalog, ingest_text_entry
+from eubw_researcher.corpus.normalize import normalize_bytes_content
+from eubw_researcher.models import (
+    AnchorQuality,
+    CitationQuality,
+    SourceCatalogEntry,
+    SourceKind,
+    SourceRoleLevel,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -180,6 +189,39 @@ class ArchiveCorpusTests(unittest.TestCase):
             self.assertEqual(by_id["xml_source"].normalization_format, "xml")
             self.assertEqual(by_id["pdf_source"].normalization_format, "pdf")
             self.assertGreaterEqual(by_id["pdf_source"].chunk_count, 1)
+
+    def test_pdf_normalization_preserves_page_locators_for_ingestion(self) -> None:
+        pages = [
+            SimpleNamespace(extract_text=lambda: "Proposal heading\\nFirst page body."),
+            SimpleNamespace(extract_text=lambda: "Annex heading\\nSecond page body."),
+        ]
+        with patch("eubw_researcher.corpus.normalize.PdfReader", return_value=SimpleNamespace(pages=pages)):
+            text, _, normalization_format, note = normalize_bytes_content(b"%PDF fixture", ".pdf")
+
+        document, report = ingest_text_entry(
+            SourceCatalogEntry(
+                source_id="pdf_pages",
+                title="PDF Pages",
+                source_kind=SourceKind.REGULATION,
+                source_role_level=SourceRoleLevel.HIGH,
+                jurisdiction="EU",
+                publication_status="proposal",
+                publication_date=None,
+                local_path=None,
+                canonical_url=None,
+                anchorability_hints=["expect_anchors"],
+            ),
+            text,
+            normalization_format=normalization_format,
+            normalization_note=note,
+        )
+
+        self.assertEqual(report.anchor_quality, AnchorQuality.STRONG)
+        self.assertEqual(report.citation_quality, CitationQuality.ANCHOR_GROUNDED)
+        self.assertEqual(
+            [chunk.extracted_anchor_label for chunk in document.chunks],
+            ["Page 1", "Page 2"],
+        )
 
     @unittest.skipUnless(
         (REPO_ROOT / "artifacts" / "real_corpus" / "archive").exists(),

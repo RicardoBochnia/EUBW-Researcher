@@ -21,7 +21,7 @@ from eubw_researcher.models import (
 
 LOGGER = logging.getLogger(__name__)
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
-STRONG_ANCHOR_RE = re.compile(r"^(article|section|clause|annex|chapter)\b", re.IGNORECASE)
+STRONG_ANCHOR_RE = re.compile(r"^(article|section|clause|annex|chapter|page)\b", re.IGNORECASE)
 NUMBERED_ANCHOR_RE = re.compile(r"^((\d+(\.\d+)+)|appendix\s+[a-z0-9]+)\b", re.IGNORECASE)
 PLAINTEXT_NUMBERED_HEADING_RE = re.compile(
     r"^\s*((?:\d+\.)*\d+|Appendix\s+[A-Z](?:\.\d+)*)\.\s+(.+?)\s*$",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from dataclasses import replace
 
 from eubw_researcher.models import (
     ClaimVerificationRecord,
@@ -13,6 +14,11 @@ from eubw_researcher.models import (
     ReadingPlanItem,
     RuntimeConfig,
     SelectedEvidenceRecord,
+    SourceKind,
+)
+from eubw_researcher.knowledge.relevance import (
+    evidence_record_is_relevant,
+    evidence_relevance_decision,
 )
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
@@ -304,6 +310,9 @@ PROTOCOL_CONTEXT_TERMS = (
     "holder binding",
     "oauth",
 )
+CATALOG_RELEVANCE_FALLBACK_SIGNAL = (
+    "catalog_has_no_profile_compatible_source_relevance_fallback"
+)
 
 
 def _trust_mark_facets_for_surface(surface: str) -> list[str]:
@@ -438,6 +447,9 @@ def _quality_flags(text: str) -> list[str]:
             "preventing replay",
             "authorization response with the parameters",
             "check that the same state value is returned",
+            "migrationobject",
+            "listofcredentials",
+            "transactionlogobject",
         )
     )
     if (
@@ -668,6 +680,71 @@ def _clusters_for_reading(
     return selected
 
 
+def _relevant_clusters_for_question(
+    question: str,
+    clusters: list[EvidenceCluster],
+) -> list[EvidenceCluster]:
+    relevant_clusters: list[EvidenceCluster] = []
+    for cluster in clusters:
+        records = [
+            record
+            for record in cluster.records
+            if evidence_record_is_relevant(question, record)
+        ]
+        if (
+            not records
+            and CATALOG_RELEVANCE_FALLBACK_SIGNAL in cluster.sufficiency_signals
+        ):
+            records = list(cluster.records)
+        if not records:
+            continue
+        relevant_clusters.append(
+            replace(
+                cluster,
+                records=records,
+                supporting_chunk_ids=[record.chunk_id for record in records],
+                source_ids=sorted({record.source_id for record in records}),
+            )
+        )
+    return relevant_clusters
+
+
+def _records_for_cluster_opening(records: list, *, max_adjacent: int) -> list:
+    limit = 1 + max_adjacent
+    selected = list(records[:limit])
+    blocking_flags = {"references_only", "table_note", "title_only"}
+    for index, record in enumerate(selected):
+        if not set(_quality_flags(record.snippet)).intersection(blocking_flags):
+            continue
+        replacement = next(
+            (
+                candidate
+                for candidate in records[limit:]
+                if candidate.source_id == record.source_id
+                and candidate not in selected
+                and not set(_quality_flags(candidate.snippet)).intersection(blocking_flags)
+            ),
+            None,
+        )
+        if replacement is not None:
+            selected[index] = replacement
+    if max_adjacent <= 0 or not selected:
+        return selected
+    if len({record.source_id for record in selected}) > 1:
+        return selected
+    alternate = next(
+        (
+            record
+            for record in records[limit:]
+            if record.source_id != selected[0].source_id
+        ),
+        None,
+    )
+    if alternate is not None:
+        selected.append(alternate)
+    return selected
+
+
 def _compact_statement(text: str, *, limit: int = 360) -> str:
     compact = re.sub(r"\s+", " ", text).strip()
     compact = re.sub(r"^[#>*\-\s]+", "", compact)
@@ -759,7 +836,20 @@ def _compact_statement(text: str, *, limit: int = 360) -> str:
             "trust indicators out of scope."
         )
     sentences = re.split(r"(?<=[.!?])\s+", compact)
-    chosen = next((sentence for sentence in sentences if len(sentence) > 40), compact)
+    priority_markers = (
+        "powers and mandates",
+        "revocation mechanisms",
+        "representation attestations",
+    )
+    chosen = next(
+        (
+            sentence
+            for sentence in sentences
+            if len(sentence) > 40
+            and any(marker in normalize_text_for_matching(sentence) for marker in priority_markers)
+        ),
+        next((sentence for sentence in sentences if len(sentence) > 40), compact),
+    )
     if len(chosen) > limit:
         chosen = chosen[:limit].rsplit(" ", 1)[0].strip() + "..."
     return chosen
@@ -891,8 +981,13 @@ def _answer_role(cluster: EvidenceCluster, record) -> str:
         return "core_answer_support"
     if record.source_role_level.value == "low":
         return "background"
-    if record.document_status.value in {"final", "adopted_pending_effective_date"}:
+    if (
+        record.source_kind in {SourceKind.REGULATION, SourceKind.IMPLEMENTING_ACT}
+        and record.document_status.value in {"final", "adopted_pending_effective_date"}
+    ):
         return "normative_basis"
+    if record.source_kind in {SourceKind.TECHNICAL_STANDARD, SourceKind.PROJECT_ARTIFACT}:
+        return "technical_spec_context"
     if record.source_role_level.value == "medium":
         return "technical_spec_context"
     return "source_role_context"
@@ -901,6 +996,7 @@ def _answer_role(cluster: EvidenceCluster, record) -> str:
 def _caveats(cluster: EvidenceCluster, record, verification) -> list[str]:
     caveats: list[str] = [
         f"source_role:{record.source_role_level.value}",
+        f"source_kind:{record.source_kind.value}",
         f"evidence_tier:{record.evidence_tier.value}",
         f"binding_level:{record.binding_level.value}",
         f"document_status:{record.document_status.value}",
@@ -967,7 +1063,7 @@ def build_reading_artifacts(
         selected_by_chunk_id[selected.chunk_id].append(selected)
 
     reading_clusters = _clusters_for_reading(
-        clusters,
+        _relevant_clusters_for_question(question, clusters),
         max_clusters=max_clusters,
         question_facets=question_facets,
     )
@@ -981,7 +1077,10 @@ def build_reading_artifacts(
             key=lambda record: _record_priority(record, question_facets),
             reverse=True,
         ) if question_facets else list(cluster.records)
-        cluster_records = ordered_records[: 1 + max_adjacent]
+        cluster_records = _records_for_cluster_opening(
+            ordered_records,
+            max_adjacent=max_adjacent,
+        )
         for index, record in enumerate(cluster_records):
             if max_opened and opened_count >= max_opened:
                 reading_plan.budget_exhausted = True
@@ -1035,7 +1134,10 @@ def build_reading_artifacts(
             key=lambda record: _record_priority(record, question_facets),
             reverse=True,
         ) if question_facets else list(cluster.records)
-        for record in ordered_records[: 1 + max_adjacent]:
+        for record in _records_for_cluster_opening(
+            ordered_records,
+            max_adjacent=max_adjacent,
+        ):
             selected_records = selected_by_chunk_id.get(record.chunk_id, [])
             claim_id = selected_records[0].claim_id if selected_records else None
             verification = verification_by_claim_id.get(claim_id or "")
@@ -1049,17 +1151,24 @@ def build_reading_artifacts(
                 answer_role = "candidate_core_claim"
             if set(quality_flags).intersection({"references_only", "table_note", "title_only"}):
                 answer_role = "background"
+            statement = _facet_statement(record.snippet, facet_tags)
+            if not evidence_relevance_decision(
+                question,
+                " ".join([statement, record.source_id]),
+            ).relevant and CATALOG_RELEVANCE_FALLBACK_SIGNAL not in cluster.sufficiency_signals:
+                continue
             records.append(
                 EvidenceSynthesisRecord(
                     synthesis_id=f"synthesis_{len(records) + 1}",
                     claim_id=claim_id,
                     cluster_id=cluster.cluster_id,
                     answer_role=answer_role,
-                    statement=_facet_statement(record.snippet, facet_tags),
+                    statement=statement,
                     source_ids=[record.source_id],
                     chunk_ids=[record.chunk_id],
                     locators=[record.locator] if record.locator else [],
                     source_role_levels=[record.source_role_level],
+                    source_kinds=[record.source_kind],
                     evidence_tiers=[record.evidence_tier],
                     binding_levels=[record.binding_level],
                     document_statuses=[record.document_status],
@@ -1071,6 +1180,20 @@ def build_reading_artifacts(
                     caveats=_caveats(cluster, record, verification),
                 )
             )
+
+    retained_chunk_ids = {
+        chunk_id
+        for record in records
+        for chunk_id in record.chunk_ids
+    }
+    reading_plan.items = [
+        item for item in reading_plan.items if item.chunk_id in retained_chunk_ids
+    ]
+    opened_passages = [
+        passage
+        for passage in opened_passages
+        if passage.chunk_id in retained_chunk_ids
+    ]
 
     return (
         reading_plan,

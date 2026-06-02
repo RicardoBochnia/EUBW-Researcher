@@ -14,6 +14,10 @@ from eubw_researcher.models import (
     SourceRoleLevel,
 )
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
+from eubw_researcher.knowledge.relevance import (
+    evidence_record_is_relevant,
+    ledger_entry_is_relevant,
+)
 from eubw_researcher.trust import (
     answer_alignment_status,
     pinpoint_traceability_status,
@@ -351,12 +355,118 @@ def _central_concept_groups(result) -> list[tuple[str, list[str]]]:
     return groups
 
 
+def _bundle_evidence_relevance_status(result) -> tuple[bool, str]:
+    question = getattr(result, "question", "") or ""
+    matrix = getattr(result, "evidence_synthesis_matrix", None)
+    irrelevant_rows = [
+        record
+        for record in (matrix.records if matrix is not None else [])
+        if not evidence_record_is_relevant(question, record)
+    ]
+    if irrelevant_rows:
+        return (
+            False,
+            "Evidence synthesis matrix retains off-topic rows: "
+            + ", ".join(
+                str(getattr(record, "synthesis_id", "unknown"))
+                for record in irrelevant_rows[:5]
+            )
+            + ".",
+        )
+    irrelevant_entries = [
+        entry
+        for entry in getattr(result, "approved_entries", [])
+        if not ledger_entry_is_relevant(question, entry)
+    ]
+    if irrelevant_entries:
+        return (
+            False,
+            "approved_ledger.json retains off-topic answer entries: "
+            + ", ".join(
+                str(getattr(entry, "claim_id", "unknown"))
+                for entry in irrelevant_entries[:5]
+            )
+            + ".",
+        )
+    return True, "Matrix and approved ledger retain only question-relevant evidence."
+
+
+def _source_semantics_status(result) -> tuple[bool, str]:
+    answer_before_details = (getattr(result, "rendered_answer", "") or "").split(
+        "Pruefdetails:",
+        1,
+    )[0]
+    matrix = getattr(result, "evidence_synthesis_matrix", None)
+    technical_source_ids = {
+        source_id
+        for record in (matrix.records if matrix is not None else [])
+        if any(
+            getattr(source_kind, "value", source_kind) == "technical_standard"
+            for source_kind in (getattr(record, "source_kinds", []) or [])
+        )
+        for source_id in (getattr(record, "source_ids", []) or [])
+    }
+    for line in answer_before_details.splitlines():
+        if "bindende/hochrangige Quelle" not in line:
+            continue
+        if any(source_id in line for source_id in technical_source_ids):
+            return (
+                False,
+                "Technical standards are rendered as binding/high-rank legal sources.",
+            )
+    return True, "Source rank, binding effect and document status are not conflated."
+
+
+def _web_gap_query_relevance_status(result) -> tuple[bool, str]:
+    question = getattr(result, "question", "") or ""
+    max_length = max(420, len(question) * 2 + 240)
+    for record in getattr(result, "web_fetch_records", []) or []:
+        discovery_query = getattr(record, "discovery_query", None)
+        if not discovery_query:
+            continue
+        if len(discovery_query) > max_length:
+            return (
+                False,
+                "A web-gap discovery query is too long and appears to retain retrieved snippet text.",
+            )
+        sub_question = str(getattr(record, "sub_question", "") or "")
+        if len(sub_question) > 140 and normalize_text_for_matching(sub_question) in normalize_text_for_matching(discovery_query):
+            return (
+                False,
+                "A web-gap discovery query reuses a long retrieved snippet as search input.",
+            )
+    return True, "Web-gap discovery queries stay bounded to question, facets and gap description."
+
+
 def _topic_drift_status(result) -> tuple[bool, str]:
+    relevance_statuses = [
+        status_check(result)
+        for status_check in (
+            _bundle_evidence_relevance_status,
+            _source_semantics_status,
+            _web_gap_query_relevance_status,
+        )
+    ]
+
+    def first_failed_relevance_status() -> tuple[bool, str] | None:
+        return next(
+            (
+                (ok, evidence)
+                for ok, evidence in relevance_statuses
+                if not ok
+            ),
+            None,
+        )
+
     diagnostics = getattr(result, "knowledge_retrieval_diagnostics", None)
     if not diagnostics:
+        if failed_status := first_failed_relevance_status():
+            return failed_status
         return True, "Knowledge retrieval diagnostics were not produced; topic-drift guard not exercised."
     strong_candidates = _required_diagnostic_candidates(result)
     if not strong_candidates:
+        if failed_status := first_failed_relevance_status():
+            return failed_status
         return True, "No high-confidence source candidate required topic-drift gating."
 
     opened_source_ids = {
@@ -434,6 +544,8 @@ def _topic_drift_status(result) -> tuple[bool, str]:
             + ".",
         )
 
+    if failed_status := first_failed_relevance_status():
+        return failed_status
     return True, "High-confidence source candidates were opened and retained in the answer surface."
 
 
@@ -716,6 +828,33 @@ def build_manual_review_artifact(result, scenario_id: Optional[str] = None) -> M
             check_id="answer_usability_surface",
             status="pass" if answer_usability_ok else "fail",
             evidence=answer_usability_evidence,
+        )
+    )
+
+    bundle_relevance_ok, bundle_relevance_evidence = _bundle_evidence_relevance_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="bundle_evidence_relevance",
+            status="pass" if bundle_relevance_ok else "fail",
+            evidence=bundle_relevance_evidence,
+        )
+    )
+
+    source_semantics_ok, source_semantics_evidence = _source_semantics_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="source_rank_binding_status_separated",
+            status="pass" if source_semantics_ok else "fail",
+            evidence=source_semantics_evidence,
+        )
+    )
+
+    web_gap_query_ok, web_gap_query_evidence = _web_gap_query_relevance_status(result)
+    checks.append(
+        ManualReviewCheck(
+            check_id="web_gap_query_relevance",
+            status="pass" if web_gap_query_ok else "fail",
+            evidence=web_gap_query_evidence,
         )
     )
 

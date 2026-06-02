@@ -212,7 +212,8 @@ def _render_citation_detail(citation: Citation) -> str:
     locator_part = f", locator={locator}" if locator else ""
     return (
         f"{citation.source_id} ({citation.source_kind.value}, "
-        f"role={citation.source_role_level.value}, "
+        f"rank={citation.source_role_level.value}, "
+        f"binding={_binding_effect_label(citation.source_kind.value, citation.binding_level.value, citation.document_status.value)}, "
         f"status={citation.document_status.value}{locator_part})"
     )
 
@@ -598,6 +599,14 @@ def _answer_ready_statement(record: object, question: str, *, limit: int = 420) 
     return _compact_answer_text(statement, limit=limit)
 
 
+def _looks_like_pdf_page_heading_fragment(statement: str) -> bool:
+    normalized = normalize_text_for_matching(statement)
+    return (
+        len(statement.split()) < 28
+        and re.search(r"\bpage\s+\d+\s+en(?:\s+\d+)?\s+en\b", normalized) is not None
+    )
+
+
 def _synthesis_record_views(
     evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
     question: str,
@@ -616,6 +625,8 @@ def _synthesis_record_views(
             continue
         statement = _answer_ready_statement(record, question)
         if not statement:
+            continue
+        if _looks_like_pdf_page_heading_fragment(statement):
             continue
         normalized_statement = normalize_text_for_matching(statement)
         if re.match(r"^article\s+\d+[a-z]?\b", normalized_statement) and len(statement.split()) < 24:
@@ -951,16 +962,36 @@ def _synthesis_summary_lines(
     return lines
 
 
+def _binding_effect_label(source_kind: str, binding_level: str, document_status: str) -> str:
+    if binding_level == "binding":
+        return "bindend"
+    if binding_level == "proposed":
+        return "vorgeschlagen_nicht_bindend"
+    if binding_level == "official_non_binding":
+        return "amtlich_nicht_bindend"
+    if binding_level == "non_binding":
+        return "nicht_bindend"
+    if source_kind in {"regulation", "implementing_act"}:
+        if document_status in {"proposal", "draft"}:
+            return "entwurfsstand_nicht_bindend"
+        return "eu_rechtsnorm"
+    if source_kind == "technical_standard":
+        return "technischer_standard_keine_eu_rechtsnorm"
+    if source_kind == "project_artifact":
+        return "projektkontext_nicht_bindend"
+    return "nicht_ausgewiesen"
+
+
 def _source_role_label(record: object) -> str:
     source_role = _record_caveat_value(record, "source_role:") or "unknown"
+    source_kind = _record_caveat_value(record, "source_kind:") or "unknown"
+    binding_level = _record_caveat_value(record, "binding_level:") or "unknown"
     document_status = _record_caveat_value(record, "document_status:") or "unknown"
-    if source_role == "high" and document_status in {"final", "adopted_pending_effective_date"}:
-        return "bindende/hochrangige Quelle"
-    if document_status in {"proposal", "draft"}:
-        return "Entwurfs- oder Proposal-Stand"
-    if source_role == "medium":
-        return "technische Spezifikation oder Projektartefakt"
-    return f"Quellenrolle {source_role}, Status {document_status}"
+    binding_effect = _binding_effect_label(source_kind, binding_level, document_status)
+    return (
+        f"Rang: {source_role}; Bindungswirkung: {binding_effect}; "
+        f"Dokumentstatus: {document_status}"
+    )
 
 
 def _render_vnext_clarification_note(note: Optional[str], question: str) -> Optional[str]:
@@ -981,24 +1012,29 @@ def _product_evidence_sections(
     evidence_synthesis_matrix: Optional[EvidenceSynthesisMatrix],
 ) -> list[str]:
     selected = _selected_synthesis_views(evidence_synthesis_matrix, question, limit=4)
-    if not selected:
+    selected_records = (
+        [view.record for view in selected]
+        if selected
+        else _matrix_summary_records(evidence_synthesis_matrix, limit=4)
+    )
+    if not selected_records:
         return []
 
     lines: list[str] = ["Belege / Quellenrolle:"]
-    for view in selected[:3]:
-        source_ids = ", ".join(getattr(view.record, "source_ids", []) or ["unbekannte Quelle"])
-        locators = [locator for locator in (getattr(view.record, "locators", []) or []) if locator]
+    for record in selected_records[:3]:
+        source_ids = ", ".join(getattr(record, "source_ids", []) or ["unbekannte Quelle"])
+        locators = [locator for locator in (getattr(record, "locators", []) or []) if locator]
         locator_part = f" - {_compact_locator(locators[0], limit=160)}" if locators else ""
         lines.append(
-            f"- {source_ids}{locator_part}: {_source_role_label(view.record)}; Rolle im Answering: {view.role}."
+            f"- {source_ids}{locator_part}: {_source_role_label(record)}; Rolle im Answering: {_synthesis_role(record)}."
         )
 
     caveat_lines: list[str] = []
-    if any(_record_caveat_value(view.record, "source_role:") == "medium" for view in selected):
+    if any(_record_caveat_value(record, "source_role:") == "medium" for record in selected_records):
         caveat_lines.append(
             "Technische Spezifikationen, ARF- oder Projektquellen stuetzen Interoperabilitaets- und Architekturkontext, ersetzen aber keine finale Rechtsnorm."
         )
-    if any(_record_caveat_value(view.record, "document_status:") in {"proposal", "draft"} for view in selected):
+    if any(_record_caveat_value(record, "document_status:") in {"proposal", "draft"} for record in selected_records):
         caveat_lines.append(
             "Proposal- oder Draft-Quellen duerfen nur als Entwurfsstand formuliert werden."
         )
@@ -1841,6 +1877,15 @@ def _product_summary_lines(
     )
     if synthesis_summary:
         lines.extend(synthesis_summary)
+        return lines
+    matrix_records = _matrix_summary_records(evidence_synthesis_matrix, limit=2)
+    if matrix_records:
+        source_ids = _matrix_source_ids(matrix_records)
+        lines.append(
+            "- Die geoeffnete Evidenz bindet die Antwort an die geoeffneten "
+            "Quellen und Locator; weitergehende Aussagen bleiben begrenzt."
+            + _source_suffix(source_ids)
+        )
         return lines
 
     for bullet in non_dynamic_bullets[:3]:

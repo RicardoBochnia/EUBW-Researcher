@@ -532,6 +532,9 @@ class EvaluationRunnerTests(unittest.TestCase):
     def test_manual_review_accepts_secondary_context_anchor_for_top_source_candidate(self) -> None:
         result = _minimal_result("fetch")
         result.question = "Was bedeutet das sichtbare Wallet-Vertrauenszeichen fuer Nutzer?"
+        result.approved_entries[0].claim_text = (
+            "The visible EUDI Wallet Trust Mark is a recognisable wallet indicator."
+        )
         result.rendered_answer = (
             "Kurzantwort:\n"
             "- Das sichtbare Wallet-Vertrauenszeichen ist ein nutzerseitig sichtbarer "
@@ -601,6 +604,99 @@ class EvaluationRunnerTests(unittest.TestCase):
         )
 
         self.assertEqual(report.final_judgment, "accept")
+
+    def test_manual_review_rejects_off_topic_normative_matrix_row(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz gegen "
+            "CSRF und Replay?"
+        )
+        result.approved_entries[0].claim_text = (
+            "OpenID4VP uses state and nonce to bind the Authorization Response and prevent replay."
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- OpenID4VP uses state and nonce for response binding. Quellenanker: openid4vp_1_0_official.\n"
+            "Pruefdetails:\nConfirmed:\n- OpenID4VP state and nonce support."
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    synthesis_id="synthesis_1",
+                    statement="OpenID4VP state binds the Authorization Response.",
+                    source_ids=["openid4vp_1_0_official"],
+                    locators=["14.3.2 Protection of the Response URI"],
+                    source_kinds=[SourceKind.TECHNICAL_STANDARD],
+                ),
+                SimpleNamespace(
+                    synthesis_id="synthesis_2",
+                    statement="Member States may impose administrative fines on Business Wallet providers.",
+                    source_ids=["ebw_proposal_com_2025_0838"],
+                    locators=["Article 20"],
+                    source_kinds=[SourceKind.REGULATION],
+                ),
+            ]
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="off_topic_matrix",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="off_topic_matrix",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(any("off-topic rows" in item for item in report.open_follow_ups))
+
+    def test_manual_review_rejects_binding_language_for_technical_standard(self) -> None:
+        result = _minimal_result("fetch")
+        result.question = (
+            "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz gegen "
+            "CSRF und Replay?"
+        )
+        result.approved_entries[0].claim_text = (
+            "OpenID4VP uses state and nonce to bind the Authorization Response and prevent replay."
+        )
+        result.rendered_answer = (
+            "Kurzantwort:\n"
+            "- OpenID4VP uses state and nonce for response binding.\n"
+            "Belege / Quellenrolle:\n"
+            "- openid4vp_1_0_official: bindende/hochrangige Quelle; Rolle im Answering: normative_basis.\n"
+            "Pruefdetails:\nConfirmed:\n- OpenID4VP state and nonce support."
+        )
+        result.evidence_synthesis_matrix = SimpleNamespace(
+            records=[
+                SimpleNamespace(
+                    synthesis_id="synthesis_1",
+                    statement="OpenID4VP state binds the Authorization Response.",
+                    source_ids=["openid4vp_1_0_official"],
+                    locators=["14.3.2 Protection of the Response URI"],
+                    source_kinds=[SourceKind.TECHNICAL_STANDARD],
+                )
+            ]
+        )
+
+        report = build_manual_review_report(
+            result,
+            ScenarioVerdict(
+                scenario_id="technical_binding_language",
+                passed=True,
+                checks=["synthetic:ok"],
+            ),
+            scenario_id="technical_binding_language",
+            catalog_path="fixture_catalog",
+            corpus_state_id="synthetic-state",
+        )
+
+        self.assertEqual(report.final_judgment, "reject")
+        self.assertTrue(
+            any("Technical standards are rendered" in item for item in report.open_follow_ups)
+        )
 
     def test_manual_review_rejects_template_or_snippet_dump(self) -> None:
         cases = [

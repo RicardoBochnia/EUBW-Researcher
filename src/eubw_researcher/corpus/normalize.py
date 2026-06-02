@@ -199,7 +199,11 @@ def _extract_pdf_text(raw_bytes: bytes) -> str:
             re.sub(r"\s+", " ", page.extract_text() or "").strip()
             for page in reader.pages
         ]
-        extracted = "\n".join(text for text in page_texts if text).strip()
+        extracted = "\n\n".join(
+            f"# Page {page_number}\n{text}"
+            for page_number, text in enumerate(page_texts, start=1)
+            if text
+        ).strip()
         if extracted:
             return extracted
     except Exception:

@@ -17,6 +17,10 @@ from eubw_researcher.corpus import (
     write_source_catalog,
 )
 from eubw_researcher.knowledge.query_expansion import expand_query
+from eubw_researcher.knowledge.relevance import (
+    build_gap_discovery_query,
+    evidence_relevance_decision,
+)
 from eubw_researcher.knowledge import (
     KnowledgeService,
     build_dynamic_claim_targets,
@@ -344,7 +348,7 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
             any(
                 passage.source_id == "celex_32024R2979_fulltext_en"
                 and passage.locator
-                and "PSEUDONYM" in passage.locator.upper()
+                and "ARTICLE 14" in passage.locator.upper()
                 for passage in opened_passages
             )
         )
@@ -601,6 +605,133 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         self.assertIn("c_nonce freshness", wua_surface)
         self.assertIn("outside this technical specification", wua_surface)
         self.assertNotIn("Note that *how*", wua_surface)
+
+    def test_dynamic_targets_filter_topic_drift_for_wua_issuer_question(self) -> None:
+        question = (
+            "Welche Informationen und Pruefungen rund um die Wallet Unit Attestation "
+            "braucht ein PID- oder Attribut-Aussteller?"
+        )
+        relevant = EvidenceCluster(
+            cluster_id="wua",
+            label="WUA",
+            records=[
+                EvidenceClusterRecord(
+                    record_id="wua",
+                    source_id="ec_ts03_wallet_unit_attestation",
+                    chunk_id="wua_chunk",
+                    locator="2.2.2.2 PID Providers and Attestation Providers",
+                    snippet=(
+                        "PID Providers and Attestation Providers issuing device-bound "
+                        "attestations SHALL advertise WUA proof_types_supported in Issuer "
+                        "Credential Metadata."
+                    ),
+                    source_role_level=SourceRoleLevel.MEDIUM,
+                    source_kind=SourceKind.PROJECT_ARTIFACT,
+                    document_status=DocumentStatus.INFORMATIONAL,
+                )
+            ],
+        )
+        drift = EvidenceCluster(
+            cluster_id="rp",
+            label="RP registration",
+            records=[
+                EvidenceClusterRecord(
+                    record_id="rp",
+                    source_id="ec_ts05_rp_registration_api",
+                    chunk_id="rp_chunk",
+                    locator="2 Data Model",
+                    snippet="Relying Party registration records include service metadata.",
+                    source_role_level=SourceRoleLevel.MEDIUM,
+                    source_kind=SourceKind.PROJECT_ARTIFACT,
+                    document_status=DocumentStatus.INFORMATIONAL,
+                )
+            ],
+        )
+
+        targets, selected = build_dynamic_claim_targets(
+            [drift, relevant],
+            question=question,
+            max_targets=4,
+        )
+
+        self.assertEqual({item.source_id for item in selected}, {"ec_ts03_wallet_unit_attestation"})
+        self.assertEqual({target.source_ids[0] for target in targets}, {"ec_ts03_wallet_unit_attestation"})
+
+    def test_reading_matrix_filters_compacted_protocol_topic_drift(self) -> None:
+        question = (
+            "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz gegen "
+            "CSRF, Replay oder falsche Response-Zuordnung?"
+        )
+        openidvp = EvidenceCluster(
+            cluster_id="openidvp",
+            label="OpenID4VP",
+            records=[
+                EvidenceClusterRecord(
+                    record_id="openidvp",
+                    source_id="openid4vp_1_0_official",
+                    chunk_id="openidvp_chunk",
+                    locator="14.3.2 Protection of the Response URI",
+                    snippet=(
+                        "OpenID4VP requires the Verifier Response URI to check that "
+                        "the state parameter corresponds to a recent Authorization Request."
+                    ),
+                    source_role_level=SourceRoleLevel.HIGH,
+                    source_kind=SourceKind.TECHNICAL_STANDARD,
+                    document_status=DocumentStatus.FINAL,
+                )
+            ],
+        )
+        openidvci = EvidenceCluster(
+            cluster_id="openidvci",
+            label="OpenID4VCI",
+            records=[
+                EvidenceClusterRecord(
+                    record_id="openidvci",
+                    source_id="openid4vci_1_0_official",
+                    chunk_id="openidvci_chunk",
+                    locator="Credential Offer",
+                    snippet="OpenID4VCI defines issuer_state for a Credential Offer.",
+                    source_role_level=SourceRoleLevel.HIGH,
+                    source_kind=SourceKind.TECHNICAL_STANDARD,
+                    document_status=DocumentStatus.FINAL,
+                )
+            ],
+        )
+        runtime = load_runtime_config(REPO_ROOT / "configs" / "runtime.knowledge_composer_vnext.yaml")
+
+        reading_plan, opened, matrix = build_reading_artifacts(
+            question=question,
+            clusters=[openidvci, openidvp],
+            selected_evidence=[],
+            claim_verification=[],
+            runtime_config=runtime,
+        )
+
+        self.assertEqual({item.source_id for item in reading_plan.items}, {"openid4vp_1_0_official"})
+        self.assertEqual({item.source_id for item in opened}, {"openid4vp_1_0_official"})
+        self.assertEqual({row.source_ids[0] for row in matrix.records}, {"openid4vp_1_0_official"})
+        self.assertEqual(matrix.records[0].answer_role, "technical_spec_context")
+
+    def test_web_gap_query_does_not_reuse_retrieved_snippet(self) -> None:
+        question = (
+            "Welche Rolle spielen state und nonce in OpenID4VP beim Schutz gegen "
+            "CSRF und Replay?"
+        )
+        query = build_gap_discovery_query(
+            question,
+            question_facets=["protocol_security_parameter"],
+            gap_reason="Required technical support remains unresolved.",
+            target_terms=[
+                "state",
+                "nonce",
+                "Member States shall ensure that infringements be subject to administrative fines.",
+            ],
+        )
+
+        self.assertIn("protocol_security_parameter", query)
+        self.assertIn("state", query)
+        self.assertIn("nonce", query)
+        self.assertNotIn("administrative fines", query)
 
     def test_knowledge_service_exposes_agent_navigation_primitives(self) -> None:
         catalog_path = REPO_ROOT / "tests" / "fixtures" / "catalog" / "source_catalog.yaml"
@@ -925,6 +1056,169 @@ class AgenticKnowledgeMigrationTests(unittest.TestCase):
         obligation_rule = governance.claim_type_compatibility[ClaimType.OBLIGATION]
         self.assertIn(BindingLevel.BINDING, obligation_rule.allowed_binding_levels)
         self.assertTrue(obligation_rule.binding_required_for_current_law)
+
+    def test_identity_matching_profile_rejects_wallet_attestation_false_friend(self) -> None:
+        question = (
+            "Welche Daten regelt die Durchfuehrungsverordnung fuer "
+            "grenzueberschreitendes Identity Matching?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "celex_32025R0846_fulltext_en cross-border identity matching of natural persons",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "ec_ts03_wallet_unit_attestation wallet unit attestation for PID issuance",
+            ).relevant
+        )
+
+    def test_ts11_profile_rejects_rp_registration_api_false_friend(self) -> None:
+        question = (
+            "Welche Metadaten beschreibt TS11 fuer Attestation Rulebooks "
+            "und Attributschemata?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "ec_ts11_catalogue_attributes_schemes catalogue of attributes and attestations",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "ec_ts05_rp_registration_api credential identifier and registration API",
+            ).relevant
+        )
+
+    def test_trusted_list_query_expands_without_wallet_trust_mark_false_friend(self) -> None:
+        question = (
+            "Welche Anforderungen gelten fuer vertrauenswuerdige Listen "
+            "qualifizierter Vertrauensdienste?"
+        )
+        expansion = expand_query(question)
+
+        self.assertIn("trusted lists", expansion.expanded_terms)
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "celex_32025D2164_fulltext_en trusted lists for qualified trust services",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "Wallet Trust Mark UI view with links to trusted list of EUDI wallets",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "Relying-party entitlements for qualified trust service providers "
+                "shall be verified against national trusted lists.",
+            ).relevant
+        )
+
+    def test_portability_profile_rejects_unrelated_ebw_wua_status_claim(self) -> None:
+        question = (
+            "Was passiert bei einem Wechsel des Wallet-Providers mit Nachweisen "
+            "und Mandaten, wenn echte Portabilitaet gefordert wird?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "ec_ts10_data_portability_export MigrationObject download export",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "European Business Wallet providers publish the validity status "
+                "when they revoke a wallet unit attestation.",
+            ).relevant
+        )
+
+    def test_delegation_chain_profile_rejects_openid_scope_false_friend(self) -> None:
+        question = (
+            "Wie koennte eine mehrstufige Delegationskette technisch modelliert "
+            "werden, ohne dass Nachvollziehbarkeit verloren geht?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "ec_ts11_catalogue_attributes_schemes catalogue of attestations "
+                "including powers and mandates to represent natural or legal persons",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "openid4vp_1_0_official authorization request scope parameter",
+            ).relevant
+        )
+
+    def test_ebw_governance_status_profile_rejects_general_eidas_false_friend(self) -> None:
+        question = (
+            "Welche EBW-Aussagen darf ich heute als geltendes Recht formulieren, "
+            "und welche muss ich als Vorschlag oder technische Annahme qualifizieren?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "ebw_proposal_com_2025_0838 European Business Wallet proposal",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "celex_32024R1183_fulltext_en final EUDI Wallet regulation",
+            ).relevant
+        )
+
+    def test_audit_log_profile_rejects_credential_false_friend(self) -> None:
+        question = (
+            "Welche Audit- und Ereignisspuren muessen fuer Streitfaelle erhalten "
+            "bleiben, ohne in eine Vollprotokollierung abzugleiten?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "eudi_arf_main_markdown dashboard access to the transaction log",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "openid4vci_1_0_official credential and attestation acknowledgements",
+            ).relevant
+        )
+
+    def test_authentic_source_priority_profile_rejects_registration_false_friend(self) -> None:
+        question = (
+            "Welche Quelle hat im Konfliktfall Vorrang, wenn Registerdaten, "
+            "Wallet-Nachweise und Unternehmensrealitaet auseinanderfallen?"
+        )
+
+        self.assertTrue(
+            evidence_relevance_decision(
+                question,
+                "celex_32024R1183_fulltext_en attributes rely on authentic sources",
+            ).relevant
+        )
+        self.assertFalse(
+            evidence_relevance_decision(
+                question,
+                "openid4vci_1_0_official OAuth dynamic client registration metadata source",
+            ).relevant
+        )
 
 
 if __name__ == "__main__":

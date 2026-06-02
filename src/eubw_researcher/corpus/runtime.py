@@ -22,7 +22,7 @@ from eubw_researcher.models import (
 )
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
-_INGESTION_CACHE_SCHEMA_VERSION = "normalized_bundle.v2"
+_INGESTION_CACHE_SCHEMA_VERSION = "normalized_bundle.v3"
 
 
 def is_real_corpus_catalog(catalog_path: Optional[Path]) -> bool:

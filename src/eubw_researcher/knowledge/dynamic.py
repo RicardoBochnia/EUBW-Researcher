@@ -17,6 +17,10 @@ from eubw_researcher.models import (
     SourceKind,
     SourceRoleLevel,
 )
+from eubw_researcher.knowledge.relevance import (
+    claim_surface_is_relevant,
+    evidence_record_is_relevant,
+)
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
 
@@ -50,6 +54,7 @@ def build_dynamic_claim_targets(
     clusters: Iterable[EvidenceCluster],
     *,
     max_targets: int = 10,
+    question: str | None = None,
 ) -> tuple[list[ClaimTarget], list[SelectedEvidenceRecord]]:
     targets: list[ClaimTarget] = []
     selected_evidence: list[SelectedEvidenceRecord] = []
@@ -62,6 +67,8 @@ def build_dynamic_claim_targets(
                 continue
             record = cluster.records[record_index]
             if record.chunk_id in seen_chunk_ids:
+                continue
+            if question and not evidence_record_is_relevant(question, record):
                 continue
             seen_chunk_ids.add(record.chunk_id)
             claim_text = _claim_text(record.snippet)
@@ -83,6 +90,7 @@ def build_dynamic_claim_targets(
                     contradiction_groups=[],
                     grouping_label=f"Evidence cluster: {cluster.label}",
                     source_ids=[record.source_id],
+                    chunk_ids=[record.chunk_id],
                 )
             )
             selected_evidence.append(
@@ -113,6 +121,7 @@ def build_candidate_claim_targets(
     catalog: SourceCatalog,
     *,
     max_targets: int = 8,
+    question: str | None = None,
 ) -> list[ClaimTarget]:
     targets: list[ClaimTarget] = []
     sources_by_id = catalog.by_id()
@@ -123,6 +132,19 @@ def build_candidate_claim_targets(
             source_id for source_id in claim.source_ids if source_id in sources_by_id
         ]
         source_entries = [sources_by_id[source_id] for source_id in source_ids]
+        if question and not claim_surface_is_relevant(
+            question,
+            statement=claim.normalized_statement,
+            source_ids=source_ids,
+            extra_values=[
+                claim.topic or "",
+                claim.actor or "",
+                claim.action or "",
+                claim.object or "",
+                claim.modality or "",
+            ],
+        ):
+            continue
         terms = _terms(
             " ".join(
                 part

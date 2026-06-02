@@ -753,6 +753,99 @@ class ComposerTests(unittest.TestCase):
         self.assertIn("ec_ts03_wallet_unit_attestation", bundle.rendered_answer[:details_index])
         self.assertFalse(bundle.answer_alignment_report.has_blocking_violations())
 
+    def test_vnext_locator_fallback_keeps_source_semantics_visible(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Welche Anforderungen gelten fuer trusted lists?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="trusted_lists_article",
+                    claim_id="dynamic_cluster_trusted_lists",
+                    cluster_id="cluster_trusted_lists",
+                    answer_role="normative_basis",
+                    statement=(
+                        "Article 1 Annex I to Implementing Decision (EU) 2015/1505 "
+                        "is amended as set out in the Annex to this Decision."
+                    ),
+                    source_ids=["celex_32025D2164_fulltext_en"],
+                    chunk_ids=["trusted_lists_article_1"],
+                    locators=["Implementing Decision (EU) 2025/2164 > Article 1"],
+                    source_kinds=[SourceKind.IMPLEMENTING_ACT],
+                    verification_status=ClaimState.CONFIRMED,
+                    caveats=[
+                        "source_role:high",
+                        "source_kind:implementing_act",
+                        "binding_level:unknown",
+                        "document_status:final",
+                    ],
+                )
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Welche Anforderungen gelten fuer trusted lists?",
+            [
+                _entry(
+                    "dynamic_cluster_trusted_lists",
+                    "Opened trusted-list decision evidence.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("wallet_requirements_summary"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        details_index = bundle.rendered_answer.index("Pruefdetails:")
+        user_answer = bundle.rendered_answer[:details_index]
+        self.assertIn("celex_32025D2164_fulltext_en", user_answer)
+        self.assertIn("Rang: high", user_answer)
+        self.assertIn("Bindungswirkung: eu_rechtsnorm", user_answer)
+        self.assertIn("Dokumentstatus: final", user_answer)
+
+    def test_vnext_locator_fallback_rejects_pdf_page_heading_fragment(self) -> None:
+        matrix = EvidenceSynthesisMatrix(
+            question="Welche EBW-Aussagen sind Proposal-Stand?",
+            records=[
+                EvidenceSynthesisRecord(
+                    synthesis_id="ebw_proposal_page",
+                    claim_id="dynamic_cluster_ebw_proposal",
+                    cluster_id="cluster_ebw_proposal",
+                    answer_role="source_role_context",
+                    statement="COM(2025)838 final EN proposal text (Part 1 PDF) Page 73 EN 6 EN 4.2.",
+                    source_ids=["ebw_proposal_com_2025_0838"],
+                    chunk_ids=["ebw_proposal_com_2025_0838::page-73"],
+                    locators=["Page 73"],
+                    source_kinds=[SourceKind.REGULATION],
+                    verification_status=ClaimState.CONFIRMED,
+                    caveats=[
+                        "source_role:high",
+                        "source_kind:regulation",
+                        "binding_level:unknown",
+                        "document_status:proposal",
+                    ],
+                )
+            ],
+        )
+
+        bundle = compose_answer_bundle(
+            "Welche EBW-Aussagen sind Proposal-Stand?",
+            [
+                _entry(
+                    "dynamic_cluster_ebw_proposal",
+                    "Opened proposal-stage evidence.",
+                    ClaimState.CONFIRMED,
+                )
+            ],
+            query_intent=_generic_intent("broad_regulation_question"),
+            composer_mode="vnext",
+            evidence_synthesis_matrix=matrix,
+        )
+
+        user_answer = bundle.rendered_answer[: bundle.rendered_answer.index("Pruefdetails:")]
+        self.assertIn("Die geoeffnete Evidenz bindet die Antwort", user_answer)
+        self.assertIn("ebw_proposal_com_2025_0838", user_answer)
+        self.assertNotIn("COM(2025)838", user_answer)
+
     def test_vnext_renderer_trust_mark_product_answer(self) -> None:
         matrix = EvidenceSynthesisMatrix(
             question="Wann muss ein Wallet-Provider ein sichtbares Wallet-Vertrauenszeichen entfernen?",

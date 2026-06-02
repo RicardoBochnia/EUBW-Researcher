@@ -23,6 +23,10 @@ from eubw_researcher.knowledge import (
     selected_evidence_candidates,
     verification_allows_answer_use,
 )
+from eubw_researcher.knowledge.relevance import (
+    build_gap_discovery_query,
+    ledger_entry_is_relevant,
+)
 from eubw_researcher.models import (
     AnswerResult,
     ClaimState,
@@ -335,7 +339,12 @@ class ResearchPipeline:
                 target.target_id,
                 gap_record.reason_local_evidence_insufficient,
             )
-            discovery_query = self._target_query_text(question, target)
+            discovery_query = build_gap_discovery_query(
+                question,
+                question_facets=detect_question_facets(question),
+                gap_reason=gap_record.reason_local_evidence_insufficient,
+                target_terms=[*target.scope_terms, *target.primary_terms],
+            )
             documents, reports, fetch_records = fetch_and_normalize_official_sources(
                 sub_question=gap_record.sub_question,
                 source_kinds=allowed_web_kinds,
@@ -435,10 +444,12 @@ class ResearchPipeline:
                 knowledge_service.search_claims(question),
                 self.ingestion_bundle.catalog,
                 max_targets=self.runtime_config.knowledge_service_max_candidate_claim_targets,
+                question=question,
             )
             dynamic_targets, selected_evidence = build_dynamic_claim_targets(
                 evidence_clusters,
                 max_targets=max(5, self.runtime_config.knowledge_service_max_opened_passages),
+                question=question,
             )
             if candidate_targets or dynamic_targets:
                 query_intent.claim_targets = [
@@ -538,7 +549,10 @@ class ResearchPipeline:
                 runtime_config=self.runtime_config,
             )
         approved_entries = [
-            entry for entry in ledger_entries if entry.final_claim_state != ClaimState.BLOCKED
+            entry
+            for entry in ledger_entries
+            if entry.final_claim_state != ClaimState.BLOCKED
+            and ledger_entry_is_relevant(question, entry)
         ]
         if (
             claim_verification

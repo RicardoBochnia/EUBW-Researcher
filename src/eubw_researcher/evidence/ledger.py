@@ -182,10 +182,12 @@ def collect_target_evidence(
     hierarchy: SourceHierarchyConfig,
 ) -> Tuple[List[EvidenceMatch], List[EvidenceMatch]]:
     required_source_ids = set(getattr(target, "source_ids", []) or [])
+    required_chunk_ids = set(getattr(target, "chunk_ids", []) or [])
     scoped_candidates = [
         candidate
         for candidate in candidates
-        if not required_source_ids or candidate.chunk.source_id in required_source_ids
+        if (not required_source_ids or candidate.chunk.source_id in required_source_ids)
+        and (not required_chunk_ids or candidate.chunk.chunk_id in required_chunk_ids)
     ]
     classified = [_classify_candidate(target, candidate) for candidate in scoped_candidates]
     support_matches = [

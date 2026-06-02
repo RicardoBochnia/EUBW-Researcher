@@ -34,6 +34,10 @@ from eubw_researcher.knowledge.question_facets import (
     detect_question_facets,
     facet_tags_for_text,
 )
+from eubw_researcher.knowledge.relevance import (
+    evidence_relevance_decision,
+    source_entry_is_relevant,
+)
 from eubw_researcher.retrieval.text_normalization import normalize_text_for_matching
 
 STOPWORDS = {
@@ -320,6 +324,17 @@ def _snippet(text: str, terms: Iterable[str], *, max_length: int = 2800) -> str:
     return compact[start:end].strip()
 
 
+def _cluster_concepts(matches: Iterable[_ChunkMatch]) -> list[str]:
+    concepts = {
+        term
+        for match in matches
+        for term in [*match.matched_terms, *match.matched_phrases]
+    }
+    if "transaction log" in concepts or {"transaction", "log"}.issubset(concepts):
+        concepts.add("audit")
+    return sorted(concepts)
+
+
 class KnowledgeService:
     """Evidence-only navigation helper behind the runtime facade."""
 
@@ -430,7 +445,33 @@ class KnowledgeService:
             if float(candidate.get("score", 0.0)) >= SOURCE_RESCUE_THRESHOLD
         }
         grouped: dict[str, list[_ChunkMatch]] = defaultdict(list)
-        for match in matches:
+        cluster_matches = [
+            match
+            for match in matches
+            if evidence_relevance_decision(
+                question,
+                " ".join(
+                    [
+                        match.chunk.source_id,
+                        match.chunk.title,
+                        match.chunk.extracted_anchor_label or "",
+                        match.chunk.text,
+                    ]
+                ),
+            ).relevant
+        ]
+        relevance_fallback_used = False
+        if cluster_matches == [] and not any(
+            source_entry_is_relevant(
+                question,
+                source,
+                aliases=self._source_aliases_by_id.get(source.source_id, ()),
+            )
+            for source in self._sources_by_id.values()
+        ):
+            cluster_matches = matches
+            relevance_fallback_used = True
+        for match in cluster_matches:
             source = self._sources_by_id.get(match.chunk.source_id)
             if match.chunk.source_id in strong_source_ids:
                 family = match.chunk.source_id
@@ -473,17 +514,15 @@ class KnowledgeService:
             ]
             if candidate_signal_present:
                 sufficiency_signals.append("source_catalog_candidate_present")
+            if relevance_fallback_used:
+                sufficiency_signals.append(
+                    "catalog_has_no_profile_compatible_source_relevance_fallback"
+                )
             clusters.append(
                 EvidenceCluster(
                     cluster_id=f"cluster_{index}_{re.sub(r'[^a-z0-9]+', '_', label.lower()).strip('_') or 'evidence'}",
                     label=label,
-                    matched_concepts=sorted(
-                        {
-                            term
-                            for match in label_matches
-                            for term in [*match.matched_terms, *match.matched_phrases]
-                        }
-                    ),
+                    matched_concepts=_cluster_concepts(label_matches),
                     candidate_claim_ids=claim_ids,
                     supporting_chunk_ids=[record.chunk_id for record in records],
                     source_ids=sorted({record.source_id for record in records}),
@@ -529,7 +568,14 @@ class KnowledgeService:
                     operation="build_evidence_clusters",
                     query=question,
                     result_ids=[cluster.cluster_id for cluster in clusters],
-                    notes=["grouped_by_source_family_source_or_kind"],
+                    notes=[
+                        "grouped_by_source_family_source_or_kind",
+                        *(
+                            ["catalog_has_no_profile_compatible_source_relevance_fallback"]
+                            if relevance_fallback_used
+                            else []
+                        ),
+                    ],
                 ),
             ],
         )
@@ -930,6 +976,15 @@ class KnowledgeService:
             relation_edges=self._relations_by_id.values(),
             source_aliases=self._source_aliases_by_id,
         )
+        source_candidates = [
+            candidate
+            for candidate in source_candidates
+            if source_entry_is_relevant(
+                question_or_terms,
+                self._sources_by_id[candidate.source_id],
+                aliases=self._source_aliases_by_id.get(candidate.source_id, ()),
+            )
+        ]
         source_candidates_by_id = {
             candidate.source_id: candidate for candidate in source_candidates
         }
